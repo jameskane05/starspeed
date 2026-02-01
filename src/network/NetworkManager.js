@@ -1,5 +1,9 @@
 import * as Colyseus from "@colyseus/sdk";
 
+// Set to your Colyseus Cloud URL after deployment, or leave null for localhost
+const CLOUD_SERVER_URL = null; // e.g., "wss://your-app-id.colyseus.cloud"
+const LOCAL_SERVER_URL = "ws://localhost:2567";
+
 class NetworkManager {
   constructor() {
     this.client = null;
@@ -7,7 +11,7 @@ class NetworkManager {
     this.sessionId = null;
     this.eventListeners = {};
     this.connected = false;
-    this.serverUrl = "ws://localhost:2567";
+    this.serverUrl = CLOUD_SERVER_URL || LOCAL_SERVER_URL;
     
     this.inputSequence = 0;
     this.pendingInputs = [];
