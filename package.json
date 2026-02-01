@@ -1,5 +1,5 @@
 {
-  "name": "descent",
+  "name": "starstrafe",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -8,7 +8,8 @@
     "dev:all": "concurrently \"npm run dev\" \"npm run server\"",
     "server": "npx kill-port 2567 && cd server && npm start",
     "kill-server": "npx kill-port 2567",
-    "build": "vite build",
+    "build": "cd server && npm install && npm run build",
+    "build:client": "vite build",
     "preview": "vite preview"
   },
   "devDependencies": {
