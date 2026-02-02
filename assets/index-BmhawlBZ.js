@@ -12860,11 +12860,11 @@ void main() {
             if (Z.isInterleavedBufferAttribute) {
               const $ = Z.data, me = $.stride, ke = Z.offset;
               if ($.isInstancedInterleavedBuffer) {
-                for (let Ie = 0; Ie < V.locationSize; Ie++) f(V.location + Ie, $.meshPerAttribute);
+                for (let Ce = 0; Ce < V.locationSize; Ce++) f(V.location + Ce, $.meshPerAttribute);
                 _.isInstancedMesh !== true && B._maxInstanceCount === void 0 && (B._maxInstanceCount = $.meshPerAttribute * $.count);
-              } else for (let Ie = 0; Ie < V.locationSize; Ie++) g(V.location + Ie);
+              } else for (let Ce = 0; Ce < V.locationSize; Ce++) g(V.location + Ce);
               s.bindBuffer(s.ARRAY_BUFFER, Se);
-              for (let Ie = 0; Ie < V.locationSize; Ie++) x(V.location + Ie, te / V.locationSize, je, j, me * Je, (ke + te / V.locationSize * Ie) * Je, K);
+              for (let Ce = 0; Ce < V.locationSize; Ce++) x(V.location + Ce, te / V.locationSize, je, j, me * Je, (ke + te / V.locationSize * Ce) * Je, K);
             } else {
               if (Z.isInstancedBufferAttribute) {
                 for (let $ = 0; $ < V.locationSize; $++) f(V.location + $, Z.meshPerAttribute);
@@ -15095,7 +15095,7 @@ Program Info Log: ` + k + `
         const gt = wi[Z];
         Se = gt.vertexShader, je = gt.fragmentShader;
       } else Se = I.vertexShader, je = I.fragmentShader, h.update(I), Je = h.getVertexShaderID(I), K = h.getFragmentShaderID(I);
-      const $ = s.getRenderTarget(), me = s.state.buffers.depth.getReversed(), ke = B.isInstancedMesh === true, Ie = B.isBatchedMesh === true, qe = !!I.map, bt = !!I.matcap, $e = !!N, ct = !!I.aoMap, lt = !!I.lightMap, Ve = !!I.bumpMap, wt = !!I.normalMap, P = !!I.displacementMap, dt = !!I.emissiveMap, ze = !!I.metalnessMap, It = !!I.roughnessMap, Be = I.anisotropy > 0, T = I.clearcoat > 0, C = I.dispersion > 0, U = I.iridescence > 0, ee = I.sheen > 0, ie = I.transmission > 0, X = Be && !!I.anisotropyMap, Me = T && !!I.clearcoatMap, ce = T && !!I.clearcoatNormalMap, Te = T && !!I.clearcoatRoughnessMap, He = U && !!I.iridescenceMap, ae = U && !!I.iridescenceThicknessMap, de = ee && !!I.sheenColorMap, we = ee && !!I.sheenRoughnessMap, Qe = !!I.specularMap, Ae = !!I.specularColorMap, et = !!I.specularIntensityMap, F = ie && !!I.transmissionMap, Ee = ie && !!I.thicknessMap, oe = !!I.gradientMap, ve = !!I.alphaMap, re = I.alphaTest > 0, ne = !!I.alphaHash, he = !!I.extensions;
+      const $ = s.getRenderTarget(), me = s.state.buffers.depth.getReversed(), ke = B.isInstancedMesh === true, Ce = B.isBatchedMesh === true, qe = !!I.map, bt = !!I.matcap, $e = !!N, ct = !!I.aoMap, lt = !!I.lightMap, Ve = !!I.bumpMap, wt = !!I.normalMap, P = !!I.displacementMap, dt = !!I.emissiveMap, ze = !!I.metalnessMap, It = !!I.roughnessMap, Be = I.anisotropy > 0, T = I.clearcoat > 0, C = I.dispersion > 0, U = I.iridescence > 0, ee = I.sheen > 0, ie = I.transmission > 0, X = Be && !!I.anisotropyMap, Me = T && !!I.clearcoatMap, ce = T && !!I.clearcoatNormalMap, Te = T && !!I.clearcoatRoughnessMap, He = U && !!I.iridescenceMap, ae = U && !!I.iridescenceThicknessMap, de = ee && !!I.sheenColorMap, we = ee && !!I.sheenRoughnessMap, Qe = !!I.specularMap, Ae = !!I.specularColorMap, et = !!I.specularIntensityMap, F = ie && !!I.transmissionMap, Ee = ie && !!I.thicknessMap, oe = !!I.gradientMap, ve = !!I.alphaMap, re = I.alphaTest > 0, ne = !!I.alphaHash, he = !!I.extensions;
       let Ye = Qi;
       I.toneMapped && ($ === null || $.isXRRenderTarget === true) && (Ye = s.toneMapping);
       const Rt = {
@@ -15110,8 +15110,8 @@ Program Info Log: ` + k + `
         isRawShaderMaterial: I.isRawShaderMaterial === true,
         glslVersion: I.glslVersion,
         precision: d,
-        batching: Ie,
-        batchingColor: Ie && B._colorsTexture !== null,
+        batching: Ce,
+        batchingColor: Ce && B._colorsTexture !== null,
         instancing: ke,
         instancingColor: ke && B.instanceColor !== null,
         instancingMorph: ke && B.morphTexture !== null,
@@ -15223,7 +15223,7 @@ Program Info Log: ` + k + `
         depthPacking: I.depthPacking || 0,
         index0AttributeName: I.index0AttributeName,
         extensionClipCullDistance: he && I.extensions.clipCullDistance === true && n.has("WEBGL_clip_cull_distance"),
-        extensionMultiDraw: (he && I.extensions.multiDraw === true || Ie) && n.has("WEBGL_multi_draw"),
+        extensionMultiDraw: (he && I.extensions.multiDraw === true || Ce) && n.has("WEBGL_multi_draw"),
         rendererExtensionParallelShaderCompile: n.has("KHR_parallel_shader_compile"),
         customProgramCacheKey: I.customProgramCacheKey()
       };
@@ -15978,7 +15978,7 @@ void main() {
     function ke(F, Ee) {
       return l[F] !== Ee ? (s.bindFramebuffer(F, Ee), l[F] = Ee, F === s.DRAW_FRAMEBUFFER && (l[s.FRAMEBUFFER] = Ee), F === s.FRAMEBUFFER && (l[s.DRAW_FRAMEBUFFER] = Ee), true) : false;
     }
-    function Ie(F, Ee) {
+    function Ce(F, Ee) {
       let oe = d, ve = false;
       if (F) {
         oe = u.get(Ee), oe === void 0 && (oe = [], u.set(Ee, oe));
@@ -16198,7 +16198,7 @@ void main() {
       enable: $,
       disable: me,
       bindFramebuffer: ke,
-      drawBuffers: Ie,
+      drawBuffers: Ce,
       useProgram: qe,
       setBlending: ct,
       setMaterial: lt,
@@ -16586,7 +16586,7 @@ void main() {
       }
       s.bindRenderbuffer(s.RENDERBUFFER, null);
     }
-    function Ie(T, C, U) {
+    function Ce(T, C, U) {
       const ee = C.isWebGLCubeRenderTarget === true;
       if (t.bindFramebuffer(s.FRAMEBUFFER, T), !(C.depthTexture && C.depthTexture.isDepthTexture)) throw new Error("renderTarget.depthTexture must be an instance of THREE.DepthTexture");
       const ie = n.get(C.depthTexture);
@@ -16616,10 +16616,10 @@ void main() {
         }
         C.__boundDepthTexture = ee;
       }
-      if (T.depthTexture && !C.__autoAllocateDepthBuffer) if (U) for (let ee = 0; ee < 6; ee++) Ie(C.__webglFramebuffer[ee], T, ee);
+      if (T.depthTexture && !C.__autoAllocateDepthBuffer) if (U) for (let ee = 0; ee < 6; ee++) Ce(C.__webglFramebuffer[ee], T, ee);
       else {
         const ee = T.texture.mipmaps;
-        ee && ee.length > 0 ? Ie(C.__webglFramebuffer[0], T, 0) : Ie(C.__webglFramebuffer, T, 0);
+        ee && ee.length > 0 ? Ce(C.__webglFramebuffer[0], T, 0) : Ce(C.__webglFramebuffer, T, 0);
       }
       else if (U) {
         C.__webglDepthbuffer = [];
@@ -16973,11 +16973,11 @@ void main() {
       }, this.setSession = async function(K) {
         if (i = K, i !== null) {
           if (x = e.getRenderTarget(), i.addEventListener("select", k), i.addEventListener("selectstart", k), i.addEventListener("selectend", k), i.addEventListener("squeeze", k), i.addEventListener("squeezestart", k), i.addEventListener("squeezeend", k), i.addEventListener("end", R), i.addEventListener("inputsourceschange", N), y.xrCompatible !== true && await t.makeXRCompatible(), Q = e.getPixelRatio(), e.getSize(M), m && "createProjectionLayer" in XRWebGLBinding.prototype) {
-            let me = null, ke = null, Ie = null;
-            y.depth && (Ie = y.stencil ? t.DEPTH24_STENCIL8 : t.DEPTH_COMPONENT24, me = y.stencil ? tr : ds, ke = y.stencil ? Ao : yn);
+            let me = null, ke = null, Ce = null;
+            y.depth && (Ce = y.stencil ? t.DEPTH24_STENCIL8 : t.DEPTH_COMPONENT24, me = y.stencil ? tr : ds, ke = y.stencil ? Ao : yn);
             const qe = {
               colorFormat: t.RGBA8,
-              depthFormat: Ie,
+              depthFormat: Ce,
               scaleFactor: r
             };
             l = this.getBinding(), u = l.createProjectionLayer(qe), i.updateRenderState({
@@ -17040,15 +17040,15 @@ void main() {
             }
             if (ke === -1) break;
           }
-          const Ie = v[ke];
-          Ie && Ie.connect(me);
+          const Ce = v[ke];
+          Ce && Ce.connect(me);
         }
       }
       const V = new w(), Z = new w();
       function j(K, $, me) {
         V.setFromMatrixPosition($.matrixWorld), Z.setFromMatrixPosition(me.matrixWorld);
-        const ke = V.distanceTo(Z), Ie = $.projectionMatrix.elements, qe = me.projectionMatrix.elements, bt = Ie[14] / (Ie[10] - 1), $e = Ie[14] / (Ie[10] + 1), ct = (Ie[9] + 1) / Ie[5], lt = (Ie[9] - 1) / Ie[5], Ve = (Ie[8] - 1) / Ie[0], wt = (qe[8] + 1) / qe[0], P = bt * Ve, dt = bt * wt, ze = ke / (-Ve + wt), It = ze * -Ve;
-        if ($.matrixWorld.decompose(K.position, K.quaternion, K.scale), K.translateX(It), K.translateZ(ze), K.matrixWorld.compose(K.position, K.quaternion, K.scale), K.matrixWorldInverse.copy(K.matrixWorld).invert(), Ie[10] === -1) K.projectionMatrix.copy($.projectionMatrix), K.projectionMatrixInverse.copy($.projectionMatrixInverse);
+        const ke = V.distanceTo(Z), Ce = $.projectionMatrix.elements, qe = me.projectionMatrix.elements, bt = Ce[14] / (Ce[10] - 1), $e = Ce[14] / (Ce[10] + 1), ct = (Ce[9] + 1) / Ce[5], lt = (Ce[9] - 1) / Ce[5], Ve = (Ce[8] - 1) / Ce[0], wt = (qe[8] + 1) / qe[0], P = bt * Ve, dt = bt * wt, ze = ke / (-Ve + wt), It = ze * -Ve;
+        if ($.matrixWorld.decompose(K.position, K.quaternion, K.scale), K.translateX(It), K.translateZ(ze), K.matrixWorld.compose(K.position, K.quaternion, K.scale), K.matrixWorldInverse.copy(K.matrixWorld).invert(), Ce[10] === -1) K.projectionMatrix.copy($.projectionMatrix), K.projectionMatrixInverse.copy($.projectionMatrixInverse);
         else {
           const Be = bt + ze, T = $e + ze, C = P - It, U = dt + (ke - It), ee = ct * $e / T * Be, ie = lt * $e / T * Be;
           K.projectionMatrix.makePerspective(C, U, ee, ie, Be, T), K.projectionMatrixInverse.copy(K.projectionMatrix).invert();
@@ -17064,10 +17064,10 @@ void main() {
           depthNear: G.near,
           depthFar: G.far
         }), B = G.near, L = G.far), G.layers.mask = K.layers.mask | 6, I.layers.mask = G.layers.mask & 3, _.layers.mask = G.layers.mask & 5;
-        const ke = K.parent, Ie = G.cameras;
+        const ke = K.parent, Ce = G.cameras;
         te(G, ke);
-        for (let qe = 0; qe < Ie.length; qe++) te(Ie[qe], ke);
-        Ie.length === 2 ? j(G, I, _) : G.projectionMatrix.copy(I.projectionMatrix), ue(K, G, ke);
+        for (let qe = 0; qe < Ce.length; qe++) te(Ce[qe], ke);
+        Ce.length === 2 ? j(G, I, _) : G.projectionMatrix.copy(I.projectionMatrix), ue(K, G, ke);
       };
       function ue(K, $, me) {
         me === null ? K.matrix.copy($.matrixWorld) : (K.matrix.copy(me.matrixWorld), K.matrix.invert(), K.matrix.multiply($.matrixWorld)), K.matrix.decompose(K.position, K.quaternion, K.scale), K.updateMatrixWorld(true), K.projectionMatrix.copy($.projectionMatrix), K.projectionMatrixInverse.copy($.projectionMatrixInverse), K.isPerspectiveCamera && (K.fov = ra * 2 * Math.atan(1 / K.projectionMatrix.elements[5]), K.zoom = 1);
@@ -17103,13 +17103,13 @@ void main() {
             let Ve = D[$e];
             Ve === void 0 && (Ve = new hn(), Ve.layers.enable($e), Ve.viewport = new rt(), D[$e] = Ve), Ve.matrix.fromArray(ct.transform.matrix), Ve.matrix.decompose(Ve.position, Ve.quaternion, Ve.scale), Ve.projectionMatrix.fromArray(ct.projectionMatrix), Ve.projectionMatrixInverse.copy(Ve.projectionMatrix).invert(), Ve.viewport.set(lt.x, lt.y, lt.width, lt.height), $e === 0 && (G.matrix.copy(Ve.matrix), G.matrix.decompose(G.position, G.quaternion, G.scale)), ke === true && G.cameras.push(Ve);
           }
-          const Ie = i.enabledFeatures;
-          if (Ie && Ie.includes("depth-sensing") && i.depthUsage == "gpu-optimized" && m) {
+          const Ce = i.enabledFeatures;
+          if (Ce && Ce.includes("depth-sensing") && i.depthUsage == "gpu-optimized" && m) {
             l = n.getBinding();
             const $e = l.getDepthInformation(me[0]);
             $e && $e.isValid && $e.texture && g.init($e, i.renderState);
           }
-          if (Ie && Ie.includes("camera-access") && m) {
+          if (Ce && Ce.includes("camera-access") && m) {
             e.state.unbindTexture(), l = n.getBinding();
             for (let $e = 0; $e < me.length; $e++) {
               const ct = me[$e].camera;
@@ -17123,8 +17123,8 @@ void main() {
           }
         }
         for (let me = 0; me < v.length; me++) {
-          const ke = b[me], Ie = v[me];
-          ke !== null && Ie !== void 0 && Ie.update(ke, $, c || a);
+          const ke = b[me], Ce = v[me];
+          ke !== null && Ce !== void 0 && Ce.update(ke, $, c || a);
         }
         Se && Se(K, $), $.detectedPlanes && n.dispatchEvent({
           type: "planesdetected",
@@ -17851,7 +17851,7 @@ void main() {
       const K = new rt(0, 0, te, ue), $ = new rt(0, 0, te, ue);
       let me = false;
       const ke = new NA();
-      let Ie = false, qe = false;
+      let Ce = false, qe = false;
       const bt = new Ue(), $e = new w(), ct = new rt(), lt = {
         background: null,
         fog: null,
@@ -18089,13 +18089,13 @@ void main() {
         }
         if (_ === true) return;
         const J = he.enabled === true && he.isPresenting === true, W = Q !== null && (B === null || J) && Q.begin(I, B);
-        if (S.matrixWorldAutoUpdate === true && S.updateMatrixWorld(), H.parent === null && H.matrixWorldAutoUpdate === true && H.updateMatrixWorld(), he.enabled === true && he.isPresenting === true && (Q === null || Q.isCompositing() === false) && (he.cameraAutoUpdate === true && he.updateCamera(H), H = he.getCamera()), S.isScene === true && S.onBeforeRender(I, S, H, B), v = de.get(S, M.length), v.init(H), M.push(v), bt.multiplyMatrices(H.projectionMatrix, H.matrixWorldInverse), ke.setFromProjectionMatrix(bt, Ri, H.reversedDepth), qe = this.localClippingEnabled, Ie = we.init(this.clippingPlanes, qe), E = ae.get(S, b.length), E.init(), b.push(E), he.enabled === true && he.isPresenting === true) {
+        if (S.matrixWorldAutoUpdate === true && S.updateMatrixWorld(), H.parent === null && H.matrixWorldAutoUpdate === true && H.updateMatrixWorld(), he.enabled === true && he.isPresenting === true && (Q === null || Q.isCompositing() === false) && (he.cameraAutoUpdate === true && he.updateCamera(H), H = he.getCamera()), S.isScene === true && S.onBeforeRender(I, S, H, B), v = de.get(S, M.length), v.init(H), M.push(v), bt.multiplyMatrices(H.projectionMatrix, H.matrixWorldInverse), ke.setFromProjectionMatrix(bt, Ri, H.reversedDepth), qe = this.localClippingEnabled, Ce = we.init(this.clippingPlanes, qe), E = ae.get(S, b.length), E.init(), b.push(E), he.enabled === true && he.isPresenting === true) {
           const _e4 = I.xr.getDepthSensingMesh();
           _e4 !== null && Gc(_e4, H, -1 / 0, I.sortObjects);
         }
-        Gc(S, H, 0, I.sortObjects), E.finish(), I.sortObjects === true && E.sort(je, Je), Ve = he.enabled === false || he.isPresenting === false || he.hasDepthSensing() === false, Ve && Ae.addToRenderList(E, S), this.info.render.frame++, Ie === true && we.beginShadows();
+        Gc(S, H, 0, I.sortObjects), E.finish(), I.sortObjects === true && E.sort(je, Je), Ve = he.enabled === false || he.isPresenting === false || he.hasDepthSensing() === false, Ve && Ae.addToRenderList(E, S), this.info.render.frame++, Ce === true && we.beginShadows();
         const q = v.state.shadowsArray;
-        if (Qe.render(q, S, H), Ie === true && we.endShadows(), this.info.autoReset === true && this.info.reset(), (W && Q.hasRenderPass()) === false) {
+        if (Qe.render(q, S, H), Ce === true && we.endShadows(), this.info.autoReset === true && this.info.reset(), (W && Q.hasRenderPass()) === false) {
           const _e4 = E.opaque, ye = E.transmissive;
           if (v.setupLights(), H.isArrayCamera) {
             const be = H.cameras;
@@ -18110,7 +18110,7 @@ void main() {
             }
           } else ye.length > 0 && Id(_e4, ye, S, H), Ve && Ae.render(S), Ed(E, S, H);
         }
-        B !== null && G === 0 && (U.updateMultisampleRenderTarget(B), U.updateRenderTargetMipmap(B)), W && Q.end(I), S.isScene === true && S.onAfterRender(I, S, H), ve.resetDefaultState(), L = -1, k = null, M.pop(), M.length > 0 ? (v = M[M.length - 1], Ie === true && we.setGlobalState(I.clippingPlanes, v.state.camera)) : v = null, b.pop(), b.length > 0 ? E = b[b.length - 1] : E = null;
+        B !== null && G === 0 && (U.updateMultisampleRenderTarget(B), U.updateRenderTargetMipmap(B)), W && Q.end(I), S.isScene === true && S.onAfterRender(I, S, H), ve.resetDefaultState(), L = -1, k = null, M.pop(), M.length > 0 ? (v = M[M.length - 1], Ce === true && we.setGlobalState(I.clippingPlanes, v.state.camera)) : v = null, b.pop(), b.length > 0 ? E = b[b.length - 1] : E = null;
       };
       function Gc(S, H, J, W) {
         if (S.visible === false) return;
@@ -18140,7 +18140,7 @@ void main() {
       }
       function Ed(S, H, J, W) {
         const { opaque: q, transmissive: fe, transparent: _e4 } = S;
-        v.setupLightsView(J), Ie === true && we.setGlobalState(I.clippingPlanes, J), W && Be.viewport(R.copy(W)), q.length > 0 && Fo(q, H, J), fe.length > 0 && Fo(fe, H, J), _e4.length > 0 && Fo(_e4, H, J), Be.buffers.depth.setTest(true), Be.buffers.depth.setMask(true), Be.buffers.color.setMask(true), Be.setPolygonOffset(false);
+        v.setupLightsView(J), Ce === true && we.setGlobalState(I.clippingPlanes, J), W && Be.viewport(R.copy(W)), q.length > 0 && Fo(q, H, J), fe.length > 0 && Fo(fe, H, J), _e4.length > 0 && Fo(_e4, H, J), Be.buffers.depth.setTest(true), Be.buffers.depth.setMask(true), Be.buffers.color.setMask(true), Be.setPolygonOffset(false);
       }
       function Id(S, H, J, W) {
         if ((J.isScene === true ? J.overrideMaterial : null) !== null) return;
@@ -18164,7 +18164,7 @@ void main() {
         const Ge = I.toneMapping;
         I.toneMapping = Qi;
         const Pe = W.viewport;
-        if (W.viewport !== void 0 && (W.viewport = void 0), v.setupLightsView(W), Ie === true && we.setGlobalState(I.clippingPlanes, W), Fo(S, J, W), U.updateMultisampleRenderTarget(fe), U.updateRenderTargetMipmap(fe), ze.has("WEBGL_multisampled_render_to_texture") === false) {
+        if (W.viewport !== void 0 && (W.viewport = void 0), v.setupLightsView(W), Ce === true && we.setGlobalState(I.clippingPlanes, W), Fo(S, J, W), U.updateMultisampleRenderTarget(fe), U.updateRenderTargetMipmap(fe), ze.has("WEBGL_multisampled_render_to_texture") === false) {
           let nt = false;
           for (let Ct = 0, zt = H.length; Ct < zt; Ct++) {
             const Ht = H[Ct], { object: Bt, geometry: Fe, material: mt, group: ht } = Ht;
@@ -18217,7 +18217,7 @@ void main() {
         let zt = Qi;
         W.toneMapped && (B === null || B.isXRRenderTarget === true) && (zt = I.toneMapping);
         const Ht = J.morphAttributes.position || J.morphAttributes.normal || J.morphAttributes.color, Bt = Ht !== void 0 ? Ht.length : 0, Fe = C.get(W), mt = v.state.lights;
-        if (Ie === true && (qe === true || S !== k)) {
+        if (Ce === true && (qe === true || S !== k)) {
           const bn = S === k && W.id === L;
           we.setState(W, S, bn);
         }
@@ -18669,8 +18669,8 @@ void main() {
           o && c(u + 131072);
           var me = u + je;
           if (u < Z) {
-            var ke = r - Z, Ie = Math.min(Z, me);
-            for (ke + u < 0 && Rn(3); u < Ie; ++u) t[u] = n[ke + u];
+            var ke = r - Z, Ce = Math.min(Z, me);
+            for (ke + u < 0 && Rn(3); u < Ce; ++u) t[u] = n[ke + u];
           }
           for (; u < me; ++u) t[u] = t[u - Z];
         }
@@ -22048,7 +22048,7 @@ void main() {
         const { min_x: y, min_y: x, min_z: E, max_x: v, max_y: b, max_z: M, min_scale_x: Q, min_scale_y: I, min_scale_z: _, max_scale_x: D, max_scale_y: G, max_scale_z: B } = f.properties;
         if (!y || !x || !E || !v || !b || !M || !Q || !I || !_ || !D || !G || !B) throw new Error("Missing PLY chunk properties");
         return n = true, (L, k) => {
-          const { min_x: R, min_y: N, min_z: V, max_x: Z, max_y: j, max_z: te, min_scale_x: ue, min_scale_y: Se, min_scale_z: je, max_scale_x: Je, max_scale_y: K, max_scale_z: $, min_r: me, min_g: ke, min_b: Ie, max_r: qe, max_g: bt, max_b: $e } = k;
+          const { min_x: R, min_y: N, min_z: V, max_x: Z, max_y: j, max_z: te, min_scale_x: ue, min_scale_y: Se, min_scale_z: je, max_scale_x: Je, max_scale_y: K, max_scale_z: $, min_r: me, min_g: ke, min_b: Ce, max_r: qe, max_g: bt, max_b: $e } = k;
           i.push({
             min_x: R,
             min_y: N,
@@ -22064,7 +22064,7 @@ void main() {
             max_scale_z: $,
             min_r: me,
             min_g: ke,
-            min_b: Ie,
+            min_b: Ce,
             max_r: qe,
             max_g: bt,
             max_b: $e
@@ -22080,7 +22080,7 @@ void main() {
         return (M, Q) => {
           const I = i[M >>> 8];
           if (I == null) throw new Error("Missing PLY chunk");
-          const { min_x: _, min_y: D, min_z: G, max_x: B, max_y: L, max_z: k, min_scale_x: R, min_scale_y: N, min_scale_z: V, max_scale_x: Z, max_scale_y: j, max_scale_z: te, min_r: ue, min_g: Se, min_b: je, max_r: Je, max_g: K, max_b: $ } = I, { packed_position: me, packed_rotation: ke, packed_scale: Ie, packed_color: qe } = Q, bt = (me >>> 21 & 2047) / 2047 * (B - _) + _, $e = (me >>> 11 & 1023) / 1023 * (L - D) + D, ct = (me & 2047) / 2047 * (k - G) + G, lt = ((ke >>> 20 & 1023) / 1023 - 0.5) * b, Ve = ((ke >>> 10 & 1023) / 1023 - 0.5) * b, wt = ((ke & 1023) / 1023 - 0.5) * b, P = Math.sqrt(Math.max(0, 1 - lt * lt - Ve * Ve - wt * wt)), dt = ke >>> 30, ze = dt === 0 ? lt : dt === 1 ? P : Ve, It = dt <= 1 ? Ve : dt === 2 ? P : wt, Be = dt <= 2 ? wt : P, T = dt === 0 ? P : lt, C = Math.exp((Ie >>> 21 & 2047) / 2047 * (Z - R) + R), U = Math.exp((Ie >>> 11 & 1023) / 1023 * (j - N) + N), ee = Math.exp((Ie & 2047) / 2047 * (te - V) + V), ie = (qe >>> 24 & 255) / 255 * ((Je ?? 1) - (ue ?? 0)) + (ue ?? 0), X = (qe >>> 16 & 255) / 255 * ((K ?? 1) - (Se ?? 0)) + (Se ?? 0), Me = (qe >>> 8 & 255) / 255 * (($ ?? 1) - (je ?? 0)) + (je ?? 0), ce = (qe & 255) / 255;
+          const { min_x: _, min_y: D, min_z: G, max_x: B, max_y: L, max_z: k, min_scale_x: R, min_scale_y: N, min_scale_z: V, max_scale_x: Z, max_scale_y: j, max_scale_z: te, min_r: ue, min_g: Se, min_b: je, max_r: Je, max_g: K, max_b: $ } = I, { packed_position: me, packed_rotation: ke, packed_scale: Ce, packed_color: qe } = Q, bt = (me >>> 21 & 2047) / 2047 * (B - _) + _, $e = (me >>> 11 & 1023) / 1023 * (L - D) + D, ct = (me & 2047) / 2047 * (k - G) + G, lt = ((ke >>> 20 & 1023) / 1023 - 0.5) * b, Ve = ((ke >>> 10 & 1023) / 1023 - 0.5) * b, wt = ((ke & 1023) / 1023 - 0.5) * b, P = Math.sqrt(Math.max(0, 1 - lt * lt - Ve * Ve - wt * wt)), dt = ke >>> 30, ze = dt === 0 ? lt : dt === 1 ? P : Ve, It = dt <= 1 ? Ve : dt === 2 ? P : wt, Be = dt <= 2 ? wt : P, T = dt === 0 ? P : lt, C = Math.exp((Ce >>> 21 & 2047) / 2047 * (Z - R) + R), U = Math.exp((Ce >>> 11 & 1023) / 1023 * (j - N) + N), ee = Math.exp((Ce & 2047) / 2047 * (te - V) + V), ie = (qe >>> 24 & 255) / 255 * ((Je ?? 1) - (ue ?? 0)) + (ue ?? 0), X = (qe >>> 16 & 255) / 255 * ((K ?? 1) - (Se ?? 0)) + (Se ?? 0), Me = (qe >>> 8 & 255) / 255 * (($ ?? 1) - (je ?? 0)) + (je ?? 0), ce = (qe & 255) / 255;
           e(M, bt, $e, ct, C, U, ee, ze, It, Be, T, ce, ie, X, Me);
         };
       }
@@ -22092,8 +22092,8 @@ void main() {
         if (!y || !x || !E) throw new Error("Missing PLY properties: x, y, z");
         const j = v && b && M, te = Q && I && _ && D, ue = Z != null ? Cl[Z.type] : 1, Se = R != null ? Cl[R.type] : 1, je = N != null ? Cl[N.type] : 1, Je = V != null ? Cl[V.type] : 1;
         return r = aA(f.properties), u(), (K, $) => {
-          const me = j ? Math.exp($.scale_0) : Jl.defaultPointScale, ke = j ? Math.exp($.scale_1) : Jl.defaultPointScale, Ie = j ? Math.exp($.scale_2) : Jl.defaultPointScale, qe = te ? $.rot_1 : 0, bt = te ? $.rot_2 : 0, $e = te ? $.rot_3 : 0, ct = te ? $.rot_0 : 1, lt = G != null ? 1 / (1 + Math.exp(-$.opacity)) : Z != null ? $.alpha / ue : 1, Ve = B != null ? $.f_dc_0 * Il + 0.5 : R != null ? $.red / Se : 1, wt = L != null ? $.f_dc_1 * Il + 0.5 : N != null ? $.green / je : 1, P = k != null ? $.f_dc_2 * Il + 0.5 : V != null ? $.blue / Je : 1;
-          if (e(K, $.x, $.y, $.z, me, ke, Ie, qe, bt, $e, ct, lt, Ve, wt, P), t && c) {
+          const me = j ? Math.exp($.scale_0) : Jl.defaultPointScale, ke = j ? Math.exp($.scale_1) : Jl.defaultPointScale, Ce = j ? Math.exp($.scale_2) : Jl.defaultPointScale, qe = te ? $.rot_1 : 0, bt = te ? $.rot_2 : 0, $e = te ? $.rot_3 : 0, ct = te ? $.rot_0 : 1, lt = G != null ? 1 / (1 + Math.exp(-$.opacity)) : Z != null ? $.alpha / ue : 1, Ve = B != null ? $.f_dc_0 * Il + 0.5 : R != null ? $.red / Se : 1, wt = L != null ? $.f_dc_1 * Il + 0.5 : N != null ? $.green / je : 1, P = k != null ? $.f_dc_2 * Il + 0.5 : V != null ? $.blue / Je : 1;
+          if (e(K, $.x, $.y, $.z, me, ke, Ce, qe, bt, $e, ct, lt, Ve, wt, P), t && c) {
             const dt = $.f_rest;
             if (c) for (let ze = 0; ze < a.length; ze++) c[ze] = dt[a[ze]];
             if (A) for (let ze = 0; ze < o.length; ze++) A[ze] = dt[o[ze]];
@@ -39992,7 +39992,8 @@ The format should be roomId:reconnectionToken`);
         return this.room = await this.client.joinOrCreate("game_room", {
           mode: e.mode || "ffa",
           isPublic: true,
-          name: e.playerName || "Player"
+          name: e.playerName || "Player",
+          autoStart: e.autoStart || false
         }), this.sessionId = this.room.sessionId, this.setupRoomListeners(false), console.log("[Network] Joined/created room:", this.room.roomId), this.room;
       } catch (t) {
         return console.error("[Network] Failed to join/create room:", t), this.emit("error", {
@@ -40226,7 +40227,7 @@ The format should be roomId:reconnectionToken`);
       this.eventListeners[e] && this.eventListeners[e].forEach((n) => n(t));
     }
   }
-  const Ce = new O2(), Yp = "starstrafe_audio_settings", Nl = {
+  const Ie = new O2(), Yp = "starstrafe_audio_settings", Nl = {
     musicVolume: 0.7,
     sfxVolume: 1,
     masterVolume: 1
@@ -40515,7 +40516,7 @@ The format should be roomId:reconnectionToken`);
           this.showScreen(We.MAIN_MENU);
           break;
         case We.LOBBY:
-          Ce.leaveRoom();
+          Ie.leaveRoom();
           break;
       }
     }
@@ -40530,15 +40531,15 @@ The format should be roomId:reconnectionToken`);
       this.playerName = e, localStorage.setItem("starstrafe_callsign", e);
     }
     setupNetworkListeners() {
-      Ce.on("roomJoined", () => {
+      Ie.on("roomJoined", () => {
         this.showScreen(We.LOBBY);
-      }), Ce.on("stateChange", (e) => {
+      }), Ie.on("stateChange", (e) => {
         e.phase === "playing" && this.currentScreen !== We.PLAYING ? (this.showScreen(We.PLAYING), this.emit("gameStart")) : e.phase === "results" && this.currentScreen !== We.RESULTS ? this.showScreen(We.RESULTS) : e.phase === "lobby" && this.currentScreen === We.RESULTS ? this.showScreen(We.LOBBY) : (e.phase === "countdown" || e.phase === "lobby") && this.renderLobby();
-      }), Ce.on("roomLeft", () => {
+      }), Ie.on("roomLeft", () => {
         this.showScreen(We.MAIN_MENU), this.chatMessages = [];
-      }), Ce.on("chat", (e) => {
+      }), Ie.on("chat", (e) => {
         this.addChatMessage(e);
-      }), Ce.on("error", (e) => {
+      }), Ie.on("error", (e) => {
         var _a3;
         console.error("[Menu] Network error:", e);
         let t = "Connection error";
@@ -40725,7 +40726,7 @@ The format should be roomId:reconnectionToken`);
           c.textContent = "", c.className = "code-status", o = true, A.disabled = false;
           return;
         }
-        c.textContent = "checking...", c.className = "code-status checking", await Ce.connect(), await Ce.checkRoomExists(u) ? (c.textContent = "\u2717 taken", c.className = "code-status invalid", o = false, A.disabled = true) : (c.textContent = "\u2713 available", c.className = "code-status valid", o = true, A.disabled = false);
+        c.textContent = "checking...", c.className = "code-status checking", await Ie.connect(), await Ie.checkRoomExists(u) ? (c.textContent = "\u2717 taken", c.className = "code-status invalid", o = false, A.disabled = true) : (c.textContent = "\u2713 available", c.className = "code-status valid", o = true, A.disabled = false);
       };
       h.addEventListener("input", () => {
         clearTimeout(a), a = setTimeout(l, 500);
@@ -40779,7 +40780,7 @@ The format should be roomId:reconnectionToken`);
         senderName: e.senderName,
         text: e.text,
         timestamp: e.timestamp,
-        isLocal: e.senderId === Ce.sessionId
+        isLocal: e.senderId === Ie.sessionId
       }), this.chatMessages.length > this.maxChatMessages && this.chatMessages.shift(), this.updateChatDisplay());
     }
     updateChatDisplay() {
@@ -40799,7 +40800,7 @@ The format should be roomId:reconnectionToken`);
       const e = document.getElementById("chat-input");
       if (!e) return;
       const t = e.value.trim();
-      t && (Ce.sendChat(t), e.value = "");
+      t && (Ie.sendChat(t), e.value = "");
     }
     toggleMute(e) {
       this.mutedPlayers.has(e) ? this.mutedPlayers.delete(e) : this.mutedPlayers.add(e), localStorage.setItem("starstrafe_muted", JSON.stringify([
@@ -40808,9 +40809,9 @@ The format should be roomId:reconnectionToken`);
     }
     renderLobby() {
       var _a3, _b3, _c3, _d2, _e4, _f3, _g3;
-      const e = Ce.getState();
+      const e = Ie.getState();
       if (!e) return;
-      const t = Ce.isHost(), n = Ce.getLocalPlayer(), i = Ce.getPlayers(), r = e.phase === "countdown", a = i.every(([, A]) => A.ready), o = t && i.length >= 1 && (a || i.length === 1);
+      const t = Ie.isHost(), n = Ie.getLocalPlayer(), i = Ie.getPlayers(), r = e.phase === "countdown", a = i.every(([, A]) => A.ready), o = t && i.length >= 1 && (a || i.length === 1);
       this.container.innerHTML = `
       <div class="menu-screen lobby">
         <div class="menu-header">
@@ -40819,11 +40820,11 @@ The format should be roomId:reconnectionToken`);
           <div class="room-info">
             <span class="mode-badge ${e.mode}">${e.mode === "ffa" ? "FFA" : "TEAM"}</span>
             <div class="room-code-wrapper">
-              <span class="room-code" id="room-code-btn">CODE: ${((_b3 = (_a3 = Ce.room) == null ? void 0 : _a3.roomId) == null ? void 0 : _b3.toUpperCase()) || "..."}</span>
+              <span class="room-code" id="room-code-btn">CODE: ${((_b3 = (_a3 = Ie.room) == null ? void 0 : _a3.roomId) == null ? void 0 : _b3.toUpperCase()) || "..."}</span>
               <div class="share-tooltip" id="share-tooltip">
                 <label>SHARE LINK</label>
                 <div class="share-input-group">
-                  <input type="text" id="share-url" readonly value="${window.location.origin}?join=${((_c3 = Ce.room) == null ? void 0 : _c3.roomId) || ""}" />
+                  <input type="text" id="share-url" readonly value="${window.location.origin}?join=${((_c3 = Ie.room) == null ? void 0 : _c3.roomId) || ""}" />
                   <button class="copy-btn" id="btn-copy">\u{1F4CB}</button>
                 </div>
               </div>
@@ -40843,13 +40844,13 @@ The format should be roomId:reconnectionToken`);
             <h3>PILOTS (${i.length}/8)</h3>
             <div class="player-list">
               ${i.map(([A, l]) => `
-                <div class="player-card ${l.ready ? "ready" : ""} ${A === Ce.sessionId ? "local" : ""} ${e.mode === "team" ? `team-${l.team}` : ""}">
+                <div class="player-card ${l.ready ? "ready" : ""} ${A === Ie.sessionId ? "local" : ""} ${e.mode === "team" ? `team-${l.team}` : ""}">
                   <div class="player-info">
                     <span class="player-name">${l.name}${e.hostId === A ? " \u2605" : ""}</span>
                     <span class="player-class">${l.shipClass.toUpperCase()}</span>
                   </div>
                   <div class="player-actions">
-                    ${A !== Ce.sessionId ? `
+                    ${A !== Ie.sessionId ? `
                       <button class="mute-btn ${this.mutedPlayers.has(A) ? "muted" : ""}" data-session="${A}" title="${this.mutedPlayers.has(A) ? "Unmute" : "Mute"}">
                         ${this.mutedPlayers.has(A) ? "\u{1F507}" : "\u{1F50A}"}
                       </button>
@@ -40911,7 +40912,7 @@ The format should be roomId:reconnectionToken`);
         </div>
       </div>
     `, document.getElementById("btn-leave").addEventListener("click", () => {
-        Ce.leaveRoom();
+        Ie.leaveRoom();
       });
       const h = document.getElementById("share-tooltip");
       document.getElementById("room-code-btn").addEventListener("click", (A) => {
@@ -40926,12 +40927,12 @@ The format should be roomId:reconnectionToken`);
         once: true
       }), document.querySelectorAll(".class-btn").forEach((A) => {
         A.addEventListener("click", () => {
-          Ce.selectClass(A.dataset.class);
+          Ie.selectClass(A.dataset.class);
         });
       }), (_d2 = document.getElementById("chk-ready")) == null ? void 0 : _d2.addEventListener("change", () => {
-        Ce.toggleReady();
+        Ie.toggleReady();
       }), (_e4 = document.getElementById("btn-start")) == null ? void 0 : _e4.addEventListener("click", () => {
-        Ce.startGame();
+        Ie.startGame();
       }), (_f3 = document.getElementById("btn-send-chat")) == null ? void 0 : _f3.addEventListener("click", () => {
         this.sendChatMessage();
       }), (_g3 = document.getElementById("chat-input")) == null ? void 0 : _g3.addEventListener("keydown", (A) => {
@@ -40967,9 +40968,9 @@ The format should be roomId:reconnectionToken`);
       this.container.innerHTML = "", this.container.classList.add("hidden");
     }
     renderResults() {
-      const e = Ce.getState();
+      const e = Ie.getState();
       if (!e) return;
-      const t = Ce.getPlayers().sort((n, i) => i[1].kills - n[1].kills);
+      const t = Ie.getPlayers().sort((n, i) => i[1].kills - n[1].kills);
       this.container.classList.remove("hidden"), this.container.innerHTML = `
       <div class="menu-screen results">
         <div class="results-header">
@@ -40990,7 +40991,7 @@ The format should be roomId:reconnectionToken`);
             <span>K/D</span>
           </div>
           ${t.map(([n, i], r) => `
-            <div class="scoreboard-row ${n === Ce.sessionId ? "local" : ""} ${e.mode === "team" ? `team-${i.team}` : ""}">
+            <div class="scoreboard-row ${n === Ie.sessionId ? "local" : ""} ${e.mode === "team" ? `team-${i.team}` : ""}">
               <span class="rank">#${r + 1}</span>
               <span class="name">${i.name}</span>
               <span class="kills">${i.kills}</span>
@@ -41296,7 +41297,7 @@ The format should be roomId:reconnectionToken`);
       this.container.classList.add("hidden");
     }
     async createGame(e, t, n, i, r = 8, a = "hangar", o = null) {
-      this.showLoading("Creating arena..."), await Ce.connect(), await Ce.createRoom({
+      this.showLoading("Creating arena..."), await Ie.connect(), await Ie.createRoom({
         roomName: e,
         mode: t,
         isPublic: n,
@@ -41308,20 +41309,28 @@ The format should be roomId:reconnectionToken`);
       });
     }
     async joinByCode(e) {
-      this.showLoading("Joining..."), await Ce.connect(), await Ce.joinRoom(e, {
+      this.showLoading("Joining..."), await Ie.connect(), await Ie.joinRoom(e, {
         playerName: this.playerName
       });
     }
     async quickMatch() {
-      this.showLoading("Finding match..."), await Ce.connect(), await Ce.joinOrCreate({
+      this.showLoading("Finding match..."), await Ie.connect();
+      const t = (await Ie.getAvailableRooms()).filter((n) => {
+        var _a3, _b3;
+        return ((_a3 = n.metadata) == null ? void 0 : _a3.isPublic) && n.clients < (((_b3 = n.metadata) == null ? void 0 : _b3.maxPlayers) || 8);
+      });
+      t.length > 0 ? await Ie.joinRoom(t[0].roomId, {
         playerName: this.playerName
+      }) : await Ie.joinOrCreate({
+        playerName: this.playerName,
+        autoStart: true
       });
     }
     async refreshRoomList() {
       const e = document.getElementById("room-list");
       if (!e) return;
-      Ce.connected || await Ce.connect();
-      const t = await Ce.getAvailableRooms();
+      Ie.connected || await Ie.connect();
+      const t = await Ie.getAvailableRooms();
       if (this.roomList = t, t.length === 0) {
         e.innerHTML = '<div class="empty">No public matches found. Create one!</div>';
         return;
@@ -42611,13 +42620,13 @@ The format should be roomId:reconnectionToken`);
       }), this.animate();
     }
     setupNetworkListeners() {
-      Ce.on("roomJoined", () => {
+      Ie.on("roomJoined", () => {
         this.preloadLevel();
-      }), Ce.on("playerJoin", ({ player: e, sessionId: t, isLocal: n }) => {
+      }), Ie.on("playerJoin", ({ player: e, sessionId: t, isLocal: n }) => {
         !n && this.isMultiplayer && this.addRemotePlayer(t, e);
-      }), Ce.on("playerLeave", ({ sessionId: e }) => {
+      }), Ie.on("playerLeave", ({ sessionId: e }) => {
         this.removeRemotePlayer(e);
-      }), Ce.on("playerUpdate", ({ player: e, sessionId: t, isLocal: n }) => {
+      }), Ie.on("playerUpdate", ({ player: e, sessionId: t, isLocal: n }) => {
         if (!n && this.remotePlayers.has(t)) this.remotePlayers.get(t).updateFromServer(e);
         else if (n && this.player) {
           this.player.health = e.health, this.player.maxHealth = e.maxHealth, this.player.missiles = e.missiles, this.player.maxMissiles = e.maxMissiles, this.player.hasLaserUpgrade = e.hasLaserUpgrade;
@@ -42631,27 +42640,27 @@ The format should be roomId:reconnectionToken`);
             y: e.qy,
             z: e.qz,
             w: e.qw
-          }, i), Ce.clearProcessedInputs(i));
+          }, i), Ie.clearProcessedInputs(i));
         }
-      }), Ce.on("projectileSpawn", ({ projectile: e, id: t }) => {
-        if (console.log("[Game] Projectile spawn event:", t, "owner:", e.ownerId, "isLocal:", e.ownerId === Ce.sessionId), e.ownerId !== Ce.sessionId) this.spawnNetworkProjectile(t, e);
+      }), Ie.on("projectileSpawn", ({ projectile: e, id: t }) => {
+        if (console.log("[Game] Projectile spawn event:", t, "owner:", e.ownerId, "isLocal:", e.ownerId === Ie.sessionId), e.ownerId !== Ie.sessionId) this.spawnNetworkProjectile(t, e);
         else if (e.type === "missile") {
           for (; this.localMissileQueue.length > 0 && this.localMissileQueue[0].disposed; ) this.localMissileQueue.shift();
           const n = this.localMissileQueue.shift();
           n && !n.disposed && (this.localMissileIds.set(t, n), console.log("[Game] Linked local missile to server ID:", t));
         }
-      }), Ce.on("projectileRemove", ({ id: e }) => {
+      }), Ie.on("projectileRemove", ({ id: e }) => {
         this.removeNetworkProjectile(e);
-      }), Ce.on("collectibleSpawn", ({ collectible: e, id: t }) => {
+      }), Ie.on("collectibleSpawn", ({ collectible: e, id: t }) => {
         this.spawnCollectible(t, e);
-      }), Ce.on("collectibleRemove", ({ id: e }) => {
+      }), Ie.on("collectibleRemove", ({ id: e }) => {
         this.removeCollectible(e);
-      }), Ce.on("hit", (e) => {
+      }), Ie.on("hit", (e) => {
         this.handleNetworkHit(e);
-      }), Ce.on("kill", (e) => {
+      }), Ie.on("kill", (e) => {
         this.showKillFeed(e.killerName, e.victimName);
         let t = null;
-        if (e.victimId === Ce.sessionId) t = this.camera.position.clone(), this.handleLocalPlayerDeath();
+        if (e.victimId === Ie.sessionId) t = this.camera.position.clone(), this.handleLocalPlayerDeath();
         else {
           const n = this.remotePlayers.get(e.victimId);
           n && n.mesh && (t = n.mesh.position.clone());
@@ -42666,11 +42675,11 @@ The format should be roomId:reconnectionToken`);
             b: 0.1
           }, 80);
         }
-      }), Ce.on("respawn", (e) => {
-        e.playerId === Ce.sessionId && this.handleLocalPlayerRespawn();
-      }), Ce.on("stateChange", (e) => {
+      }), Ie.on("respawn", (e) => {
+        e.playerId === Ie.sessionId && this.handleLocalPlayerRespawn();
+      }), Ie.on("stateChange", (e) => {
         e.phase === "results" && this.onMatchEnd();
-      }), Ce.on("collectiblePickup", (e) => {
+      }), Ie.on("collectiblePickup", (e) => {
         this.handleCollectiblePickup(e);
       });
     }
@@ -42710,12 +42719,12 @@ The format should be roomId:reconnectionToken`);
     }
     startMultiplayerGame() {
       var _a3, _b3, _c3, _d2;
-      this.isMultiplayer = true, this.renderer.domElement.style.display = "block", Ce.getState();
-      const e = Ce.getLocalPlayer();
+      this.isMultiplayer = true, this.renderer.domElement.style.display = "block", Ie.getState();
+      const e = Ie.getLocalPlayer();
       if (!e) return;
       const t = _p[e.shipClass] || _p.fighter;
-      this.player = new HB(this.camera, this.input, this.level, this.scene), this.player.health = e.health, this.player.maxHealth = e.maxHealth, this.player.missiles = e.missiles, this.player.maxMissiles = e.maxMissiles || t.maxMissiles, this.player.hasLaserUpgrade = e.hasLaserUpgrade || false, this.player.acceleration = t.acceleration, this.player.maxSpeed = t.maxSpeed, this.camera.position.set(e.x, e.y, e.z), this.camera.quaternion.set(e.qx, e.qy, e.qz, e.qw), Ce.getPlayers().forEach(([n, i]) => {
-        n !== Ce.sessionId && this.addRemotePlayer(n, i);
+      this.player = new HB(this.camera, this.input, this.level, this.scene), this.player.health = e.health, this.player.maxHealth = e.maxHealth, this.player.missiles = e.missiles, this.player.maxMissiles = e.maxMissiles || t.maxMissiles, this.player.hasLaserUpgrade = e.hasLaserUpgrade || false, this.player.acceleration = t.acceleration, this.player.maxSpeed = t.maxSpeed, this.camera.position.set(e.x, e.y, e.z), this.camera.quaternion.set(e.qx, e.qy, e.qz, e.qw), Ie.getPlayers().forEach(([n, i]) => {
+        n !== Ie.sessionId && this.addRemotePlayer(n, i);
       }), (_d2 = (_c3 = (_b3 = (_a3 = document.body).requestPointerLock) == null ? void 0 : _b3.call(_a3)) == null ? void 0 : _c3.catch) == null ? void 0 : _d2.call(_c3, () => {
         console.warn("[Game] Pointer lock failed - click to capture");
       }), document.getElementById("crosshair").classList.add("active"), document.getElementById("hud").classList.add("active"), es.hide(), this.gameManager.setState({
@@ -42726,7 +42735,7 @@ The format should be roomId:reconnectionToken`);
     }
     addRemotePlayer(e, t) {
       if (this.remotePlayers.has(e)) return;
-      const n = Ce.getState(), i = new hM(this.scene, t, (n == null ? void 0 : n.mode) === "team");
+      const n = Ie.getState(), i = new hM(this.scene, t, (n == null ? void 0 : n.mode) === "team");
       this.remotePlayers.set(e, i);
     }
     removeRemotePlayer(e) {
@@ -42760,7 +42769,7 @@ The format should be roomId:reconnectionToken`);
         };
         this.particles.emitHitSparks(n, i, 30);
       }
-      e.playerId === Ce.sessionId && this.player && (e.type === "laser_upgrade" ? (this.player.hasLaserUpgrade = true, this.showPickupMessage("LASER UPGRADE ACQUIRED")) : e.type === "missile" && this.showPickupMessage("MISSILES REFILLED"));
+      e.playerId === Ie.sessionId && this.player && (e.type === "laser_upgrade" ? (this.player.hasLaserUpgrade = true, this.showPickupMessage("LASER UPGRADE ACQUIRED")) : e.type === "missile" && this.showPickupMessage("MISSILES REFILLED"));
     }
     showPickupMessage(e) {
       const t = document.querySelector(".pickup-message");
@@ -42795,7 +42804,7 @@ The format should be roomId:reconnectionToken`);
     }
     handleNetworkHit(e) {
       console.log("[Game] Network hit received:", e);
-      const t = new w(e.x, e.y, e.z), n = new w(0, 1, 0), i = e.shooterId === Ce.sessionId, r = i ? 65535 : 16746496, a = new Yh(this.scene, t, n, r, this.dynamicLights);
+      const t = new w(e.x, e.y, e.z), n = new w(0, 1, 0), i = e.shooterId === Ie.sessionId, r = i ? 65535 : 16746496, a = new Yh(this.scene, t, n, r, this.dynamicLights);
       if (this.impacts.push(a), this.particles) {
         const o = i ? {
           r: 0,
@@ -42825,7 +42834,7 @@ The format should be roomId:reconnectionToken`);
           }
         }
       }
-      if (e.targetId !== Ce.sessionId) {
+      if (e.targetId !== Ie.sessionId) {
         const o = this.remotePlayers.get(e.targetId);
         o && o.takeDamage(e.damage);
       } else console.log("[Game] Local player took damage, showing vignette"), this.player.health -= e.damage, this.player.lastDamageTime = this.clock.elapsedTime, this.showDamageIndicator(t);
@@ -42856,7 +42865,7 @@ The format should be roomId:reconnectionToken`);
     }
     handleLocalPlayerRespawn() {
       document.getElementById("respawn-overlay").classList.remove("active");
-      const t = Ce.getLocalPlayer();
+      const t = Ie.getLocalPlayer();
       t && this.player && (this.player.health = t.health, this.player.maxHealth = t.maxHealth, this.player.missiles = t.missiles, this.player.lastDamageTime = 0, this.camera.position.set(t.x, t.y, t.z), this.camera.quaternion.set(t.qx, t.qy, t.qz, t.qw), this._hudLast.health = null, this._hudLast.missiles = null);
     }
     showKillFeed(e, t) {
@@ -42918,7 +42927,7 @@ The format should be roomId:reconnectionToken`);
     }
     showLeaderboard() {
       this.leaderboardEl || (this.leaderboardEl = document.createElement("div"), this.leaderboardEl.id = "tab-leaderboard", document.body.appendChild(this.leaderboardEl));
-      const e = Ce.getPlayers().map(([t, n]) => ({
+      const e = Ie.getPlayers().map(([t, n]) => ({
         id: t,
         name: n.name,
         kills: n.kills,
@@ -42934,7 +42943,7 @@ The format should be roomId:reconnectionToken`);
           <span class="lb-deaths">D</span>
         </div>
         ${e.map((t, n) => `
-          <div class="leaderboard-row ${t.id === Ce.sessionId ? "local" : ""}">
+          <div class="leaderboard-row ${t.id === Ie.sessionId ? "local" : ""}">
             <span class="lb-rank">${n + 1}</span>
             <span class="lb-name">${t.name}</span>
             <span class="lb-kills">${t.kills}</span>
@@ -42961,7 +42970,7 @@ The format should be roomId:reconnectionToken`);
       });
     }
     leaveMatch() {
-      this.isEscMenuOpen = false, this.escMenu && (this.escMenu.style.display = "none"), this.isMultiplayer && (Ce.leaveRoom(), this.cleanupMultiplayer(), this.isMultiplayer = false), this.renderer.domElement.style.display = "none", document.getElementById("crosshair").classList.remove("active"), document.getElementById("hud").classList.remove("active"), this.player = null, es.show(), this.gameManager.setState({
+      this.isEscMenuOpen = false, this.escMenu && (this.escMenu.style.display = "none"), this.isMultiplayer && (Ie.leaveRoom(), this.cleanupMultiplayer(), this.isMultiplayer = false), this.renderer.domElement.style.display = "none", document.getElementById("crosshair").classList.remove("active"), document.getElementById("hud").classList.remove("active"), this.player = null, es.show(), this.gameManager.setState({
         currentState: jt.MENU,
         isRunning: false,
         isMultiplayer: false
@@ -42983,7 +42992,7 @@ The format should be roomId:reconnectionToken`);
       if (!this.gameManager.isPlaying()) return;
       Wr.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
       const e = this.player.getWeaponSpawnPoint();
-      this.isMultiplayer && Ce.sendFire("laser", e, Wr);
+      this.isMultiplayer && Ie.sendFire("laser", e, Wr);
       const t = new qh(this.scene, e, Wr, true);
       this.projectiles.push(t), (_a3 = this.dynamicLights) == null ? void 0 : _a3.flash(e, 65535, {
         intensity: 10,
@@ -43001,7 +43010,7 @@ The format should be roomId:reconnectionToken`);
       const t = this.player.getMissileSpawnPoint(), n = new vp(this.scene, t, Wr, {
         particles: this.particles
       });
-      this.missiles.push(n), this.isMultiplayer && (Ce.sendFire("missile", t, Wr), this.localMissileQueue.push(n)), (_a3 = this.dynamicLights) == null ? void 0 : _a3.flash(t, 16755251, {
+      this.missiles.push(n), this.isMultiplayer && (Ie.sendFire("missile", t, Wr), this.localMissileQueue.push(n)), (_a3 = this.dynamicLights) == null ? void 0 : _a3.flash(t, 16755251, {
         intensity: 14,
         distance: 20,
         ttl: 0.07,
@@ -43018,7 +43027,7 @@ The format should be roomId:reconnectionToken`);
       this._hudAccum = 0;
       const t = Math.max(0, Math.round(this.player.health / this.player.maxHealth * 100)), n = this.player.missiles, i = Math.max(0, Math.round(this.player.boostFuel / this.player.maxBoostFuel * 100));
       let r = 0;
-      if (this.isMultiplayer && (r = ((_a3 = Ce.getLocalPlayer()) == null ? void 0 : _a3.kills) || 0), t !== this._hudLast.health && (this.hud.health.textContent = String(t), this._hudLast.health = t), r !== this._hudLast.kills && (this.hud.kills.textContent = String(r), this._hudLast.kills = r), n !== this._hudLast.missiles) {
+      if (this.isMultiplayer && (r = ((_a3 = Ie.getLocalPlayer()) == null ? void 0 : _a3.kills) || 0), t !== this._hudLast.health && (this.hud.health.textContent = String(t), this._hudLast.health = t), r !== this._hudLast.kills && (this.hud.kills.textContent = String(r), this._hudLast.kills = r), n !== this._hudLast.missiles) {
         const a = this.player.maxMissiles || n;
         this.hud.missiles.textContent = `${n}/${a}`, this._hudLast.missiles = n;
       }
@@ -43026,8 +43035,8 @@ The format should be roomId:reconnectionToken`);
     }
     sendInputToServer(e) {
       if (!this.isMultiplayer || !this.player) return;
-      const t = Ce.getState();
-      !t || t.phase !== "playing" || (this.lastInputSeq = Ce.sendInput({
+      const t = Ie.getState();
+      !t || t.phase !== "playing" || (this.lastInputSeq = Ie.sendInput({
         x: this.camera.position.x,
         y: this.camera.position.y,
         z: this.camera.position.z,
@@ -43057,7 +43066,7 @@ The format should be roomId:reconnectionToken`);
           ...Array.from(this.remotePlayers.values())
         ];
         this.missiles.forEach((i) => i.update(e, n)), this.isMultiplayer && this.localMissileIds.forEach((i, r) => {
-          i.disposed || i.lifetime <= 0 ? this.localMissileIds.delete(r) : i.target && Ce.sendMissileUpdate(r, i.group.position, i.direction);
+          i.disposed || i.lifetime <= 0 ? this.localMissileIds.delete(r) : i.target && Ie.sendMissileUpdate(r, i.group.position, i.direction);
         }), this.networkProjectiles.forEach((i) => {
           i.type === "projectile" ? i.obj.update(e) : i.type === "missile" && i.obj.update(e, n);
         });
