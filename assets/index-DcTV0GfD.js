@@ -43081,7 +43081,7 @@ The format should be roomId:reconnectionToken`);
           ...Array.from(this.remotePlayers.values())
         ];
         this.missiles.forEach((i) => i.update(e, n)), this.isMultiplayer && this.localMissileIds.forEach((i, r) => {
-          i.disposed || i.lifetime <= 0 ? this.localMissileIds.delete(r) : i.target && xe.sendMissileUpdate(r, i.group.position, i.direction);
+          i.disposed || i.lifetime <= 0 ? this.localMissileIds.delete(r) : xe.sendMissileUpdate(r, i.group.position, i.direction);
         }), this.networkProjectiles.forEach((i) => {
           if (i.type === "projectile") i.obj.update(e);
           else if (i.type === "missile") {
