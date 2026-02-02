@@ -17964,7 +17964,7 @@ void main() {
             q = g.has(fe);
           }
           if (q) {
-            const fe = B.texture.type, _e4 = f.has(fe), ye = Ae.getClearColor(), be = Ae.getClearAlpha(), Le = ye.r, Ge = ye.g, Pe = ye.b;
+            const fe = B.texture.type, _e4 = f.has(fe), xe = Ae.getClearColor(), be = Ae.getClearAlpha(), Le = xe.r, Ge = xe.g, Pe = xe.b;
             _e4 ? (y[0] = Le, y[1] = Ge, y[2] = Pe, y[3] = be, P.clearBufferuiv(P.COLOR, 0, y)) : (x[0] = Le, x[1] = Ge, x[2] = Pe, x[3] = be, P.clearBufferiv(P.COLOR, 0, x));
           } else W |= P.COLOR_BUFFER_BIT;
         }
@@ -18004,7 +18004,7 @@ void main() {
       }
       this.renderBufferDirect = function(S, H, J, W, q, fe) {
         H === null && (H = lt);
-        const _e4 = q.isMesh && q.matrixWorld.determinant() < 0, ye = M0(S, H, J, W, q);
+        const _e4 = q.isMesh && q.matrixWorld.determinant() < 0, xe = M0(S, H, J, W, q);
         Be.setMaterial(W, _e4);
         let be = J.index, Le = 1;
         if (W.wireframe === true) {
@@ -18016,7 +18016,7 @@ void main() {
         fe !== null && (nt = Math.max(nt, fe.start * Le), Ct = Math.min(Ct, (fe.start + fe.count) * Le)), be !== null ? (nt = Math.max(nt, 0), Ct = Math.min(Ct, be.count)) : Pe != null && (nt = Math.max(nt, 0), Ct = Math.min(Ct, Pe.count));
         const zt = Ct - nt;
         if (zt < 0 || zt === 1 / 0) return;
-        ve.setup(q, W, ye, J, be);
+        ve.setup(q, W, xe, J, be);
         let Ht, Bt = F;
         if (be !== null && (Ht = X.get(be), Bt = Ie, Bt.setIndex(Ht)), q.isMesh) W.wireframe === true ? (Be.setLineWidth(W.wireframeLinewidth * wt()), Bt.setMode(P.LINES)) : Bt.setMode(P.TRIANGLES);
         else if (q.isLine) {
@@ -18049,8 +18049,8 @@ void main() {
           if (!(q.isMesh || q.isPoints || q.isLine || q.isSprite)) return;
           const fe = q.material;
           if (fe) if (Array.isArray(fe)) for (let _e4 = 0; _e4 < fe.length; _e4++) {
-            const ye = fe[_e4];
-            md(ye, J, q), W.add(ye);
+            const xe = fe[_e4];
+            md(xe, J, q), W.add(xe);
           }
           else md(fe, J, q), W.add(fe);
         }), v = M.pop(), W;
@@ -18096,19 +18096,19 @@ void main() {
         Gc(S, H, 0, I.sortObjects), E.finish(), I.sortObjects === true && E.sort(je, Je), Ve = he.enabled === false || he.isPresenting === false || he.hasDepthSensing() === false, Ve && Ae.addToRenderList(E, S), this.info.render.frame++, Ce === true && we.beginShadows();
         const q = v.state.shadowsArray;
         if (Qe.render(q, S, H), Ce === true && we.endShadows(), this.info.autoReset === true && this.info.reset(), (W && Q.hasRenderPass()) === false) {
-          const _e4 = E.opaque, ye = E.transmissive;
+          const _e4 = E.opaque, xe = E.transmissive;
           if (v.setupLights(), H.isArrayCamera) {
             const be = H.cameras;
-            if (ye.length > 0) for (let Le = 0, Ge = be.length; Le < Ge; Le++) {
+            if (xe.length > 0) for (let Le = 0, Ge = be.length; Le < Ge; Le++) {
               const Pe = be[Le];
-              Id(_e4, ye, S, Pe);
+              Id(_e4, xe, S, Pe);
             }
             Ve && Ae.render(S);
             for (let Le = 0, Ge = be.length; Le < Ge; Le++) {
               const Pe = be[Le];
               Ed(E, S, Pe, Pe.viewport);
             }
-          } else ye.length > 0 && Id(_e4, ye, S, H), Ve && Ae.render(S), Ed(E, S, H);
+          } else xe.length > 0 && Id(_e4, xe, S, H), Ve && Ae.render(S), Ed(E, S, H);
         }
         B !== null && G === 0 && (U.updateMultisampleRenderTarget(B), U.updateRenderTargetMipmap(B)), W && Q.end(I), S.isScene === true && S.onAfterRender(I, S, H), ve.resetDefaultState(), L = -1, k = null, M.pop(), M.length > 0 ? (v = M[M.length - 1], Ce === true && we.setGlobalState(I.clippingPlanes, v.state.camera)) : v = null, b.pop(), b.length > 0 ? E = b[b.length - 1] : E = null;
       };
@@ -18121,22 +18121,22 @@ void main() {
           else if (S.isSprite) {
             if (!S.frustumCulled || ke.intersectsSprite(S)) {
               W && ct.setFromMatrixPosition(S.matrixWorld).applyMatrix4(bt);
-              const _e4 = ce.update(S), ye = S.material;
-              ye.visible && E.push(S, _e4, ye, J, ct.z, null);
+              const _e4 = ce.update(S), xe = S.material;
+              xe.visible && E.push(S, _e4, xe, J, ct.z, null);
             }
           } else if ((S.isMesh || S.isLine || S.isPoints) && (!S.frustumCulled || ke.intersectsObject(S))) {
-            const _e4 = ce.update(S), ye = S.material;
-            if (W && (S.boundingSphere !== void 0 ? (S.boundingSphere === null && S.computeBoundingSphere(), ct.copy(S.boundingSphere.center)) : (_e4.boundingSphere === null && _e4.computeBoundingSphere(), ct.copy(_e4.boundingSphere.center)), ct.applyMatrix4(S.matrixWorld).applyMatrix4(bt)), Array.isArray(ye)) {
+            const _e4 = ce.update(S), xe = S.material;
+            if (W && (S.boundingSphere !== void 0 ? (S.boundingSphere === null && S.computeBoundingSphere(), ct.copy(S.boundingSphere.center)) : (_e4.boundingSphere === null && _e4.computeBoundingSphere(), ct.copy(_e4.boundingSphere.center)), ct.applyMatrix4(S.matrixWorld).applyMatrix4(bt)), Array.isArray(xe)) {
               const be = _e4.groups;
               for (let Le = 0, Ge = be.length; Le < Ge; Le++) {
-                const Pe = be[Le], nt = ye[Pe.materialIndex];
+                const Pe = be[Le], nt = xe[Pe.materialIndex];
                 nt && nt.visible && E.push(S, _e4, nt, J, ct.z, Pe);
               }
-            } else ye.visible && E.push(S, _e4, ye, J, ct.z, null);
+            } else xe.visible && E.push(S, _e4, xe, J, ct.z, null);
           }
         }
         const fe = S.children;
-        for (let _e4 = 0, ye = fe.length; _e4 < ye; _e4++) Gc(fe[_e4], H, J, W);
+        for (let _e4 = 0, xe = fe.length; _e4 < xe; _e4++) Gc(fe[_e4], H, J, W);
       }
       function Ed(S, H, J, W) {
         const { opaque: q, transmissive: fe, transparent: _e4 } = S;
@@ -18159,7 +18159,7 @@ void main() {
         }
         const fe = v.state.transmissionRenderTarget[W.id], _e4 = W.viewport || R;
         fe.setSize(_e4.z * I.transmissionResolutionScale, _e4.w * I.transmissionResolutionScale);
-        const ye = I.getRenderTarget(), be = I.getActiveCubeFace(), Le = I.getActiveMipmapLevel();
+        const xe = I.getRenderTarget(), be = I.getActiveCubeFace(), Le = I.getActiveMipmapLevel();
         I.setRenderTarget(fe), I.getClearColor(Z), j = I.getClearAlpha(), j < 1 && I.setClearColor(16777215, 0.5), I.clear(), Ve && Ae.render(J);
         const Ge = I.toneMapping;
         I.toneMapping = Qi;
@@ -18175,14 +18175,14 @@ void main() {
           }
           nt === true && (U.updateMultisampleRenderTarget(fe), U.updateRenderTargetMipmap(fe));
         }
-        I.setRenderTarget(ye, be, Le), I.setClearColor(Z, j), Pe !== void 0 && (W.viewport = Pe), I.toneMapping = Ge;
+        I.setRenderTarget(xe, be, Le), I.setClearColor(Z, j), Pe !== void 0 && (W.viewport = Pe), I.toneMapping = Ge;
       }
       function Fo(S, H, J) {
         const W = H.isScene === true ? H.overrideMaterial : null;
         for (let q = 0, fe = S.length; q < fe; q++) {
-          const _e4 = S[q], { object: ye, geometry: be, group: Le } = _e4;
+          const _e4 = S[q], { object: xe, geometry: be, group: Le } = _e4;
           let Ge = _e4.material;
-          Ge.allowOverride === true && W !== null && (Ge = W), ye.layers.test(J.layers) && Cd(ye, H, J, be, Ge, Le);
+          Ge.allowOverride === true && W !== null && (Ge = W), xe.layers.test(J.layers) && Cd(xe, H, J, be, Ge, Le);
         }
       }
       function Cd(S, H, J, W, q, fe) {
@@ -18190,15 +18190,15 @@ void main() {
       }
       function Uo(S, H, J) {
         H.isScene !== true && (H = lt);
-        const W = C.get(S), q = v.state.lights, fe = v.state.shadowsArray, _e4 = q.state.version, ye = Te.getParameters(S, q.state, fe, H, J), be = Te.getProgramCacheKey(ye);
+        const W = C.get(S), q = v.state.lights, fe = v.state.shadowsArray, _e4 = q.state.version, xe = Te.getParameters(S, q.state, fe, H, J), be = Te.getProgramCacheKey(xe);
         let Le = W.programs;
         W.environment = S.isMeshStandardMaterial ? H.environment : null, W.fog = H.fog, W.envMap = (S.isMeshStandardMaterial ? ie : ee).get(S.envMap || W.environment), W.envMapRotation = W.environment !== null && S.envMap === null ? H.environmentRotation : S.envMapRotation, Le === void 0 && (S.addEventListener("dispose", Ii), Le = /* @__PURE__ */ new Map(), W.programs = Le);
         let Ge = Le.get(be);
         if (Ge !== void 0) {
-          if (W.currentProgram === Ge && W.lightsStateVersion === _e4) return _d2(S, ye), Ge;
-        } else ye.uniforms = Te.getUniforms(S), S.onBeforeCompile(ye, I), Ge = Te.acquireProgram(ye, be), Le.set(be, Ge), W.uniforms = ye.uniforms;
+          if (W.currentProgram === Ge && W.lightsStateVersion === _e4) return _d2(S, xe), Ge;
+        } else xe.uniforms = Te.getUniforms(S), S.onBeforeCompile(xe, I), Ge = Te.acquireProgram(xe, be), Le.set(be, Ge), W.uniforms = xe.uniforms;
         const Pe = W.uniforms;
-        return (!S.isShaderMaterial && !S.isRawShaderMaterial || S.clipping === true) && (Pe.clippingPlanes = we.uniform), _d2(S, ye), W.needsLights = R0(S), W.lightsStateVersion = _e4, W.needsLights && (Pe.ambientLightColor.value = q.state.ambient, Pe.lightProbe.value = q.state.probe, Pe.directionalLights.value = q.state.directional, Pe.directionalLightShadows.value = q.state.directionalShadow, Pe.spotLights.value = q.state.spot, Pe.spotLightShadows.value = q.state.spotShadow, Pe.rectAreaLights.value = q.state.rectArea, Pe.ltc_1.value = q.state.rectAreaLTC1, Pe.ltc_2.value = q.state.rectAreaLTC2, Pe.pointLights.value = q.state.point, Pe.pointLightShadows.value = q.state.pointShadow, Pe.hemisphereLights.value = q.state.hemi, Pe.directionalShadowMap.value = q.state.directionalShadowMap, Pe.directionalShadowMatrix.value = q.state.directionalShadowMatrix, Pe.spotShadowMap.value = q.state.spotShadowMap, Pe.spotLightMatrix.value = q.state.spotLightMatrix, Pe.spotLightMap.value = q.state.spotLightMap, Pe.pointShadowMap.value = q.state.pointShadowMap, Pe.pointShadowMatrix.value = q.state.pointShadowMatrix), W.currentProgram = Ge, W.uniformsList = null, Ge;
+        return (!S.isShaderMaterial && !S.isRawShaderMaterial || S.clipping === true) && (Pe.clippingPlanes = we.uniform), _d2(S, xe), W.needsLights = R0(S), W.lightsStateVersion = _e4, W.needsLights && (Pe.ambientLightColor.value = q.state.ambient, Pe.lightProbe.value = q.state.probe, Pe.directionalLights.value = q.state.directional, Pe.directionalLightShadows.value = q.state.directionalShadow, Pe.spotLights.value = q.state.spot, Pe.spotLightShadows.value = q.state.spotShadow, Pe.rectAreaLights.value = q.state.rectArea, Pe.ltc_1.value = q.state.rectAreaLTC1, Pe.ltc_2.value = q.state.rectAreaLTC2, Pe.pointLights.value = q.state.point, Pe.pointLightShadows.value = q.state.pointShadow, Pe.hemisphereLights.value = q.state.hemi, Pe.directionalShadowMap.value = q.state.directionalShadowMap, Pe.directionalShadowMatrix.value = q.state.directionalShadowMatrix, Pe.spotShadowMap.value = q.state.spotShadowMap, Pe.spotLightMatrix.value = q.state.spotLightMatrix, Pe.spotLightMap.value = q.state.spotLightMap, Pe.pointShadowMap.value = q.state.pointShadowMap, Pe.pointShadowMatrix.value = q.state.pointShadowMatrix), W.currentProgram = Ge, W.uniformsList = null, Ge;
       }
       function vd(S) {
         if (S.uniformsList === null) {
@@ -18213,7 +18213,7 @@ void main() {
       }
       function M0(S, H, J, W, q) {
         H.isScene !== true && (H = lt), U.resetTextureUnits();
-        const fe = H.fog, _e4 = W.isMeshStandardMaterial ? H.environment : null, ye = B === null ? I.outputColorSpace : B.isXRRenderTarget === true ? B.texture.colorSpace : Qn, be = (W.isMeshStandardMaterial ? ie : ee).get(W.envMap || _e4), Le = W.vertexColors === true && !!J.attributes.color && J.attributes.color.itemSize === 4, Ge = !!J.attributes.tangent && (!!W.normalMap || W.anisotropy > 0), Pe = !!J.morphAttributes.position, nt = !!J.morphAttributes.normal, Ct = !!J.morphAttributes.color;
+        const fe = H.fog, _e4 = W.isMeshStandardMaterial ? H.environment : null, xe = B === null ? I.outputColorSpace : B.isXRRenderTarget === true ? B.texture.colorSpace : Qn, be = (W.isMeshStandardMaterial ? ie : ee).get(W.envMap || _e4), Le = W.vertexColors === true && !!J.attributes.color && J.attributes.color.itemSize === 4, Ge = !!J.attributes.tangent && (!!W.normalMap || W.anisotropy > 0), Pe = !!J.morphAttributes.position, nt = !!J.morphAttributes.normal, Ct = !!J.morphAttributes.color;
         let zt = Qi;
         W.toneMapped && (B === null || B.isXRRenderTarget === true) && (zt = I.toneMapping);
         const Ht = J.morphAttributes.position || J.morphAttributes.normal || J.morphAttributes.color, Bt = Ht !== void 0 ? Ht.length : 0, Fe = C.get(W), mt = v.state.lights;
@@ -18222,7 +18222,7 @@ void main() {
           we.setState(W, S, bn);
         }
         let ht = false;
-        W.version === Fe.__version ? (Fe.needsLights && Fe.lightsStateVersion !== mt.state.version || Fe.outputColorSpace !== ye || q.isBatchedMesh && Fe.batching === false || !q.isBatchedMesh && Fe.batching === true || q.isBatchedMesh && Fe.batchingColor === true && q.colorTexture === null || q.isBatchedMesh && Fe.batchingColor === false && q.colorTexture !== null || q.isInstancedMesh && Fe.instancing === false || !q.isInstancedMesh && Fe.instancing === true || q.isSkinnedMesh && Fe.skinning === false || !q.isSkinnedMesh && Fe.skinning === true || q.isInstancedMesh && Fe.instancingColor === true && q.instanceColor === null || q.isInstancedMesh && Fe.instancingColor === false && q.instanceColor !== null || q.isInstancedMesh && Fe.instancingMorph === true && q.morphTexture === null || q.isInstancedMesh && Fe.instancingMorph === false && q.morphTexture !== null || Fe.envMap !== be || W.fog === true && Fe.fog !== fe || Fe.numClippingPlanes !== void 0 && (Fe.numClippingPlanes !== we.numPlanes || Fe.numIntersection !== we.numIntersection) || Fe.vertexAlphas !== Le || Fe.vertexTangents !== Ge || Fe.morphTargets !== Pe || Fe.morphNormals !== nt || Fe.morphColors !== Ct || Fe.toneMapping !== zt || Fe.morphTargetsCount !== Bt) && (ht = true) : (ht = true, Fe.__version = W.version);
+        W.version === Fe.__version ? (Fe.needsLights && Fe.lightsStateVersion !== mt.state.version || Fe.outputColorSpace !== xe || q.isBatchedMesh && Fe.batching === false || !q.isBatchedMesh && Fe.batching === true || q.isBatchedMesh && Fe.batchingColor === true && q.colorTexture === null || q.isBatchedMesh && Fe.batchingColor === false && q.colorTexture !== null || q.isInstancedMesh && Fe.instancing === false || !q.isInstancedMesh && Fe.instancing === true || q.isSkinnedMesh && Fe.skinning === false || !q.isSkinnedMesh && Fe.skinning === true || q.isInstancedMesh && Fe.instancingColor === true && q.instanceColor === null || q.isInstancedMesh && Fe.instancingColor === false && q.instanceColor !== null || q.isInstancedMesh && Fe.instancingMorph === true && q.morphTexture === null || q.isInstancedMesh && Fe.instancingMorph === false && q.morphTexture !== null || Fe.envMap !== be || W.fog === true && Fe.fog !== fe || Fe.numClippingPlanes !== void 0 && (Fe.numClippingPlanes !== we.numPlanes || Fe.numIntersection !== we.numIntersection) || Fe.vertexAlphas !== Le || Fe.vertexTangents !== Ge || Fe.morphTargets !== Pe || Fe.morphNormals !== nt || Fe.morphColors !== Ct || Fe.toneMapping !== zt || Fe.morphTargetsCount !== Bt) && (ht = true) : (ht = true, Fe.__version = W.version);
         let On = Fe.currentProgram;
         ht === true && (On = Uo(W, H, q));
         let gr = false, Gn = false, Ca = false;
@@ -18272,15 +18272,15 @@ void main() {
         B = S, D = H, G = J;
         let W = null, q = false, fe = false;
         if (S) {
-          const ye = C.get(S);
-          if (ye.__useDefaultFramebuffer !== void 0) {
-            Be.bindFramebuffer(P.FRAMEBUFFER, ye.__webglFramebuffer), R.copy(S.viewport), N.copy(S.scissor), V = S.scissorTest, Be.viewport(R), Be.scissor(N), Be.setScissorTest(V), L = -1;
+          const xe = C.get(S);
+          if (xe.__useDefaultFramebuffer !== void 0) {
+            Be.bindFramebuffer(P.FRAMEBUFFER, xe.__webglFramebuffer), R.copy(S.viewport), N.copy(S.scissor), V = S.scissorTest, Be.viewport(R), Be.scissor(N), Be.setScissorTest(V), L = -1;
             return;
-          } else if (ye.__webglFramebuffer === void 0) U.setupRenderTarget(S);
-          else if (ye.__hasExternalTextures) U.rebindTextures(S, C.get(S.texture).__webglTexture, C.get(S.depthTexture).__webglTexture);
+          } else if (xe.__webglFramebuffer === void 0) U.setupRenderTarget(S);
+          else if (xe.__hasExternalTextures) U.rebindTextures(S, C.get(S.texture).__webglTexture, C.get(S.depthTexture).__webglTexture);
           else if (S.depthBuffer) {
             const Ge = S.depthTexture;
-            if (ye.__boundDepthTexture !== Ge) {
+            if (xe.__boundDepthTexture !== Ge) {
               if (Ge !== null && C.has(Ge) && (S.width !== Ge.image.width || S.height !== Ge.image.height)) throw new Error("WebGLRenderTarget: Attached DepthTexture is initialized to the incorrect size.");
               U.setupDepthRenderbuffer(S);
             }
@@ -18291,20 +18291,20 @@ void main() {
           S.isWebGLCubeRenderTarget ? (Array.isArray(Le[H]) ? W = Le[H][J] : W = Le[H], q = true) : S.samples > 0 && U.useMultisampledRTT(S) === false ? W = C.get(S).__webglMultisampledFramebuffer : Array.isArray(Le) ? W = Le[J] : W = Le, R.copy(S.viewport), N.copy(S.scissor), V = S.scissorTest;
         } else R.copy(K).multiplyScalar(Se).floor(), N.copy($).multiplyScalar(Se).floor(), V = me;
         if (J !== 0 && (W = Q0), Be.bindFramebuffer(P.FRAMEBUFFER, W) && Be.drawBuffers(S, W), Be.viewport(R), Be.scissor(N), Be.setScissorTest(V), q) {
-          const ye = C.get(S.texture);
-          P.framebufferTexture2D(P.FRAMEBUFFER, P.COLOR_ATTACHMENT0, P.TEXTURE_CUBE_MAP_POSITIVE_X + H, ye.__webglTexture, J);
+          const xe = C.get(S.texture);
+          P.framebufferTexture2D(P.FRAMEBUFFER, P.COLOR_ATTACHMENT0, P.TEXTURE_CUBE_MAP_POSITIVE_X + H, xe.__webglTexture, J);
         } else if (fe) {
-          const ye = H;
+          const xe = H;
           for (let be = 0; be < S.textures.length; be++) {
             const Le = C.get(S.textures[be]);
-            P.framebufferTextureLayer(P.FRAMEBUFFER, P.COLOR_ATTACHMENT0 + be, Le.__webglTexture, J, ye);
+            P.framebufferTextureLayer(P.FRAMEBUFFER, P.COLOR_ATTACHMENT0 + be, Le.__webglTexture, J, xe);
           }
         } else if (S !== null && J !== 0) {
-          const ye = C.get(S.texture);
-          P.framebufferTexture2D(P.FRAMEBUFFER, P.COLOR_ATTACHMENT0, P.TEXTURE_2D, ye.__webglTexture, J);
+          const xe = C.get(S.texture);
+          P.framebufferTexture2D(P.FRAMEBUFFER, P.COLOR_ATTACHMENT0, P.TEXTURE_2D, xe.__webglTexture, J);
         }
         L = -1;
-      }, this.readRenderTargetPixels = function(S, H, J, W, q, fe, _e4, ye = 0) {
+      }, this.readRenderTargetPixels = function(S, H, J, W, q, fe, _e4, xe = 0) {
         if (!(S && S.isWebGLRenderTarget)) {
           Oe("WebGLRenderer.readRenderTargetPixels: renderTarget is not THREE.WebGLRenderTarget.");
           return;
@@ -18313,7 +18313,7 @@ void main() {
         if (S.isWebGLCubeRenderTarget && _e4 !== void 0 && (be = be[_e4]), be) {
           Be.bindFramebuffer(P.FRAMEBUFFER, be);
           try {
-            const Le = S.textures[ye], Ge = Le.format, Pe = Le.type;
+            const Le = S.textures[xe], Ge = Le.format, Pe = Le.type;
             if (!It.textureFormatReadable(Ge)) {
               Oe("WebGLRenderer.readRenderTargetPixels: renderTarget is not in RGBA or implementation defined format.");
               return;
@@ -18322,40 +18322,40 @@ void main() {
               Oe("WebGLRenderer.readRenderTargetPixels: renderTarget is not in UnsignedByteType or implementation defined type.");
               return;
             }
-            H >= 0 && H <= S.width - W && J >= 0 && J <= S.height - q && (S.textures.length > 1 && P.readBuffer(P.COLOR_ATTACHMENT0 + ye), P.readPixels(H, J, W, q, oe.convert(Ge), oe.convert(Pe), fe));
+            H >= 0 && H <= S.width - W && J >= 0 && J <= S.height - q && (S.textures.length > 1 && P.readBuffer(P.COLOR_ATTACHMENT0 + xe), P.readPixels(H, J, W, q, oe.convert(Ge), oe.convert(Pe), fe));
           } finally {
             const Le = B !== null ? C.get(B).__webglFramebuffer : null;
             Be.bindFramebuffer(P.FRAMEBUFFER, Le);
           }
         }
-      }, this.readRenderTargetPixelsAsync = async function(S, H, J, W, q, fe, _e4, ye = 0) {
+      }, this.readRenderTargetPixelsAsync = async function(S, H, J, W, q, fe, _e4, xe = 0) {
         if (!(S && S.isWebGLRenderTarget)) throw new Error("THREE.WebGLRenderer.readRenderTargetPixels: renderTarget is not THREE.WebGLRenderTarget.");
         let be = C.get(S).__webglFramebuffer;
         if (S.isWebGLCubeRenderTarget && _e4 !== void 0 && (be = be[_e4]), be) if (H >= 0 && H <= S.width - W && J >= 0 && J <= S.height - q) {
           Be.bindFramebuffer(P.FRAMEBUFFER, be);
-          const Le = S.textures[ye], Ge = Le.format, Pe = Le.type;
+          const Le = S.textures[xe], Ge = Le.format, Pe = Le.type;
           if (!It.textureFormatReadable(Ge)) throw new Error("THREE.WebGLRenderer.readRenderTargetPixelsAsync: renderTarget is not in RGBA or implementation defined format.");
           if (!It.textureTypeReadable(Pe)) throw new Error("THREE.WebGLRenderer.readRenderTargetPixelsAsync: renderTarget is not in UnsignedByteType or implementation defined type.");
           const nt = P.createBuffer();
-          P.bindBuffer(P.PIXEL_PACK_BUFFER, nt), P.bufferData(P.PIXEL_PACK_BUFFER, fe.byteLength, P.STREAM_READ), S.textures.length > 1 && P.readBuffer(P.COLOR_ATTACHMENT0 + ye), P.readPixels(H, J, W, q, oe.convert(Ge), oe.convert(Pe), 0);
+          P.bindBuffer(P.PIXEL_PACK_BUFFER, nt), P.bufferData(P.PIXEL_PACK_BUFFER, fe.byteLength, P.STREAM_READ), S.textures.length > 1 && P.readBuffer(P.COLOR_ATTACHMENT0 + xe), P.readPixels(H, J, W, q, oe.convert(Ge), oe.convert(Pe), 0);
           const Ct = B !== null ? C.get(B).__webglFramebuffer : null;
           Be.bindFramebuffer(P.FRAMEBUFFER, Ct);
           const zt = P.fenceSync(P.SYNC_GPU_COMMANDS_COMPLETE, 0);
           return P.flush(), await Ey(P, zt, 4), P.bindBuffer(P.PIXEL_PACK_BUFFER, nt), P.getBufferSubData(P.PIXEL_PACK_BUFFER, 0, fe), P.deleteBuffer(nt), P.deleteSync(zt), fe;
         } else throw new Error("THREE.WebGLRenderer.readRenderTargetPixelsAsync: requested read bounds are out of range.");
       }, this.copyFramebufferToTexture = function(S, H = null, J = 0) {
-        const W = Math.pow(2, -J), q = Math.floor(S.image.width * W), fe = Math.floor(S.image.height * W), _e4 = H !== null ? H.x : 0, ye = H !== null ? H.y : 0;
-        U.setTexture2D(S, 0), P.copyTexSubImage2D(P.TEXTURE_2D, J, 0, 0, _e4, ye, q, fe), Be.unbindTexture();
+        const W = Math.pow(2, -J), q = Math.floor(S.image.width * W), fe = Math.floor(S.image.height * W), _e4 = H !== null ? H.x : 0, xe = H !== null ? H.y : 0;
+        U.setTexture2D(S, 0), P.copyTexSubImage2D(P.TEXTURE_2D, J, 0, 0, _e4, xe, q, fe), Be.unbindTexture();
       };
       const D0 = P.createFramebuffer(), L0 = P.createFramebuffer();
       this.copyTextureToTexture = function(S, H, J = null, W = null, q = 0, fe = null) {
         fe === null && (q !== 0 ? (mo("WebGLRenderer: copyTextureToTexture function signature has changed to support src and dst mipmap levels."), fe = q, q = 0) : fe = 0);
-        let _e4, ye, be, Le, Ge, Pe, nt, Ct, zt;
+        let _e4, xe, be, Le, Ge, Pe, nt, Ct, zt;
         const Ht = S.isCompressedTexture ? S.mipmaps[fe] : S.image;
-        if (J !== null) _e4 = J.max.x - J.min.x, ye = J.max.y - J.min.y, be = J.isBox3 ? J.max.z - J.min.z : 1, Le = J.min.x, Ge = J.min.y, Pe = J.isBox3 ? J.min.z : 0;
+        if (J !== null) _e4 = J.max.x - J.min.x, xe = J.max.y - J.min.y, be = J.isBox3 ? J.max.z - J.min.z : 1, Le = J.min.x, Ge = J.min.y, Pe = J.isBox3 ? J.min.z : 0;
         else {
           const Jn = Math.pow(2, -q);
-          _e4 = Math.floor(Ht.width * Jn), ye = Math.floor(Ht.height * Jn), S.isDataArrayTexture ? be = Ht.depth : S.isData3DTexture ? be = Math.floor(Ht.depth * Jn) : be = 1, Le = 0, Ge = 0, Pe = 0;
+          _e4 = Math.floor(Ht.width * Jn), xe = Math.floor(Ht.height * Jn), S.isDataArrayTexture ? be = Ht.depth : S.isData3DTexture ? be = Math.floor(Ht.depth * Jn) : be = 1, Le = 0, Ge = 0, Pe = 0;
         }
         W !== null ? (nt = W.x, Ct = W.y, zt = W.z) : (nt = 0, Ct = 0, zt = 0);
         const Bt = oe.convert(H.format), Fe = oe.convert(H.type);
@@ -18367,14 +18367,14 @@ void main() {
         if (S.isDepthTexture) {
           const Jn = C.get(S), bn = C.get(H), Ln = C.get(Jn.__renderTarget), zc = C.get(bn.__renderTarget);
           Be.bindFramebuffer(P.READ_FRAMEBUFFER, Ln.__webglFramebuffer), Be.bindFramebuffer(P.DRAW_FRAMEBUFFER, zc.__webglFramebuffer);
-          for (let Us = 0; Us < be; Us++) Qt && (P.framebufferTextureLayer(P.READ_FRAMEBUFFER, P.COLOR_ATTACHMENT0, C.get(S).__webglTexture, q, Pe + Us), P.framebufferTextureLayer(P.DRAW_FRAMEBUFFER, P.COLOR_ATTACHMENT0, C.get(H).__webglTexture, fe, zt + Us)), P.blitFramebuffer(Le, Ge, _e4, ye, nt, Ct, _e4, ye, P.DEPTH_BUFFER_BIT, P.NEAREST);
+          for (let Us = 0; Us < be; Us++) Qt && (P.framebufferTextureLayer(P.READ_FRAMEBUFFER, P.COLOR_ATTACHMENT0, C.get(S).__webglTexture, q, Pe + Us), P.framebufferTextureLayer(P.DRAW_FRAMEBUFFER, P.COLOR_ATTACHMENT0, C.get(H).__webglTexture, fe, zt + Us)), P.blitFramebuffer(Le, Ge, _e4, xe, nt, Ct, _e4, xe, P.DEPTH_BUFFER_BIT, P.NEAREST);
           Be.bindFramebuffer(P.READ_FRAMEBUFFER, null), Be.bindFramebuffer(P.DRAW_FRAMEBUFFER, null);
         } else if (q !== 0 || S.isRenderTargetTexture || C.has(S)) {
           const Jn = C.get(S), bn = C.get(H);
           Be.bindFramebuffer(P.READ_FRAMEBUFFER, D0), Be.bindFramebuffer(P.DRAW_FRAMEBUFFER, L0);
-          for (let Ln = 0; Ln < be; Ln++) Qt ? P.framebufferTextureLayer(P.READ_FRAMEBUFFER, P.COLOR_ATTACHMENT0, Jn.__webglTexture, q, Pe + Ln) : P.framebufferTexture2D(P.READ_FRAMEBUFFER, P.COLOR_ATTACHMENT0, P.TEXTURE_2D, Jn.__webglTexture, q), Dn ? P.framebufferTextureLayer(P.DRAW_FRAMEBUFFER, P.COLOR_ATTACHMENT0, bn.__webglTexture, fe, zt + Ln) : P.framebufferTexture2D(P.DRAW_FRAMEBUFFER, P.COLOR_ATTACHMENT0, P.TEXTURE_2D, bn.__webglTexture, fe), q !== 0 ? P.blitFramebuffer(Le, Ge, _e4, ye, nt, Ct, _e4, ye, P.COLOR_BUFFER_BIT, P.NEAREST) : Dn ? P.copyTexSubImage3D(mt, fe, nt, Ct, zt + Ln, Le, Ge, _e4, ye) : P.copyTexSubImage2D(mt, fe, nt, Ct, Le, Ge, _e4, ye);
+          for (let Ln = 0; Ln < be; Ln++) Qt ? P.framebufferTextureLayer(P.READ_FRAMEBUFFER, P.COLOR_ATTACHMENT0, Jn.__webglTexture, q, Pe + Ln) : P.framebufferTexture2D(P.READ_FRAMEBUFFER, P.COLOR_ATTACHMENT0, P.TEXTURE_2D, Jn.__webglTexture, q), Dn ? P.framebufferTextureLayer(P.DRAW_FRAMEBUFFER, P.COLOR_ATTACHMENT0, bn.__webglTexture, fe, zt + Ln) : P.framebufferTexture2D(P.DRAW_FRAMEBUFFER, P.COLOR_ATTACHMENT0, P.TEXTURE_2D, bn.__webglTexture, fe), q !== 0 ? P.blitFramebuffer(Le, Ge, _e4, xe, nt, Ct, _e4, xe, P.COLOR_BUFFER_BIT, P.NEAREST) : Dn ? P.copyTexSubImage3D(mt, fe, nt, Ct, zt + Ln, Le, Ge, _e4, xe) : P.copyTexSubImage2D(mt, fe, nt, Ct, Le, Ge, _e4, xe);
           Be.bindFramebuffer(P.READ_FRAMEBUFFER, null), Be.bindFramebuffer(P.DRAW_FRAMEBUFFER, null);
-        } else Dn ? S.isDataTexture || S.isData3DTexture ? P.texSubImage3D(mt, fe, nt, Ct, zt, _e4, ye, be, Bt, Fe, Ht.data) : H.isCompressedArrayTexture ? P.compressedTexSubImage3D(mt, fe, nt, Ct, zt, _e4, ye, be, Bt, Ht.data) : P.texSubImage3D(mt, fe, nt, Ct, zt, _e4, ye, be, Bt, Fe, Ht) : S.isDataTexture ? P.texSubImage2D(P.TEXTURE_2D, fe, nt, Ct, _e4, ye, Bt, Fe, Ht.data) : S.isCompressedTexture ? P.compressedTexSubImage2D(P.TEXTURE_2D, fe, nt, Ct, Ht.width, Ht.height, Bt, Ht.data) : P.texSubImage2D(P.TEXTURE_2D, fe, nt, Ct, _e4, ye, Bt, Fe, Ht);
+        } else Dn ? S.isDataTexture || S.isData3DTexture ? P.texSubImage3D(mt, fe, nt, Ct, zt, _e4, xe, be, Bt, Fe, Ht.data) : H.isCompressedArrayTexture ? P.compressedTexSubImage3D(mt, fe, nt, Ct, zt, _e4, xe, be, Bt, Ht.data) : P.texSubImage3D(mt, fe, nt, Ct, zt, _e4, xe, be, Bt, Fe, Ht) : S.isDataTexture ? P.texSubImage2D(P.TEXTURE_2D, fe, nt, Ct, _e4, xe, Bt, Fe, Ht.data) : S.isCompressedTexture ? P.compressedTexSubImage2D(P.TEXTURE_2D, fe, nt, Ct, Ht.width, Ht.height, Bt, Ht.data) : P.texSubImage2D(P.TEXTURE_2D, fe, nt, Ct, _e4, xe, Bt, Fe, Ht);
         P.pixelStorei(P.UNPACK_ROW_LENGTH, ht), P.pixelStorei(P.UNPACK_IMAGE_HEIGHT, On), P.pixelStorei(P.UNPACK_SKIP_PIXELS, gr), P.pixelStorei(P.UNPACK_SKIP_ROWS, Gn), P.pixelStorei(P.UNPACK_SKIP_IMAGES, Ca), fe === 0 && H.generateMipmaps && P.generateMipmap(mt), Be.unbindTexture();
       }, this.initRenderTarget = function(S) {
         C.get(S).__webglFramebuffer === void 0 && U.setupRenderTarget(S);
@@ -40232,7 +40232,7 @@ The format should be roomId:reconnectionToken`);
       this.eventListeners[e] && this.eventListeners[e].forEach((n) => n(t));
     }
   }
-  const xe = new O2(), Yp = "starstrafe_audio_settings", Nl = {
+  const ye = new O2(), Yp = "starstrafe_audio_settings", Nl = {
     musicVolume: 0.7,
     sfxVolume: 1,
     masterVolume: 1
@@ -40521,7 +40521,7 @@ The format should be roomId:reconnectionToken`);
           this.showScreen(We.MAIN_MENU);
           break;
         case We.LOBBY:
-          xe.leaveRoom();
+          ye.leaveRoom();
           break;
       }
     }
@@ -40536,15 +40536,15 @@ The format should be roomId:reconnectionToken`);
       this.playerName = e, localStorage.setItem("starstrafe_callsign", e);
     }
     setupNetworkListeners() {
-      xe.on("roomJoined", () => {
+      ye.on("roomJoined", () => {
         this.showScreen(We.LOBBY);
-      }), xe.on("stateChange", (e) => {
+      }), ye.on("stateChange", (e) => {
         e.phase === "playing" && this.currentScreen !== We.PLAYING ? (this.showScreen(We.PLAYING), this.emit("gameStart")) : e.phase === "results" && this.currentScreen !== We.RESULTS ? this.showScreen(We.RESULTS) : e.phase === "lobby" && this.currentScreen === We.RESULTS ? this.showScreen(We.LOBBY) : (e.phase === "countdown" || e.phase === "lobby") && this.renderLobby();
-      }), xe.on("roomLeft", () => {
+      }), ye.on("roomLeft", () => {
         this.showScreen(We.MAIN_MENU), this.chatMessages = [];
-      }), xe.on("chat", (e) => {
+      }), ye.on("chat", (e) => {
         this.addChatMessage(e);
-      }), xe.on("error", (e) => {
+      }), ye.on("error", (e) => {
         var _a3;
         console.error("[Menu] Network error:", e);
         let t = "Connection error";
@@ -40731,7 +40731,7 @@ The format should be roomId:reconnectionToken`);
           c.textContent = "", c.className = "code-status", o = true, A.disabled = false;
           return;
         }
-        c.textContent = "checking...", c.className = "code-status checking", await xe.connect(), await xe.checkRoomExists(u) ? (c.textContent = "\u2717 taken", c.className = "code-status invalid", o = false, A.disabled = true) : (c.textContent = "\u2713 available", c.className = "code-status valid", o = true, A.disabled = false);
+        c.textContent = "checking...", c.className = "code-status checking", await ye.connect(), await ye.checkRoomExists(u) ? (c.textContent = "\u2717 taken", c.className = "code-status invalid", o = false, A.disabled = true) : (c.textContent = "\u2713 available", c.className = "code-status valid", o = true, A.disabled = false);
       };
       h.addEventListener("input", () => {
         clearTimeout(a), a = setTimeout(l, 500);
@@ -40785,7 +40785,7 @@ The format should be roomId:reconnectionToken`);
         senderName: e.senderName,
         text: e.text,
         timestamp: e.timestamp,
-        isLocal: e.senderId === xe.sessionId
+        isLocal: e.senderId === ye.sessionId
       }), this.chatMessages.length > this.maxChatMessages && this.chatMessages.shift(), this.updateChatDisplay());
     }
     updateChatDisplay() {
@@ -40805,7 +40805,7 @@ The format should be roomId:reconnectionToken`);
       const e = document.getElementById("chat-input");
       if (!e) return;
       const t = e.value.trim();
-      t && (xe.sendChat(t), e.value = "");
+      t && (ye.sendChat(t), e.value = "");
     }
     toggleMute(e) {
       this.mutedPlayers.has(e) ? this.mutedPlayers.delete(e) : this.mutedPlayers.add(e), localStorage.setItem("starstrafe_muted", JSON.stringify([
@@ -40814,9 +40814,9 @@ The format should be roomId:reconnectionToken`);
     }
     renderLobby() {
       var _a3, _b3, _c3, _d2, _e4, _f3, _g3;
-      const e = xe.getState();
+      const e = ye.getState();
       if (!e) return;
-      const t = xe.isHost(), n = xe.getLocalPlayer(), i = xe.getPlayers(), r = e.phase === "countdown", a = i.every(([, A]) => A.ready), o = t && i.length >= 1 && (a || i.length === 1);
+      const t = ye.isHost(), n = ye.getLocalPlayer(), i = ye.getPlayers(), r = e.phase === "countdown", a = i.every(([, A]) => A.ready), o = t && i.length >= 1 && (a || i.length === 1);
       this.container.innerHTML = `
       <div class="menu-screen lobby">
         <div class="menu-header">
@@ -40825,11 +40825,11 @@ The format should be roomId:reconnectionToken`);
           <div class="room-info">
             <span class="mode-badge ${e.mode}">${e.mode === "ffa" ? "FFA" : "TEAM"}</span>
             <div class="room-code-wrapper">
-              <span class="room-code" id="room-code-btn">CODE: ${((_b3 = (_a3 = xe.room) == null ? void 0 : _a3.roomId) == null ? void 0 : _b3.toUpperCase()) || "..."}</span>
+              <span class="room-code" id="room-code-btn">CODE: ${((_b3 = (_a3 = ye.room) == null ? void 0 : _a3.roomId) == null ? void 0 : _b3.toUpperCase()) || "..."}</span>
               <div class="share-tooltip" id="share-tooltip">
                 <label>SHARE LINK</label>
                 <div class="share-input-group">
-                  <input type="text" id="share-url" readonly value="${window.location.origin}?join=${((_c3 = xe.room) == null ? void 0 : _c3.roomId) || ""}" />
+                  <input type="text" id="share-url" readonly value="${window.location.origin}?join=${((_c3 = ye.room) == null ? void 0 : _c3.roomId) || ""}" />
                   <button class="copy-btn" id="btn-copy">\u{1F4CB}</button>
                 </div>
               </div>
@@ -40849,13 +40849,13 @@ The format should be roomId:reconnectionToken`);
             <h3>PILOTS (${i.length}/8)</h3>
             <div class="player-list">
               ${i.map(([A, l]) => `
-                <div class="player-card ${l.ready ? "ready" : ""} ${A === xe.sessionId ? "local" : ""} ${e.mode === "team" ? `team-${l.team}` : ""}">
+                <div class="player-card ${l.ready ? "ready" : ""} ${A === ye.sessionId ? "local" : ""} ${e.mode === "team" ? `team-${l.team}` : ""}">
                   <div class="player-info">
                     <span class="player-name">${l.name}${e.hostId === A ? " \u2605" : ""}</span>
                     <span class="player-class">${l.shipClass.toUpperCase()}</span>
                   </div>
                   <div class="player-actions">
-                    ${A !== xe.sessionId ? `
+                    ${A !== ye.sessionId ? `
                       <button class="mute-btn ${this.mutedPlayers.has(A) ? "muted" : ""}" data-session="${A}" title="${this.mutedPlayers.has(A) ? "Unmute" : "Mute"}">
                         ${this.mutedPlayers.has(A) ? "\u{1F507}" : "\u{1F50A}"}
                       </button>
@@ -40917,7 +40917,7 @@ The format should be roomId:reconnectionToken`);
         </div>
       </div>
     `, document.getElementById("btn-leave").addEventListener("click", () => {
-        xe.leaveRoom();
+        ye.leaveRoom();
       });
       const h = document.getElementById("share-tooltip");
       document.getElementById("room-code-btn").addEventListener("click", (A) => {
@@ -40932,12 +40932,12 @@ The format should be roomId:reconnectionToken`);
         once: true
       }), document.querySelectorAll(".class-btn").forEach((A) => {
         A.addEventListener("click", () => {
-          xe.selectClass(A.dataset.class);
+          ye.selectClass(A.dataset.class);
         });
       }), (_d2 = document.getElementById("chk-ready")) == null ? void 0 : _d2.addEventListener("change", () => {
-        xe.toggleReady();
+        ye.toggleReady();
       }), (_e4 = document.getElementById("btn-start")) == null ? void 0 : _e4.addEventListener("click", () => {
-        xe.startGame();
+        ye.startGame();
       }), (_f3 = document.getElementById("btn-send-chat")) == null ? void 0 : _f3.addEventListener("click", () => {
         this.sendChatMessage();
       }), (_g3 = document.getElementById("chat-input")) == null ? void 0 : _g3.addEventListener("keydown", (A) => {
@@ -40973,9 +40973,9 @@ The format should be roomId:reconnectionToken`);
       this.container.innerHTML = "", this.container.classList.add("hidden");
     }
     renderResults() {
-      const e = xe.getState();
+      const e = ye.getState();
       if (!e) return;
-      const t = xe.getPlayers().sort((n, i) => i[1].kills - n[1].kills);
+      const t = ye.getPlayers().sort((n, i) => i[1].kills - n[1].kills);
       this.container.classList.remove("hidden"), this.container.innerHTML = `
       <div class="menu-screen results">
         <div class="results-header">
@@ -40996,7 +40996,7 @@ The format should be roomId:reconnectionToken`);
             <span>K/D</span>
           </div>
           ${t.map(([n, i], r) => `
-            <div class="scoreboard-row ${n === xe.sessionId ? "local" : ""} ${e.mode === "team" ? `team-${i.team}` : ""}">
+            <div class="scoreboard-row ${n === ye.sessionId ? "local" : ""} ${e.mode === "team" ? `team-${i.team}` : ""}">
               <span class="rank">#${r + 1}</span>
               <span class="name">${i.name}</span>
               <span class="kills">${i.kills}</span>
@@ -41302,7 +41302,7 @@ The format should be roomId:reconnectionToken`);
       this.container.classList.add("hidden");
     }
     async createGame(e, t, n, i, r = 8, a = "hangar", o = null) {
-      this.showLoading("Creating arena..."), await xe.connect(), await xe.createRoom({
+      this.showLoading("Creating arena..."), await ye.connect(), await ye.createRoom({
         roomName: e,
         mode: t,
         isPublic: n,
@@ -41314,19 +41314,19 @@ The format should be roomId:reconnectionToken`);
       });
     }
     async joinByCode(e) {
-      this.showLoading("Joining..."), await xe.connect(), await xe.joinRoom(e, {
+      this.showLoading("Joining..."), await ye.connect(), await ye.joinRoom(e, {
         playerName: this.playerName
       });
     }
     async quickMatch() {
-      this.showLoading("Finding match..."), await xe.connect();
-      const t = (await xe.getAvailableRooms()).filter((n) => {
+      this.showLoading("Finding match..."), await ye.connect();
+      const t = (await ye.getAvailableRooms()).filter((n) => {
         var _a3, _b3;
         return ((_a3 = n.metadata) == null ? void 0 : _a3.isPublic) && n.clients < (((_b3 = n.metadata) == null ? void 0 : _b3.maxPlayers) || 8);
       });
-      t.length > 0 ? await xe.joinRoom(t[0].roomId, {
+      t.length > 0 ? await ye.joinRoom(t[0].roomId, {
         playerName: this.playerName
-      }) : await xe.joinOrCreate({
+      }) : await ye.joinOrCreate({
         playerName: this.playerName,
         autoStart: true
       });
@@ -41334,8 +41334,8 @@ The format should be roomId:reconnectionToken`);
     async refreshRoomList() {
       const e = document.getElementById("room-list");
       if (!e) return;
-      xe.connected || await xe.connect();
-      const t = await xe.getAvailableRooms();
+      ye.connected || await ye.connect();
+      const t = await ye.getAvailableRooms();
       if (this.roomList = t, t.length === 0) {
         e.innerHTML = '<div class="empty">No public matches found. Create one!</div>';
         return;
@@ -42625,13 +42625,13 @@ The format should be roomId:reconnectionToken`);
       }), this.animate();
     }
     setupNetworkListeners() {
-      xe.on("roomJoined", () => {
+      ye.on("roomJoined", () => {
         this.preloadLevel();
-      }), xe.on("playerJoin", ({ player: e, sessionId: t, isLocal: n }) => {
+      }), ye.on("playerJoin", ({ player: e, sessionId: t, isLocal: n }) => {
         !n && this.isMultiplayer && this.addRemotePlayer(t, e);
-      }), xe.on("playerLeave", ({ sessionId: e }) => {
+      }), ye.on("playerLeave", ({ sessionId: e }) => {
         this.removeRemotePlayer(e);
-      }), xe.on("playerUpdate", ({ player: e, sessionId: t, isLocal: n }) => {
+      }), ye.on("playerUpdate", ({ player: e, sessionId: t, isLocal: n }) => {
         if (!n && this.remotePlayers.has(t)) this.remotePlayers.get(t).updateFromServer(e);
         else if (n && this.player) {
           this.player.health = e.health, this.player.maxHealth = e.maxHealth, this.player.missiles = e.missiles, this.player.maxMissiles = e.maxMissiles, this.player.hasLaserUpgrade = e.hasLaserUpgrade;
@@ -42645,29 +42645,29 @@ The format should be roomId:reconnectionToken`);
             y: e.qy,
             z: e.qz,
             w: e.qw
-          }, i), xe.clearProcessedInputs(i));
+          }, i), ye.clearProcessedInputs(i));
         }
-      }), xe.on("projectileSpawn", ({ projectile: e, id: t }) => {
-        if (console.log("[Game] Projectile spawn event:", t, "owner:", e.ownerId, "isLocal:", e.ownerId === xe.sessionId), e.ownerId !== xe.sessionId) this.spawnNetworkProjectile(t, e);
+      }), ye.on("projectileSpawn", ({ projectile: e, id: t }) => {
+        if (console.log("[Game] Projectile spawn event:", t, "owner:", e.ownerId, "isLocal:", e.ownerId === ye.sessionId), e.ownerId !== ye.sessionId) this.spawnNetworkProjectile(t, e);
         else if (e.type === "missile") {
           for (; this.localMissileQueue.length > 0 && this.localMissileQueue[0].disposed; ) this.localMissileQueue.shift();
           const n = this.localMissileQueue.shift();
           n && !n.disposed && (this.localMissileIds.set(t, n), console.log("[Game] Linked local missile to server ID:", t));
         }
-      }), xe.on("projectileRemove", ({ id: e }) => {
+      }), ye.on("projectileRemove", ({ id: e }) => {
         this.removeNetworkProjectile(e);
-      }), xe.on("projectileUpdate", ({ projectile: e, id: t }) => {
+      }), ye.on("projectileUpdate", ({ projectile: e, id: t }) => {
         this.updateNetworkProjectile(t, e);
-      }), xe.on("collectibleSpawn", ({ collectible: e, id: t }) => {
+      }), ye.on("collectibleSpawn", ({ collectible: e, id: t }) => {
         this.spawnCollectible(t, e);
-      }), xe.on("collectibleRemove", ({ id: e }) => {
+      }), ye.on("collectibleRemove", ({ id: e }) => {
         this.removeCollectible(e);
-      }), xe.on("hit", (e) => {
+      }), ye.on("hit", (e) => {
         this.handleNetworkHit(e);
-      }), xe.on("kill", (e) => {
+      }), ye.on("kill", (e) => {
         this.showKillFeed(e.killerName, e.victimName);
         let t = null;
-        if (e.victimId === xe.sessionId) t = this.camera.position.clone(), this.handleLocalPlayerDeath();
+        if (e.victimId === ye.sessionId) t = this.camera.position.clone(), this.handleLocalPlayerDeath();
         else {
           const n = this.remotePlayers.get(e.victimId);
           n && n.mesh && (t = n.mesh.position.clone());
@@ -42682,11 +42682,11 @@ The format should be roomId:reconnectionToken`);
             b: 0.1
           }, 80);
         }
-      }), xe.on("respawn", (e) => {
-        e.playerId === xe.sessionId && this.handleLocalPlayerRespawn();
-      }), xe.on("stateChange", (e) => {
+      }), ye.on("respawn", (e) => {
+        e.playerId === ye.sessionId && this.handleLocalPlayerRespawn();
+      }), ye.on("stateChange", (e) => {
         e.phase === "results" && this.onMatchEnd();
-      }), xe.on("collectiblePickup", (e) => {
+      }), ye.on("collectiblePickup", (e) => {
         this.handleCollectiblePickup(e);
       });
     }
@@ -42726,12 +42726,12 @@ The format should be roomId:reconnectionToken`);
     }
     startMultiplayerGame() {
       var _a3, _b3, _c3, _d2;
-      this.isMultiplayer = true, this.renderer.domElement.style.display = "block", xe.getState();
-      const e = xe.getLocalPlayer();
+      this.isMultiplayer = true, this.renderer.domElement.style.display = "block", ye.getState();
+      const e = ye.getLocalPlayer();
       if (!e) return;
       const t = _p[e.shipClass] || _p.fighter;
-      this.player = new HB(this.camera, this.input, this.level, this.scene), this.player.health = e.health, this.player.maxHealth = e.maxHealth, this.player.missiles = e.missiles, this.player.maxMissiles = e.maxMissiles || t.maxMissiles, this.player.hasLaserUpgrade = e.hasLaserUpgrade || false, this.player.acceleration = t.acceleration, this.player.maxSpeed = t.maxSpeed, this.camera.position.set(e.x, e.y, e.z), this.camera.quaternion.set(e.qx, e.qy, e.qz, e.qw), xe.getPlayers().forEach(([n, i]) => {
-        n !== xe.sessionId && this.addRemotePlayer(n, i);
+      this.player = new HB(this.camera, this.input, this.level, this.scene), this.player.health = e.health, this.player.maxHealth = e.maxHealth, this.player.missiles = e.missiles, this.player.maxMissiles = e.maxMissiles || t.maxMissiles, this.player.hasLaserUpgrade = e.hasLaserUpgrade || false, this.player.acceleration = t.acceleration, this.player.maxSpeed = t.maxSpeed, this.camera.position.set(e.x, e.y, e.z), this.camera.quaternion.set(e.qx, e.qy, e.qz, e.qw), ye.getPlayers().forEach(([n, i]) => {
+        n !== ye.sessionId && this.addRemotePlayer(n, i);
       }), (_d2 = (_c3 = (_b3 = (_a3 = document.body).requestPointerLock) == null ? void 0 : _b3.call(_a3)) == null ? void 0 : _c3.catch) == null ? void 0 : _d2.call(_c3, () => {
         console.warn("[Game] Pointer lock failed - click to capture");
       }), document.getElementById("crosshair").classList.add("active"), document.getElementById("hud").classList.add("active"), es.hide(), this.gameManager.setState({
@@ -42742,7 +42742,7 @@ The format should be roomId:reconnectionToken`);
     }
     addRemotePlayer(e, t) {
       if (this.remotePlayers.has(e)) return;
-      const n = xe.getState(), i = new hM(this.scene, t, (n == null ? void 0 : n.mode) === "team");
+      const n = ye.getState(), i = new hM(this.scene, t, (n == null ? void 0 : n.mode) === "team");
       this.remotePlayers.set(e, i);
     }
     removeRemotePlayer(e) {
@@ -42776,7 +42776,7 @@ The format should be roomId:reconnectionToken`);
         };
         this.particles.emitHitSparks(n, i, 30);
       }
-      e.playerId === xe.sessionId && this.player && (e.type === "laser_upgrade" ? (this.player.hasLaserUpgrade = true, this.showPickupMessage("LASER UPGRADE ACQUIRED")) : e.type === "missile" && this.showPickupMessage("MISSILES REFILLED"));
+      e.playerId === ye.sessionId && this.player && (e.type === "laser_upgrade" ? (this.player.hasLaserUpgrade = true, this.showPickupMessage("LASER UPGRADE ACQUIRED")) : e.type === "missile" && this.showPickupMessage("MISSILES REFILLED"));
     }
     showPickupMessage(e) {
       const t = document.querySelector(".pickup-message");
@@ -42811,7 +42811,7 @@ The format should be roomId:reconnectionToken`);
     }
     updateNetworkProjectile(e, t) {
       const n = this.networkProjectiles.get(e);
-      if (n) if (n.type === "missile") {
+      if (n) if (console.log("[Game] Updating network projectile:", e, "pos:", t.x.toFixed(1), t.y.toFixed(1), t.z.toFixed(1)), n.type === "missile") {
         n.obj.group.position.set(t.x, t.y, t.z), n.obj.direction.set(t.dx, t.dy, t.dz).normalize();
         const i = new w(0, 0, 1);
         n.obj.group.quaternion.setFromUnitVectors(i, n.obj.direction);
@@ -42819,7 +42819,7 @@ The format should be roomId:reconnectionToken`);
     }
     handleNetworkHit(e) {
       console.log("[Game] Network hit received:", e);
-      const t = new w(e.x, e.y, e.z), n = new w(0, 1, 0), i = e.shooterId === xe.sessionId, r = i ? 65535 : 16746496, a = new Yh(this.scene, t, n, r, this.dynamicLights);
+      const t = new w(e.x, e.y, e.z), n = new w(0, 1, 0), i = e.shooterId === ye.sessionId, r = i ? 65535 : 16746496, a = new Yh(this.scene, t, n, r, this.dynamicLights);
       if (this.impacts.push(a), this.particles) {
         const o = i ? {
           r: 0,
@@ -42849,7 +42849,7 @@ The format should be roomId:reconnectionToken`);
           }
         }
       }
-      if (e.targetId !== xe.sessionId) {
+      if (e.targetId !== ye.sessionId) {
         const o = this.remotePlayers.get(e.targetId);
         o && o.takeDamage(e.damage);
       } else console.log("[Game] Local player took damage, showing vignette"), this.player.health -= e.damage, this.player.lastDamageTime = this.clock.elapsedTime, this.showDamageIndicator(t);
@@ -42880,7 +42880,7 @@ The format should be roomId:reconnectionToken`);
     }
     handleLocalPlayerRespawn() {
       document.getElementById("respawn-overlay").classList.remove("active");
-      const t = xe.getLocalPlayer();
+      const t = ye.getLocalPlayer();
       t && this.player && (this.player.health = t.health, this.player.maxHealth = t.maxHealth, this.player.missiles = t.missiles, this.player.lastDamageTime = 0, this.camera.position.set(t.x, t.y, t.z), this.camera.quaternion.set(t.qx, t.qy, t.qz, t.qw), this._hudLast.health = null, this._hudLast.missiles = null);
     }
     showKillFeed(e, t) {
@@ -42942,7 +42942,7 @@ The format should be roomId:reconnectionToken`);
     }
     showLeaderboard() {
       this.leaderboardEl || (this.leaderboardEl = document.createElement("div"), this.leaderboardEl.id = "tab-leaderboard", document.body.appendChild(this.leaderboardEl));
-      const e = xe.getPlayers().map(([t, n]) => ({
+      const e = ye.getPlayers().map(([t, n]) => ({
         id: t,
         name: n.name,
         kills: n.kills,
@@ -42958,7 +42958,7 @@ The format should be roomId:reconnectionToken`);
           <span class="lb-deaths">D</span>
         </div>
         ${e.map((t, n) => `
-          <div class="leaderboard-row ${t.id === xe.sessionId ? "local" : ""}">
+          <div class="leaderboard-row ${t.id === ye.sessionId ? "local" : ""}">
             <span class="lb-rank">${n + 1}</span>
             <span class="lb-name">${t.name}</span>
             <span class="lb-kills">${t.kills}</span>
@@ -42985,7 +42985,7 @@ The format should be roomId:reconnectionToken`);
       });
     }
     leaveMatch() {
-      this.isEscMenuOpen = false, this.escMenu && (this.escMenu.style.display = "none"), this.isMultiplayer && (xe.leaveRoom(), this.cleanupMultiplayer(), this.isMultiplayer = false), this.renderer.domElement.style.display = "none", document.getElementById("crosshair").classList.remove("active"), document.getElementById("hud").classList.remove("active"), this.player = null, es.show(), this.gameManager.setState({
+      this.isEscMenuOpen = false, this.escMenu && (this.escMenu.style.display = "none"), this.isMultiplayer && (ye.leaveRoom(), this.cleanupMultiplayer(), this.isMultiplayer = false), this.renderer.domElement.style.display = "none", document.getElementById("crosshair").classList.remove("active"), document.getElementById("hud").classList.remove("active"), this.player = null, es.show(), this.gameManager.setState({
         currentState: jt.MENU,
         isRunning: false,
         isMultiplayer: false
@@ -43007,7 +43007,7 @@ The format should be roomId:reconnectionToken`);
       if (!this.gameManager.isPlaying()) return;
       Wr.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
       const e = this.player.getWeaponSpawnPoint();
-      this.isMultiplayer && xe.sendFire("laser", e, Wr);
+      this.isMultiplayer && ye.sendFire("laser", e, Wr);
       const t = new qh(this.scene, e, Wr, true);
       this.projectiles.push(t), (_a3 = this.dynamicLights) == null ? void 0 : _a3.flash(e, 65535, {
         intensity: 10,
@@ -43025,7 +43025,7 @@ The format should be roomId:reconnectionToken`);
       const t = this.player.getMissileSpawnPoint(), n = new vp(this.scene, t, Wr, {
         particles: this.particles
       });
-      this.missiles.push(n), this.isMultiplayer && (xe.sendFire("missile", t, Wr), this.localMissileQueue.push(n)), (_a3 = this.dynamicLights) == null ? void 0 : _a3.flash(t, 16755251, {
+      this.missiles.push(n), this.isMultiplayer && (ye.sendFire("missile", t, Wr), this.localMissileQueue.push(n)), (_a3 = this.dynamicLights) == null ? void 0 : _a3.flash(t, 16755251, {
         intensity: 14,
         distance: 20,
         ttl: 0.07,
@@ -43042,7 +43042,7 @@ The format should be roomId:reconnectionToken`);
       this._hudAccum = 0;
       const t = Math.max(0, Math.round(this.player.health / this.player.maxHealth * 100)), n = this.player.missiles, i = Math.max(0, Math.round(this.player.boostFuel / this.player.maxBoostFuel * 100));
       let r = 0;
-      if (this.isMultiplayer && (r = ((_a3 = xe.getLocalPlayer()) == null ? void 0 : _a3.kills) || 0), t !== this._hudLast.health && (this.hud.health.textContent = String(t), this._hudLast.health = t), r !== this._hudLast.kills && (this.hud.kills.textContent = String(r), this._hudLast.kills = r), n !== this._hudLast.missiles) {
+      if (this.isMultiplayer && (r = ((_a3 = ye.getLocalPlayer()) == null ? void 0 : _a3.kills) || 0), t !== this._hudLast.health && (this.hud.health.textContent = String(t), this._hudLast.health = t), r !== this._hudLast.kills && (this.hud.kills.textContent = String(r), this._hudLast.kills = r), n !== this._hudLast.missiles) {
         const a = this.player.maxMissiles || n;
         this.hud.missiles.textContent = `${n}/${a}`, this._hudLast.missiles = n;
       }
@@ -43050,8 +43050,8 @@ The format should be roomId:reconnectionToken`);
     }
     sendInputToServer(e) {
       if (!this.isMultiplayer || !this.player) return;
-      const t = xe.getState();
-      !t || t.phase !== "playing" || (this.lastInputSeq = xe.sendInput({
+      const t = ye.getState();
+      !t || t.phase !== "playing" || (this.lastInputSeq = ye.sendInput({
         x: this.camera.position.x,
         y: this.camera.position.y,
         z: this.camera.position.z,
@@ -43081,10 +43081,17 @@ The format should be roomId:reconnectionToken`);
           ...Array.from(this.remotePlayers.values())
         ];
         this.missiles.forEach((i) => i.update(e, n)), this.isMultiplayer && this.localMissileIds.forEach((i, r) => {
-          i.disposed || i.lifetime <= 0 ? this.localMissileIds.delete(r) : xe.sendMissileUpdate(r, i.group.position, i.direction);
-        }), this.networkProjectiles.forEach((i) => {
+          i.disposed || i.lifetime <= 0 ? this.localMissileIds.delete(r) : ye.sendMissileUpdate(r, i.group.position, i.direction);
+        }), this.networkProjectiles.forEach((i, r) => {
+          var _a4, _b4;
           if (i.type === "projectile") i.obj.update(e);
           else if (i.type === "missile") {
+            const a = (_b4 = (_a4 = ye.getState()) == null ? void 0 : _a4.projectiles) == null ? void 0 : _b4.get(r);
+            if (a) {
+              i.obj.group.position.set(a.x, a.y, a.z), i.obj.direction.set(a.dx, a.dy, a.dz).normalize();
+              const o = new w(0, 0, 1);
+              i.obj.group.quaternion.setFromUnitVectors(o, i.obj.direction);
+            }
             if (i.obj.lifetime -= e, i.obj.particles) for (i.obj.spawnTimer += e; i.obj.spawnTimer >= i.obj.spawnRate; ) i.obj.spawnTimer -= i.obj.spawnRate, i.obj.particles.emitMissileExhaust(i.obj.group.position, i.obj.group.quaternion, i.obj.direction);
             i.obj.trail.material.opacity = 0.6 + Math.random() * 0.25;
           }
