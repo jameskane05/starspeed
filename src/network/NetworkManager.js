@@ -217,6 +217,10 @@ class NetworkManager {
       this.emit("matchEnd", data);
     });
 
+    this.room.onMessage("chat", (data) => {
+      this.emit("chat", data);
+    });
+
     this.room.onLeave((code) => {
       console.log("[Network] Left room:", code);
       this.emit("roomLeft", { code });
@@ -348,6 +352,11 @@ class NetworkManager {
   startGame() {
     if (!this.room) return;
     this.room.send("startGame");
+  }
+
+  sendChat(text) {
+    if (!this.room) return;
+    this.room.send("chat", { text });
   }
 
   leaveRoom() {

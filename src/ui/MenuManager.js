@@ -32,6 +32,11 @@ class MenuManager {
     this.gamepadPollInterval = null;
     
     this.startScene = null;
+    
+    // Chat state
+    this.chatMessages = [];
+    this.mutedPlayers = new Set(JSON.parse(localStorage.getItem("starstrafe_muted") || "[]"));
+    this.maxChatMessages = 50;
   }
 
   async init() {
@@ -228,6 +233,11 @@ class MenuManager {
 
     NetworkManager.on("roomLeft", () => {
       this.showScreen(SCREENS.MAIN_MENU);
+      this.chatMessages = []; // Clear chat on leave
+    });
+
+    NetworkManager.on("chat", (data) => {
+      this.addChatMessage(data);
     });
 
     NetworkManager.on("error", (err) => {
@@ -614,6 +624,70 @@ class MenuManager {
     this.startRefreshing();
   }
 
+  // Chat methods
+  addChatMessage(data) {
+    // Don't show messages from muted players
+    if (this.mutedPlayers.has(data.senderId)) return;
+    
+    this.chatMessages.push({
+      senderId: data.senderId,
+      senderName: data.senderName,
+      text: data.text,
+      timestamp: data.timestamp,
+      isLocal: data.senderId === NetworkManager.sessionId
+    });
+    
+    // Limit chat history
+    if (this.chatMessages.length > this.maxChatMessages) {
+      this.chatMessages.shift();
+    }
+    
+    // Update chat display if in lobby
+    this.updateChatDisplay();
+  }
+
+  updateChatDisplay() {
+    const chatMessages = document.getElementById("chat-messages");
+    if (!chatMessages) return;
+    
+    chatMessages.innerHTML = this.chatMessages.map(msg => `
+      <div class="chat-message ${msg.isLocal ? "local" : ""}">
+        <span class="chat-sender">${msg.senderName}:</span>
+        <span class="chat-text">${this.escapeHtml(msg.text)}</span>
+      </div>
+    `).join("");
+    
+    // Auto-scroll to bottom
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  sendChatMessage() {
+    const input = document.getElementById("chat-input");
+    if (!input) return;
+    
+    const text = input.value.trim();
+    if (text) {
+      NetworkManager.sendChat(text);
+      input.value = "";
+    }
+  }
+
+  toggleMute(sessionId) {
+    if (this.mutedPlayers.has(sessionId)) {
+      this.mutedPlayers.delete(sessionId);
+    } else {
+      this.mutedPlayers.add(sessionId);
+    }
+    localStorage.setItem("starstrafe_muted", JSON.stringify([...this.mutedPlayers]));
+    this.renderLobby();
+  }
+
   renderLobby() {
     const state = NetworkManager.getState();
     if (!state) return;
@@ -663,9 +737,31 @@ class MenuManager {
                     <span class="player-name">${player.name}${state.hostId === sessionId ? " ★" : ""}</span>
                     <span class="player-class">${player.shipClass.toUpperCase()}</span>
                   </div>
-                  <div class="player-status">${player.ready ? "READY" : "..."}</div>
+                  <div class="player-actions">
+                    ${sessionId !== NetworkManager.sessionId ? `
+                      <button class="mute-btn ${this.mutedPlayers.has(sessionId) ? "muted" : ""}" data-session="${sessionId}" title="${this.mutedPlayers.has(sessionId) ? "Unmute" : "Mute"}">
+                        ${this.mutedPlayers.has(sessionId) ? "🔇" : "🔊"}
+                      </button>
+                    ` : ""}
+                    <div class="player-status">${player.ready ? "READY" : "..."}</div>
+                  </div>
                 </div>
               `).join("")}
+            </div>
+            
+            <div class="chat-section">
+              <div class="chat-messages" id="chat-messages">
+                ${this.chatMessages.map(msg => `
+                  <div class="chat-message ${msg.isLocal ? "local" : ""}">
+                    <span class="chat-sender">${msg.senderName}:</span>
+                    <span class="chat-text">${this.escapeHtml(msg.text)}</span>
+                  </div>
+                `).join("")}
+              </div>
+              <div class="chat-input-row">
+                <input type="text" id="chat-input" placeholder="Type a message..." maxlength="200" />
+                <button class="chat-send-btn" id="btn-send-chat">SEND</button>
+              </div>
             </div>
           </div>
           
@@ -741,6 +837,32 @@ class MenuManager {
     document.getElementById("btn-start")?.addEventListener("click", () => {
       NetworkManager.startGame();
     });
+
+    // Chat event listeners
+    document.getElementById("btn-send-chat")?.addEventListener("click", () => {
+      this.sendChatMessage();
+    });
+
+    document.getElementById("chat-input")?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        this.sendChatMessage();
+      }
+    });
+
+    // Mute button listeners
+    document.querySelectorAll(".mute-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.toggleMute(btn.dataset.session);
+      });
+    });
+
+    // Scroll chat to bottom on render
+    const chatMessages = document.getElementById("chat-messages");
+    if (chatMessages) {
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
   }
 
   renderLoading() {

@@ -82,6 +82,23 @@ export class GameRoom extends Room {
     this.onMessage("classSelect", (client, data) => this.handleClassSelect(client, data));
     this.onMessage("ready", (client) => this.handleReady(client));
     this.onMessage("startGame", (client) => this.handleStartGame(client));
+    this.onMessage("chat", (client, data) => this.handleChat(client, data));
+  }
+
+  private handleChat(client: Client, data: any) {
+    const player = this.state.players.get(client.sessionId);
+    if (!player) return;
+    
+    const text = String(data.text || "").trim().slice(0, 200); // Limit length
+    if (!text) return;
+    
+    // Broadcast to all clients
+    this.broadcast("chat", {
+      senderId: client.sessionId,
+      senderName: player.name,
+      text: text,
+      timestamp: Date.now()
+    });
   }
 
   onJoin(client: Client, options: any) {
