@@ -1110,13 +1110,13 @@ export class Game {
       const missileTargets = [...this.enemies, ...Array.from(this.remotePlayers.values())];
       this.missiles.forEach((m) => m.update(delta, missileTargets));
 
-      // Send position updates for homing missiles to server
+      // Send position updates for all local missiles to server (for remote clients to see)
       if (this.isMultiplayer) {
         this.localMissileIds.forEach((missile, serverId) => {
           if (missile.disposed || missile.lifetime <= 0) {
             this.localMissileIds.delete(serverId);
-          } else if (missile.target) {
-            // Only send updates when actively homing
+          } else {
+            // Always send position updates so remote clients see movement
             NetworkManager.sendMissileUpdate(
               serverId,
               missile.group.position,
