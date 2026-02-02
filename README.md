@@ -50,6 +50,63 @@ starstrafe/
 - [Colyseus](https://colyseus.io/) - Multiplayer framework
 - [@colyseus/schema](https://docs.colyseus.io/state/schema/) - State synchronization
 
+## Networking Architecture
+
+**Server Tick Rate:** 20 Hz (50ms intervals)
+
+### Server Authority
+
+The server is authoritative for:
+- **Combat/Health** - All damage, kills, respawns
+- **Collision Detection** - Swept-sphere projectile hits
+- **Game State** - Phase (lobby/countdown/playing/results), scores, timers
+- **Shield Regeneration** - After 5 seconds without damage
+- **Collectibles** - Spawn, collection, respawn timers
+
+### State Synchronization
+
+Colyseus automatically syncs schema changes to all clients via delta encoding:
+
+```
+GameState
+├── players (MapSchema<Player>)
+│   └── position, rotation, health, kills, deaths, missiles, etc.
+├── projectiles (MapSchema<Projectile>)
+│   └── position, direction, speed, damage, lifetime
+└── collectibles (MapSchema<Collectible>)
+```
+
+### Client-Side Prediction
+
+- **Local player movement** - Immediate response, no waiting for server
+- **Server reconciliation** - When server position differs by >0.5 units, smoothly corrects
+- **Projectile spawn** - Shows immediately (client prediction), server validates
+
+### Authority by System
+
+| System | Authority |
+|--------|-----------|
+| Player Movement | Client sends position → Server stores → Broadcasts |
+| Lasers | Server moves projectiles, handles collision |
+| Missiles | Owner's client controls position/homing → Server syncs to others |
+| Combat | Server-authoritative |
+| Respawns | Server-authoritative |
+
+### Message Flow
+
+```
+Client → Server:
+  - "input" (position, rotation, velocity, seq#)
+  - "fire" (weapon, position, direction)
+  - "missileUpdate" (id, position, direction) [owner only]
+  - "chat" (text)
+
+Server → Clients:
+  - State sync (automatic via Colyseus schema)
+  - "hit", "kill", "respawn" events
+  - "chat" broadcast
+```
+
 ## Development
 
 ### Prerequisites
