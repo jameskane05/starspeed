@@ -712,7 +712,7 @@ class MenuManager {
               <div class="share-tooltip" id="share-tooltip">
                 <label>SHARE LINK</label>
                 <div class="share-input-group">
-                  <input type="text" id="share-url" readonly value="${window.location.origin}?join=${NetworkManager.room?.roomId || ""}" />
+                  <input type="text" id="share-url" readonly value="${window.location.origin}${window.location.pathname}?join=${NetworkManager.room?.roomId || ""}" />
                   <button class="copy-btn" id="btn-copy">📋</button>
                 </div>
               </div>
