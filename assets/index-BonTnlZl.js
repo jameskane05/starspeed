@@ -40829,7 +40829,7 @@ The format should be roomId:reconnectionToken`);
               <div class="share-tooltip" id="share-tooltip">
                 <label>SHARE LINK</label>
                 <div class="share-input-group">
-                  <input type="text" id="share-url" readonly value="${window.location.origin}?join=${((_c3 = ye.room) == null ? void 0 : _c3.roomId) || ""}" />
+                  <input type="text" id="share-url" readonly value="${window.location.origin}${window.location.pathname}?join=${((_c3 = ye.room) == null ? void 0 : _c3.roomId) || ""}" />
                   <button class="copy-btn" id="btn-copy">\u{1F4CB}</button>
                 </div>
               </div>
