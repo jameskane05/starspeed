@@ -40154,6 +40154,17 @@ The format should be roomId:reconnectionToken`);
         dz: n.z
       });
     }
+    sendMissileUpdate(e, t, n) {
+      this.room && this.room.send("missileUpdate", {
+        id: e,
+        x: t.x,
+        y: t.y,
+        z: t.z,
+        dx: n.x,
+        dy: n.y,
+        dz: n.z
+      });
+    }
     selectClass(e) {
       this.room && this.room.send("classSelect", {
         shipClass: e
@@ -42488,7 +42499,7 @@ The format should be roomId:reconnectionToken`);
         enabled: true,
         reconciliationThreshold: 0.5,
         smoothCorrection: true
-      }), this.lastInputSeq = 0;
+      }), this.lastInputSeq = 0, this.localMissileQueue = [], this.localMissileIds = /* @__PURE__ */ new Map();
     }
     async init() {
       tB(), this.scene = new Sg(), this.scene.background = new De(328976), this.scene.fog = null, this.camera = new hn(70, window.innerWidth / window.innerHeight, 0.1, 1e3), this.scene.add(this.camera), this.renderer = new Jg({
@@ -42549,7 +42560,12 @@ The format should be roomId:reconnectionToken`);
           }, i), _e.clearProcessedInputs(i));
         }
       }), _e.on("projectileSpawn", ({ projectile: e, id: t }) => {
-        console.log("[Game] Projectile spawn event:", t, "owner:", e.ownerId, "isLocal:", e.ownerId === _e.sessionId), e.ownerId !== _e.sessionId && this.spawnNetworkProjectile(t, e);
+        if (console.log("[Game] Projectile spawn event:", t, "owner:", e.ownerId, "isLocal:", e.ownerId === _e.sessionId), e.ownerId !== _e.sessionId) this.spawnNetworkProjectile(t, e);
+        else if (e.type === "missile") {
+          for (; this.localMissileQueue.length > 0 && this.localMissileQueue[0].disposed; ) this.localMissileQueue.shift();
+          const n = this.localMissileQueue.shift();
+          n && !n.disposed && (this.localMissileIds.set(t, n), console.log("[Game] Linked local missile to server ID:", t));
+        }
       }), _e.on("projectileRemove", ({ id: e }) => {
         this.removeNetworkProjectile(e);
       }), _e.on("collectibleSpawn", ({ collectible: e, id: t }) => {
@@ -42908,12 +42924,10 @@ The format should be roomId:reconnectionToken`);
       const e = this.clock.elapsedTime;
       if (e - this.lastMissileTime < this.missileCooldown) return;
       this.lastMissileTime = e, this.player.missiles--, Wr.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
-      const t = this.player.getMissileSpawnPoint();
-      this.isMultiplayer && _e.sendFire("missile", t, Wr);
-      const n = new vp(this.scene, t, Wr, {
+      const t = this.player.getMissileSpawnPoint(), n = new vp(this.scene, t, Wr, {
         particles: this.particles
       });
-      this.missiles.push(n), (_a3 = this.dynamicLights) == null ? void 0 : _a3.flash(t, 16755251, {
+      this.missiles.push(n), this.isMultiplayer && (_e.sendFire("missile", t, Wr), this.localMissileQueue.push(n)), (_a3 = this.dynamicLights) == null ? void 0 : _a3.flash(t, 16755251, {
         intensity: 14,
         distance: 20,
         ttl: 0.07,
@@ -42968,7 +42982,9 @@ The format should be roomId:reconnectionToken`);
           ...this.enemies,
           ...Array.from(this.remotePlayers.values())
         ];
-        this.missiles.forEach((i) => i.update(e, n)), this.networkProjectiles.forEach((i) => {
+        this.missiles.forEach((i) => i.update(e, n)), this.isMultiplayer && this.localMissileIds.forEach((i, r) => {
+          i.disposed || i.lifetime <= 0 ? this.localMissileIds.delete(r) : i.target && _e.sendMissileUpdate(r, i.group.position, i.direction);
+        }), this.networkProjectiles.forEach((i) => {
           i.type === "projectile" ? i.obj.update(e) : i.type === "missile" && i.obj.update(e, n);
         });
         for (let i = this.explosions.length - 1; i >= 0; i--) this.explosions[i].update(e) || this.explosions.splice(i, 1);
