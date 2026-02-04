@@ -35,8 +35,10 @@ export class Input {
       moveY: 0,
       lookX: 0,
       lookY: 0,
+      rollAnalog: 0,
       fire: false,
       missile: false,
+      missileJustPressed: false,
       boost: false,
       strafeUp: false,
       strafeDown: false,
@@ -179,21 +181,48 @@ export class Input {
       this.setInputMode(INPUT_MODE.GAMEPAD);
     }
     
-    // Read gamepad state
+    // Read gamepad state using bindings
     const gp = this.gamepad;
-    const state = GamepadInput.state;
     
-    gp.moveX = state.leftStick.x;
-    gp.moveY = state.leftStick.y;
-    gp.lookX = state.rightStick.x;
-    gp.lookY = state.rightStick.y;
+    // Movement axes - use bindings to determine which physical input maps to which action
+    gp.moveX = GamepadInput.getAxisValue('moveX');
+    gp.moveY = GamepadInput.getAxisValue('moveY');
+    gp.lookX = GamepadInput.getAxisValue('lookX');
+    gp.lookY = GamepadInput.getAxisValue('lookY');
     
-    gp.fire = state.rightTrigger > 0.1;
-    gp.missile = state.leftTrigger > 0.1;
+    // Debug throttle/moveY
+    if (GamepadInput.isHotas && Math.abs(gp.moveY) > 0.1) {
+      console.log(`[Input] moveY=${gp.moveY.toFixed(2)}, throttle state=${GamepadInput.state.throttle.toFixed(2)}`);
+    }
+    
+    // HOTAS: invert pitch axis (pull back = look up), boost look sensitivity
+    if (GamepadInput.isHotas) {
+      gp.lookX = gp.lookX * 5;
+      gp.lookY = -gp.lookY * 5;
+    }
+    
+    // HOTAS: directional buttons for strafe (moveX_neg/moveX_pos)
+    if (GamepadInput.getButtonState('moveX_neg')) gp.moveX = -1;
+    if (GamepadInput.getButtonState('moveX_pos')) gp.moveX = 1;
+    
+    // Analog roll from twist axis (for HOTAS) - axis 5, reduced sensitivity
+    const rollAxis = GamepadInput.getAxisValue('rollAxis');
+    gp.rollAnalog = Math.abs(rollAxis) > 0.15 ? rollAxis * 0.4 : 0;
+    
+    gp.fire = GamepadInput.getButtonState('fire');
+    gp.missile = GamepadInput.getButtonState('missile');
+    gp.missileJustPressed = GamepadInput.getButtonJustPressed('missile');
     gp.boost = GamepadInput.getButtonState('boost');
     
-    gp.strafeUp = GamepadInput.getButtonState('strafeUp');
-    gp.strafeDown = GamepadInput.getButtonState('strafeDown');
+    // Strafe from buttons or POV hat (HOTAS)
+    gp.strafeUp = GamepadInput.getButtonState('strafeUp') || GamepadInput.state.pov.up;
+    gp.strafeDown = GamepadInput.getButtonState('strafeDown') || GamepadInput.state.pov.down;
+    // Lateral strafe from buttons or POV hat
+    const strafeLeft = GamepadInput.getButtonState('strafeLeft') || GamepadInput.state.pov.left;
+    const strafeRight = GamepadInput.getButtonState('strafeRight') || GamepadInput.state.pov.right;
+    if (strafeLeft) gp.moveX = -1;
+    if (strafeRight) gp.moveX = 1;
+    
     gp.rollLeft = GamepadInput.getButtonState('rollLeft');
     gp.rollRight = GamepadInput.getButtonState('rollRight');
     

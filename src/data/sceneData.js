@@ -22,13 +22,14 @@ export const sceneObjects = {
   level: {
     id: "level",
     type: "splat",
-    path: "./level.compressed.ply",
-    description: "Level environment gaussian splat",
+    path: "https://public-spz.t3.storage.dev/cozyspaceship2/cozy-spaceship_2-lod-0.spz",
+    description: "Level environment gaussian splat with LOD",
     position: { x: 0, y: 0, z: 0 },
     rotation: { x: 0, y: 0, z: 0 },
     scale: 20,
     priority: 100,
     preload: false,  // Don't preload - load when game starts
+    paged: true,     // Enable streaming for LOD files
     criteria: {
       currentLevel: "hangar",
       currentState: { $in: [GAME_STATES.PLAYING, GAME_STATES.PAUSED] },

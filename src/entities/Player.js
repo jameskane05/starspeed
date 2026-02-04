@@ -69,7 +69,7 @@ export class Player {
       "./cockpit.glb",
       (gltf) => {
         this.cockpit = gltf.scene;
-        this.cockpit.scale.setScalar(0.5);
+        this.cockpit.scale.setScalar(1.0);
         this.cockpit.position.set(0, -0, 0);
 
         // Cockpit interior light
@@ -190,8 +190,13 @@ export class Player {
     // Roll with acceleration
     let rollInput = 0;
     if (useGamepad) {
-      if (gp.rollLeft) rollInput -= this.rollAccel * delta;
-      if (gp.rollRight) rollInput += this.rollAccel * delta;
+      // Analog roll from HOTAS twist axis
+      if (gp.rollAnalog && Math.abs(gp.rollAnalog) > 0.1) {
+        rollInput = gp.rollAnalog * this.rollAccel * delta;
+      } else {
+        if (gp.rollLeft) rollInput -= this.rollAccel * delta;
+        if (gp.rollRight) rollInput += this.rollAccel * delta;
+      }
     } else {
       if (keys.rollLeft) rollInput -= this.rollAccel * delta;
       if (keys.rollRight) rollInput += this.rollAccel * delta;

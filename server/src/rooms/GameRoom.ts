@@ -2,9 +2,9 @@ import { Room, Client, matchMaker } from "colyseus";
 import { GameState, Player, Projectile, Collectible } from "./schema/GameState.js";
 
 const SHIP_CLASSES = {
-  fighter: { speed: 1.0, health: 100, missiles: 6, maxMissiles: 6, projectileSpeed: 60, missileDamage: 75 },
-  tank: { speed: 0.7, health: 150, missiles: 8, maxMissiles: 8, projectileSpeed: 50, missileDamage: 150 },
-  rogue: { speed: 1.4, health: 70, missiles: 4, maxMissiles: 4, projectileSpeed: 80, missileDamage: 60 },
+  fighter: { speed: 1.0, health: 100, missiles: 6, maxMissiles: 6, laserSpeed: 200, missileSpeed: 80, missileDamage: 75 },
+  tank: { speed: 0.7, health: 150, missiles: 8, maxMissiles: 8, laserSpeed: 200, missileSpeed: 70, missileDamage: 150 },
+  rogue: { speed: 1.4, health: 70, missiles: 4, maxMissiles: 4, laserSpeed: 200, missileSpeed: 100, missileDamage: 60 },
 };
 
 // Spawn points with rotation facing center (0,0,0)
@@ -214,11 +214,11 @@ export class GameRoom extends Room {
     console.log(`[GameRoom] ${player.name} fired ${data.weapon}`);
     
     if (data.weapon === "laser") {
-      this.spawnProjectile(player, data, "laser", classStats.projectileSpeed, 25);
+      this.spawnProjectile(player, data, "laser", classStats.laserSpeed, 25);
     } else if (data.weapon === "missile") {
       if (player.missiles > 0) {
         player.missiles--;
-        this.spawnProjectile(player, data, "missile", 30, classStats.missileDamage);
+        this.spawnProjectile(player, data, "missile", classStats.missileSpeed, classStats.missileDamage);
       }
     }
   }

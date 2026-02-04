@@ -79,13 +79,14 @@ class SceneManager {
    * Load a gaussian splat
    */
   async _loadSplat(objectData, onProgress = null) {
-    const { id, path, position, rotation, scale, quaternion } = objectData;
+    const { id, path, position, rotation, scale, quaternion, paged } = objectData;
 
-    console.log(`[SceneManager] Loading splat: ${path}`);
+    console.log(`[SceneManager] Loading splat: ${path}${paged ? ' (paged/LOD)' : ''}`);
     
     const splatMesh = new SplatMesh({
       url: path,
       editable: false,
+      paged: paged || false,  // Enable streaming for LOD files
       onProgress: (progress) => {
         if (onProgress) onProgress(progress);
       },

@@ -24,7 +24,7 @@
   "dependencies": {
     "@colyseus/sdk": "^0.17.25",
     "@dimforge/rapier3d": "^0.19.0",
-    "@sparkjsdev/spark": "^0.1.10",
+    "@sparkjsdev/spark": "github:sparkjsdev/spark#splat-quick-lod",
     "howler": "^2.2.4",
     "three": "^0.182.0"
   }

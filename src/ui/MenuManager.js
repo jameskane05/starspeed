@@ -1014,7 +1014,48 @@ class MenuManager {
     const presets = KeyBindings.getPresetNames();
     const gpBindings = GamepadInput.getBindings();
     const gpConnected = GamepadInput.connected;
-    const activeTab = this.optionsTab || (gpConnected ? 'gamepad' : 'keyboard');
+    const isHotas = GamepadInput.isHotas;
+    const activeTab = this.optionsTab || (isHotas ? 'hotas' : gpConnected ? 'gamepad' : 'keyboard');
+
+    const HOTAS_ACTION_LABELS = {
+      lookX: 'Yaw (Left/Right)',
+      lookY: 'Pitch (Up/Down)',
+      moveY: 'Throttle (Fwd/Back)',
+      rollAxis: 'Roll (Twist)',
+      fire: 'Fire Lasers',
+      missile: 'Fire Missiles',
+      boost: 'Boost',
+      strafeUp: 'Strafe Up',
+      strafeDown: 'Strafe Down',
+      strafeLeft: 'Strafe Left',
+      strafeRight: 'Strafe Right',
+      pause: 'Pause Menu',
+    };
+
+    const HOTAS_INPUT_LABELS = {
+      leftStickX: 'Stick X',
+      leftStickY: 'Stick Y',
+      throttle: 'Throttle Axis',
+      twist: 'Twist Axis',
+      buttonA: 'Trigger',
+      buttonB: 'Button 1',
+      buttonX: 'Button 2',
+      buttonY: 'Button 3',
+      button4: 'Button 4',
+      button5: 'Button 5',
+      button6: 'Button 6',
+      button7: 'Button 7',
+      button8: 'Button 8',
+      button9: 'Button 9',
+      button10: 'Button 10',
+      button11: 'Button 11',
+      povUp: 'POV Up',
+      povDown: 'POV Down',
+      povLeft: 'POV Left',
+      povRight: 'POV Right',
+      start: 'Start',
+      back: 'Back',
+    };
 
     return `
       <div class="options-tabs">
@@ -1022,7 +1063,10 @@ class MenuManager {
           KEYBOARD
         </button>
         <button class="options-tab ${activeTab === 'gamepad' ? 'active' : ''}" data-tab="gamepad">
-          GAMEPAD <span class="tab-status ${gpConnected ? 'connected' : ''}" id="gamepad-tab-status">${gpConnected ? '●' : '○'}</span>
+          GAMEPAD <span class="tab-status ${gpConnected && !isHotas ? 'connected' : ''}" id="gamepad-tab-status">${gpConnected && !isHotas ? '●' : '○'}</span>
+        </button>
+        <button class="options-tab ${activeTab === 'hotas' ? 'active' : ''}" data-tab="hotas">
+          HOTAS <span class="tab-status ${isHotas ? 'connected' : ''}" id="hotas-tab-status">${isHotas ? '●' : '○'}</span>
         </button>
       </div>
       
@@ -1054,25 +1098,78 @@ class MenuManager {
       <div class="options-tab-content ${activeTab === 'gamepad' ? 'active' : ''}" data-tab="gamepad">
         <div class="options-section">
           <div class="options-header-row">
-            <span class="gamepad-status ${gpConnected ? 'connected' : ''}" id="gamepad-status">${gpConnected ? '● CONNECTED' : '○ NOT DETECTED'}</span>
             <div class="preset-controls gamepad-preset-controls">
               <select id="gamepad-preset-select" class="menu-select preset-select">
-                ${GamepadInput.getPresetNames().map(p => `<option value="${p}" ${p === GamepadInput.activePreset ? 'selected' : ''}>${p.toUpperCase()}${p === 'custom' ? ' *' : ''}</option>`).join('')}
+                ${['default', 'custom'].map(p => `<option value="${p}" ${p === GamepadInput.activePreset ? 'selected' : ''}>${p.toUpperCase()}${p === 'custom' ? ' *' : ''}</option>`).join('')}
               </select>
               <button class="options-btn" id="btn-save-gamepad-preset" title="Save current as new preset" ${!GamepadInput.isCustom() ? 'disabled' : ''}>SAVE AS</button>
-              <button class="options-btn danger" id="btn-delete-gamepad-preset" title="Delete selected preset" ${GamepadInput.activePreset === 'default' || GamepadInput.activePreset === 'custom' ? 'disabled' : ''}>DELETE</button>
             </div>
+            <span class="gamepad-status ${gpConnected && !isHotas ? 'connected' : ''}" id="gamepad-status">${gpConnected && !isHotas ? '● CONNECTED' : '○ NOT DETECTED'}</span>
           </div>
           <div class="keybind-list gamepad-list">
-            ${Object.entries(gpBindings).map(([input, action]) => `
-              <div class="keybind-row gamepad-row">
-                <span class="keybind-action">${GAMEPAD_ACTION_LABELS[action] || action}</span>
-                <span class="gamepad-arrow">→</span>
-                <span class="gamepad-input">${GAMEPAD_INPUT_LABELS[input] || input}</span>
+            ${Object.keys(GAMEPAD_ACTION_LABELS).map(action => {
+              const input = Object.entries(gpBindings).find(([, a]) => a === action)?.[0];
+              return `
+              <div class="keybind-row gamepad-row" data-action="${action}">
+                <span class="keybind-action">${GAMEPAD_ACTION_LABELS[action]}</span>
+                <span class="gamepad-input ${!input ? 'unbound' : ''}">${input ? (GAMEPAD_INPUT_LABELS[input] || input) : 'UNBOUND'}</span>
+                <button class="rebind-btn gamepad-rebind-btn" data-action="${action}">REBIND</button>
               </div>
-            `).join('')}
+            `}).join('')}
           </div>
           <p class="gamepad-hint">Gamepad auto-switches when input is detected</p>
+        </div>
+      </div>
+      
+      <div class="options-tab-content ${activeTab === 'hotas' ? 'active' : ''}" data-tab="hotas">
+        <div class="options-section">
+          <div class="options-header-row">
+            <div class="preset-controls hotas-preset-controls">
+              <select id="hotas-preset-select" class="menu-select preset-select">
+                ${['hotas', 'custom'].map(p => `<option value="${p}" ${p === GamepadInput.activePreset ? 'selected' : ''}>${p.toUpperCase()}${p === 'custom' ? ' *' : ''}</option>`).join('')}
+              </select>
+              <button class="options-btn" id="btn-save-hotas-preset" title="Save current as new preset" ${GamepadInput.activePreset !== 'custom' ? 'disabled' : ''}>SAVE AS</button>
+            </div>
+            <span class="gamepad-status ${isHotas ? 'connected' : ''}" id="hotas-status">${isHotas ? '● CONNECTED' : '○ NOT DETECTED'}</span>
+          </div>
+          <div class="hotas-scroll-container">
+            <h4 class="hotas-section-title">AXES</h4>
+            <div class="keybind-list hotas-list">
+              ${['lookX', 'lookY', 'moveY', 'rollAxis'].map(action => {
+                const input = Object.entries(gpBindings).find(([, a]) => a === action)?.[0];
+                return `
+                <div class="keybind-row hotas-row">
+                  <span class="keybind-action">${HOTAS_ACTION_LABELS[action]}</span>
+                  <span class="gamepad-input ${!input ? 'unbound' : ''}">${input ? (HOTAS_INPUT_LABELS[input] || input) : 'UNBOUND'}</span>
+                </div>
+              `}).join('')}
+            </div>
+            <h4 class="hotas-section-title">BUTTONS</h4>
+            <div class="keybind-list hotas-list">
+              ${['fire', 'missile', 'boost', 'pause'].map(action => {
+                const input = Object.entries(gpBindings).find(([, a]) => a === action)?.[0];
+                return `
+                <div class="keybind-row hotas-row" data-action="${action}">
+                  <span class="keybind-action">${HOTAS_ACTION_LABELS[action]}</span>
+                  <span class="gamepad-input ${!input ? 'unbound' : ''}">${input ? (HOTAS_INPUT_LABELS[input] || input) : 'UNBOUND'}</span>
+                  <button class="rebind-btn hotas-rebind-btn" data-action="${action}">REBIND</button>
+                </div>
+              `}).join('')}
+            </div>
+            <h4 class="hotas-section-title">STRAFING</h4>
+            <div class="keybind-list hotas-list">
+              ${['strafeUp', 'strafeDown', 'strafeLeft', 'strafeRight'].map(action => {
+                const input = Object.entries(gpBindings).find(([, a]) => a === action)?.[0];
+                return `
+                <div class="keybind-row hotas-row" data-action="${action}">
+                  <span class="keybind-action">${HOTAS_ACTION_LABELS[action]}</span>
+                  <span class="gamepad-input ${!input ? 'unbound' : ''}">${input ? (HOTAS_INPUT_LABELS[input] || 'POV Hat') : 'POV HAT'}</span>
+                  <button class="rebind-btn hotas-rebind-btn" data-action="${action}">REBIND</button>
+                </div>
+              `}).join('')}
+            </div>
+            <p class="gamepad-hint">POV hat provides 8-directional strafing by default</p>
+          </div>
         </div>
       </div>
     `;
@@ -1382,12 +1479,107 @@ class MenuManager {
       }
     });
 
-    document.querySelectorAll(".rebind-btn").forEach(btn => {
+    document.getElementById("hotas-preset-select")?.addEventListener("change", (e) => {
+      GamepadInput.loadPreset(e.target.value);
+      this.renderOptionsInGame();
+    });
+
+    document.getElementById("btn-save-hotas-preset")?.addEventListener("click", () => {
+      const name = prompt("Enter preset name:");
+      if (name && name.trim()) {
+        GamepadInput.saveAsPreset(name.trim().toLowerCase());
+        this.renderOptionsInGame();
+      }
+    });
+
+    document.querySelectorAll(".rebind-btn:not(.gamepad-rebind-btn)").forEach(btn => {
       btn.addEventListener("click", () => {
         const action = btn.dataset.action;
         this.startRebindingInGame(action);
       });
     });
+    
+    document.querySelectorAll(".gamepad-rebind-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const action = btn.dataset.action;
+        this.startGamepadRebinding(action);
+      });
+    });
+    
+    document.querySelectorAll(".hotas-rebind-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const action = btn.dataset.action;
+        this.startGamepadRebinding(action); // Use same rebinding logic
+      });
+    });
+  }
+  
+  startGamepadRebinding(action) {
+    const modal = document.getElementById("rebind-modal");
+    document.getElementById("rebind-action-name").textContent = GAMEPAD_ACTION_LABELS[action] || action;
+    modal.querySelector(".rebind-prompt").textContent = "Press a gamepad button...";
+    modal.style.display = "flex";
+    
+    let pollInterval = null;
+    let prevButtons = [];
+    let prevAxes = [];
+    
+    const cleanup = () => {
+      if (pollInterval) clearInterval(pollInterval);
+      modal.style.display = "none";
+      modal.querySelector(".rebind-prompt").textContent = "Press a key...";
+      document.removeEventListener('keydown', handleEscape, true);
+    };
+    
+    const handleEscape = (e) => {
+      if (e.code === 'Escape') {
+        e.preventDefault();
+        cleanup();
+      }
+    };
+    
+    document.addEventListener('keydown', handleEscape, true);
+    
+    // Poll for gamepad input
+    pollInterval = setInterval(() => {
+      GamepadInput.poll();
+      const gp = navigator.getGamepads()[GamepadInput.gamepad?.index ?? 0];
+      if (!gp) return;
+      
+      // Check for button press
+      for (let i = 0; i < gp.buttons.length; i++) {
+        const wasPressed = prevButtons[i] || false;
+        if (gp.buttons[i].pressed && !wasPressed) {
+          // Map button index to binding name
+          const buttonNames = ['buttonA', 'buttonB', 'buttonX', 'buttonY', 'leftBumper', 'rightBumper', 
+                               'leftTrigger', 'rightTrigger', 'back', 'start', 'leftStickPress', 'rightStickPress',
+                               'dpadUp', 'dpadDown', 'dpadLeft', 'dpadRight'];
+          const bindingName = buttonNames[i] || `button${i}`;
+          
+          GamepadInput.setBinding(bindingName, action);
+          cleanup();
+          this.renderOptionsInGame();
+          return;
+        }
+      }
+      prevButtons = gp.buttons.map(b => b.pressed);
+      
+      // Check for significant axis change (for sticks/triggers)
+      for (let i = 0; i < gp.axes.length; i++) {
+        const prev = prevAxes[i] || 0;
+        const curr = gp.axes[i];
+        if (Math.abs(curr) > 0.7 && Math.abs(prev) < 0.3) {
+          const axisNames = ['leftStickX', 'leftStickY', 'rightStickX', 'rightStickY'];
+          const bindingName = axisNames[i] || `axis${i}`;
+          
+          GamepadInput.setBinding(bindingName, action);
+          cleanup();
+          this.renderOptionsInGame();
+          return;
+        }
+      }
+      prevAxes = [...gp.axes];
+    }, 50);
   }
 
   startGamepadStatusPollingInGame() {

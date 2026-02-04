@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { SparkRenderer } from "@sparkjsdev/spark";
+import { NewSparkRenderer } from "@sparkjsdev/spark";
 import { initPhysics, stepWorld, castSphere } from "../physics/Physics.js";
 import { Input } from "./Input.js";
 import { Player } from "../entities/Player.js";
@@ -51,6 +51,8 @@ export class Game {
     this.impacts = [];
     this.lastMissileTime = 0;
     this.missileCooldown = 0.4;
+    this.lastLaserTime = 0;
+    this.laserCooldown = 0.1; // 10 shots per second max
     this.clock = new THREE.Clock();
     this.boundFireEnemy = (pos, dir) => this.fireEnemyWeapon(pos, dir);
 
@@ -110,10 +112,10 @@ export class Game {
       }
     });
 
-    this.sparkRenderer = new SparkRenderer({
+    this.sparkRenderer = new NewSparkRenderer({
       renderer: this.renderer,
-      maxStdDev: Math.sqrt(8),
-      minAlpha: 0.00033,
+      maxStdDev: Math.sqrt(5),
+      lodSplatScale: 2.0,
     });
     this.sparkRenderer.renderOrder = -100;
     this.scene.add(this.sparkRenderer);
@@ -785,6 +787,9 @@ export class Game {
   }
 
   toggleEscMenu() {
+    // Only allow escape menu during gameplay
+    if (!this.gameManager?.isPlaying()) return;
+    
     if (this.isEscMenuOpen) {
       this.resumeGame();
     } else if (document.pointerLockElement) {
@@ -950,13 +955,18 @@ export class Game {
     if (gp.fire) {
       this.firePlayerWeapon();
     }
-    if (gp.missile) {
+    // Missiles fire on button press, not hold
+    if (gp.missileJustPressed) {
       this.firePlayerMissile();
     }
   }
 
   firePlayerWeapon() {
     if (!this.gameManager.isPlaying()) return;
+
+    const now = this.clock.elapsedTime;
+    if (now - this.lastLaserTime < this.laserCooldown) return;
+    this.lastLaserTime = now;
 
     _fireDir.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
     const spawnPos = this.player.getWeaponSpawnPoint();

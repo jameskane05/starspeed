@@ -18,11 +18,27 @@ export const DEFAULT_GAMEPAD_BINDINGS = {
   back: 'leaderboard',      // Back/Select -> leaderboard
 };
 
+// T-Flight HOTAS One preset
+// Main stick = rotation only (like mouse), throttle = thrust, POV = strafe
+export const HOTAS_BINDINGS = {
+  leftStickX: 'lookX',      // Stick X -> yaw (left/right look)
+  leftStickY: 'lookY',      // Stick Y -> pitch (pull back = look up)
+  throttle: 'moveY',        // Throttle lever -> forward/backward thrust
+  twist: 'rollAxis',        // Twist/rudder -> roll (analog)
+  buttonA: 'fire',          // Trigger (button 0) -> fire lasers
+  buttonX: 'missile',       // Button 2 -> missiles
+  button8: 'boost',         // Button 8 -> boost
+  start: 'pause',
+  back: 'leaderboard',
+};
+
 export const GAMEPAD_INPUT_LABELS = {
   leftStickX: 'Left Stick X',
   leftStickY: 'Left Stick Y',
   rightStickX: 'Right Stick X',
   rightStickY: 'Right Stick Y',
+  throttle: 'Throttle',
+  twist: 'Twist/Rudder',
   rightTrigger: 'Right Trigger',
   leftTrigger: 'Left Trigger',
   leftStickPress: 'Left Stick Press',
@@ -44,13 +60,18 @@ export const GAMEPAD_INPUT_LABELS = {
 export const GAMEPAD_ACTION_LABELS = {
   moveX: 'Strafe Left/Right',
   moveY: 'Forward/Backward',
+  moveX_neg: 'Strafe Left',
+  moveX_pos: 'Strafe Right',
   lookX: 'Look Left/Right',
   lookY: 'Look Up/Down',
+  rollAxis: 'Roll (Analog)',
   fire: 'Fire Lasers',
   missile: 'Fire Missiles',
   boost: 'Boost',
   strafeUp: 'Strafe Up',
   strafeDown: 'Strafe Down',
+  strafeLeft: 'Strafe Left',
+  strafeRight: 'Strafe Right',
   rollLeft: 'Roll Left',
   rollRight: 'Roll Right',
   pause: 'Escape Menu',
@@ -98,11 +119,17 @@ class GamepadManager {
     this.state = {
       leftStick: { x: 0, y: 0 },
       rightStick: { x: 0, y: 0 },
+      throttle: 0,
+      twist: 0,
+      pov: { up: false, down: false, left: false, right: false },
       leftTrigger: 0,
       rightTrigger: 0,
       buttons: {},
       prevButtons: {},
     };
+    
+    this.isHotas = false;
+    this.hotasDeadzone = 0.20; // Larger deadzone for flight sticks
     
     this.onConnect = null;
     this.onDisconnect = null;
@@ -134,6 +161,9 @@ class GamepadManager {
   load() {
     if (this.activePreset === 'default') {
       return { ...DEFAULT_GAMEPAD_BINDINGS };
+    }
+    if (this.activePreset === 'hotas') {
+      return { ...HOTAS_BINDINGS };
     }
     if (this.activePreset === 'custom') {
       try {
@@ -167,7 +197,7 @@ class GamepadManager {
   }
 
   getPresetNames() {
-    return ['default', 'custom', ...Object.keys(this.presets)];
+    return ['default', 'hotas', 'custom', ...Object.keys(this.presets)];
   }
 
   loadPreset(name) {
@@ -187,7 +217,7 @@ class GamepadManager {
   }
 
   deletePreset(name) {
-    if (name !== 'default' && name !== 'custom' && this.presets[name]) {
+    if (name !== 'default' && name !== 'hotas' && name !== 'custom' && this.presets[name]) {
       delete this.presets[name];
       this.savePresets();
       this.loadPreset('default');
@@ -206,9 +236,70 @@ class GamepadManager {
 
   handleConnect(e) {
     console.log('[Gamepad] Connected:', e.gamepad.id);
+    console.log('[Gamepad] Axes count:', e.gamepad.axes.length);
+    console.log('[Gamepad] Buttons count:', e.gamepad.buttons.length);
+    
     this.gamepad = e.gamepad;
     this.connected = true;
+    
+    // Detect HOTAS controllers
+    const id = e.gamepad.id.toLowerCase();
+    this.isHotas = id.includes('hotas') || id.includes('t.flight') || 
+                   id.includes('thrustmaster') || id.includes('flight') ||
+                   id.includes('x52') || id.includes('x56') || id.includes('warthog');
+    
+    if (this.isHotas) {
+      console.log('[Gamepad] HOTAS detected, auto-applying flight stick preset');
+      this.loadPreset('hotas');
+      // Start debug logging for HOTAS
+      this.startDebugLog();
+    }
+    
     this.onConnect?.(e.gamepad);
+  }
+  
+  startDebugLog() {
+    if (this._debugInterval) clearInterval(this._debugInterval);
+    console.log('[Gamepad] Starting input debug log - move controls to see which axes/buttons respond');
+    
+    let lastAxes = [];
+    let lastButtons = [];
+    
+    this._debugInterval = setInterval(() => {
+      const gp = navigator.getGamepads()[this.gamepad?.index ?? 0];
+      if (!gp) return;
+      
+      // Check axes for changes
+      gp.axes.forEach((val, i) => {
+        if (Math.abs(val - (lastAxes[i] ?? 0)) > 0.1) {
+          console.log(`[AXIS ${i}] = ${val.toFixed(3)}`);
+        }
+      });
+      lastAxes = [...gp.axes];
+      
+      // Check buttons for presses
+      gp.buttons.forEach((btn, i) => {
+        const wasPressed = lastButtons[i] ?? false;
+        if (btn.pressed && !wasPressed) {
+          console.log(`[BUTTON ${i}] PRESSED (value: ${btn.value.toFixed(2)})`);
+        }
+        if (!btn.pressed && wasPressed) {
+          console.log(`[BUTTON ${i}] RELEASED`);
+        }
+      });
+      lastButtons = gp.buttons.map(b => b.pressed);
+    }, 100);
+    
+    // Auto-stop after 30 seconds
+    setTimeout(() => this.stopDebugLog(), 30000);
+  }
+  
+  stopDebugLog() {
+    if (this._debugInterval) {
+      clearInterval(this._debugInterval);
+      this._debugInterval = null;
+      console.log('[Gamepad] Debug logging stopped');
+    }
   }
 
   handleDisconnect(e) {
@@ -220,10 +311,11 @@ class GamepadManager {
     }
   }
 
-  applyDeadzone(value) {
-    if (Math.abs(value) < this.deadzone) return 0;
+  applyDeadzone(value, useHotasDeadzone = false) {
+    const dz = (this.isHotas || useHotasDeadzone) ? this.hotasDeadzone : this.deadzone;
+    if (Math.abs(value) < dz) return 0;
     const sign = Math.sign(value);
-    return sign * (Math.abs(value) - this.deadzone) / (1 - this.deadzone);
+    return sign * (Math.abs(value) - dz) / (1 - dz);
   }
 
   poll() {
@@ -261,9 +353,55 @@ class GamepadManager {
     this.state.rightStick.x = this.applyDeadzone(gp.axes[AXIS.RIGHT_X] || 0);
     this.state.rightStick.y = this.applyDeadzone(gp.axes[AXIS.RIGHT_Y] || 0);
     
+    // HOTAS-specific axes (T-Flight HOTAS One)
+    // Axis 0 = Stick X, Axis 1 = Stick Y, Axis 2 = Throttle, Axis 5 = Twist/Roll, Axis 9 = POV hat
+    if (this.isHotas) {
+      // Throttle is axis 2
+      const rawThrottle = gp.axes[2] ?? 0;
+      this.state.throttle = this.applyDeadzone(rawThrottle);
+      // Twist/roll is axis 5 (positive = right, negative = left)
+      this.state.twist = this.applyDeadzone(gp.axes[5] || 0);
+      
+      // POV hat switch is axis 9 - encodes direction as single value
+      // T-Flight values: UP=-1, DOWN=0.143, LEFT=0.714, RIGHT=-0.429, CENTER=1.286
+      // Diagonals: UP-LEFT=1.0, UP-RIGHT=-0.714, DOWN-LEFT=0.429, DOWN-RIGHT=-0.143
+      const pov = gp.axes[9] ?? 1.286;
+      this.state.pov.up = false;
+      this.state.pov.down = false;
+      this.state.pov.left = false;
+      this.state.pov.right = false;
+      
+      // Center is ~1.286
+      const isCenter = Math.abs(pov - 1.286) < 0.1;
+      
+      if (!isCenter) {
+        // Cardinals
+        if (Math.abs(pov - (-1.0)) < 0.12) this.state.pov.up = true;        // UP = -1.0
+        else if (Math.abs(pov - 0.143) < 0.12) this.state.pov.down = true;  // DOWN = 0.143
+        else if (Math.abs(pov - 0.714) < 0.12) this.state.pov.left = true;  // LEFT = 0.714
+        else if (Math.abs(pov - (-0.429)) < 0.12) this.state.pov.right = true; // RIGHT = -0.429
+        // Diagonals
+        else if (Math.abs(pov - 1.0) < 0.12) { this.state.pov.up = true; this.state.pov.left = true; }      // UP-LEFT = 1.0
+        else if (Math.abs(pov - (-0.714)) < 0.12) { this.state.pov.up = true; this.state.pov.right = true; } // UP-RIGHT = -0.714
+        else if (Math.abs(pov - 0.429) < 0.12) { this.state.pov.down = true; this.state.pov.left = true; }   // DOWN-LEFT = 0.429
+        else if (Math.abs(pov - (-0.143)) < 0.12) { this.state.pov.down = true; this.state.pov.right = true; } // DOWN-RIGHT = -0.143
+      }
+      
+      // Debug throttle once per second
+      if (!this._lastThrottleLog || Date.now() - this._lastThrottleLog > 1000) {
+        if (Math.abs(rawThrottle) > 0.2) {
+          console.log(`[Gamepad] Throttle raw=${rawThrottle.toFixed(2)}, state=${this.state.throttle.toFixed(2)}`);
+          this._lastThrottleLog = Date.now();
+        }
+      }
+    } else {
+      this.state.throttle = 0;
+      this.state.twist = 0;
+    }
+    
     // Triggers (some controllers report as buttons, some as axes)
-    // Try axes first (indices 4 and 5 on some controllers)
-    if (gp.axes.length > 4) {
+    // Try axes first (indices 4 and 5 on some controllers) - but not for HOTAS
+    if (!this.isHotas && gp.axes.length > 4) {
       this.state.leftTrigger = Math.max(0, (gp.axes[4] + 1) / 2);
       this.state.rightTrigger = Math.max(0, (gp.axes[5] + 1) / 2);
     }
@@ -295,6 +433,11 @@ class GamepadManager {
       dpadDown: gp.buttons[BUTTON.DPAD_DOWN]?.pressed || false,
       dpadLeft: gp.buttons[BUTTON.DPAD_LEFT]?.pressed || false,
       dpadRight: gp.buttons[BUTTON.DPAD_RIGHT]?.pressed || false,
+      // Additional buttons for HOTAS
+      btn8: gp.buttons[8]?.pressed || false,
+      btn9: gp.buttons[9]?.pressed || false,
+      btn10: gp.buttons[10]?.pressed || false,
+      btn11: gp.buttons[11]?.pressed || false,
     };
   }
 
@@ -311,17 +454,29 @@ class GamepadManager {
   // Get axis value for an action based on bindings
   getAxisValue(action) {
     const binding = Object.entries(this.bindings).find(([, a]) => a === action)?.[0];
-    if (!binding) return 0;
-    
-    switch (binding) {
-      case 'leftStickX': return this.state.leftStick.x;
-      case 'leftStickY': return this.state.leftStick.y;
-      case 'rightStickX': return this.state.rightStick.x;
-      case 'rightStickY': return this.state.rightStick.y;
-      case 'leftTrigger': return this.state.leftTrigger;
-      case 'rightTrigger': return this.state.rightTrigger;
-      default: return 0;
+    if (!binding) {
+      if (action === 'moveY') console.log('[Gamepad] No binding found for moveY! Bindings:', this.bindings);
+      return 0;
     }
+    
+    let value = 0;
+    switch (binding) {
+      case 'leftStickX': value = this.state.leftStick.x; break;
+      case 'leftStickY': value = this.state.leftStick.y; break;
+      case 'rightStickX': value = this.state.rightStick.x; break;
+      case 'rightStickY': value = this.state.rightStick.y; break;
+      case 'throttle': value = this.state.throttle; break;
+      case 'twist': value = this.state.twist; break;
+      case 'leftTrigger': value = this.state.leftTrigger; break;
+      case 'rightTrigger': value = this.state.rightTrigger; break;
+    }
+    
+    // Debug throttle
+    if (action === 'moveY' && Math.abs(value) > 0.1) {
+      console.log(`[Gamepad] moveY: binding=${binding}, value=${value.toFixed(2)}`);
+    }
+    
+    return value;
   }
 
   // Get button state for an action based on bindings
@@ -346,6 +501,10 @@ class GamepadManager {
       case 'rightTrigger': return this.state.buttons.rt;
       case 'start': return this.state.buttons.start;
       case 'back': return this.state.buttons.back;
+      case 'button8': return this.state.buttons.btn8;
+      case 'button9': return this.state.buttons.btn9;
+      case 'button10': return this.state.buttons.btn10;
+      case 'button11': return this.state.buttons.btn11;
       default: return false;
     }
   }
@@ -372,6 +531,10 @@ class GamepadManager {
       case 'rightTrigger': return this.justPressed('rt');
       case 'start': return this.justPressed('start');
       case 'back': return this.justPressed('back');
+      case 'button8': return this.justPressed('btn8');
+      case 'button9': return this.justPressed('btn9');
+      case 'button10': return this.justPressed('btn10');
+      case 'button11': return this.justPressed('btn11');
       default: return false;
     }
   }
@@ -396,6 +559,31 @@ class GamepadManager {
   setBinding(input, action) {
     this.bindings[input] = action;
     this.save();
+  }
+  
+  applyHotasPreset() {
+    this.bindings = { ...HOTAS_BINDINGS };
+    this.save();
+  }
+  
+  getIsHotas() {
+    return this.isHotas;
+  }
+  
+  // Debug: get raw axis values
+  getRawAxes() {
+    if (!this.gamepad) return [];
+    return Array.from(this.gamepad.axes);
+  }
+  
+  // Debug: get raw button states
+  getRawButtons() {
+    if (!this.gamepad) return [];
+    return Array.from(this.gamepad.buttons).map((b, i) => ({
+      index: i,
+      pressed: b.pressed,
+      value: b.value
+    }));
   }
 }
 

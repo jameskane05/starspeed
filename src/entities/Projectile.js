@@ -36,7 +36,7 @@ export class Projectile {
     } else {
       this.direction.set(0, 0, -1);
     }
-    this.speed = speed !== null ? speed : (isPlayerOwned ? 60 : 15);
+    this.speed = speed !== null ? speed : (isPlayerOwned ? 200 : 15);
     this.isPlayerOwned = isPlayerOwned;
     this.lifetime = 3;
     this.disposed = false;
