@@ -1511,6 +1511,12 @@
     rgba(255, 30, 30, 0.5) 100%);
 }
 
+/* In-game options background overlay */
+.options-menu.in-game {
+  background: rgba(0, 0, 0, 0.75) !important;
+  backdrop-filter: blur(6px);
+}
+
 /* Options Menu */
 .options-menu .menu-content {
   width: 100%;
@@ -2214,4 +2220,81 @@
   color: var(--text-secondary);
   letter-spacing: 0.15em;
   text-transform: uppercase;
+}
+
+.toggle-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  justify-self: center;
+}
+
+.toggle-switch input[type="checkbox"] {
+  appearance: none;
+  width: 36px;
+  height: 20px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.toggle-switch input[type="checkbox"]::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.toggle-switch input[type="checkbox"]:checked {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+.toggle-switch input[type="checkbox"]:checked::after {
+  transform: translateX(16px);
+  background: #fff;
+}
+
+.toggle-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.1em;
+}
+
+.options-slider {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 0;
+  outline: none;
+  cursor: pointer;
+}
+
+.options-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 20px;
+  background: var(--accent-cyan);
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.options-slider::-webkit-slider-thumb:hover {
+  background: var(--accent-primary);
 }

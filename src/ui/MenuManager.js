@@ -1019,6 +1019,29 @@ class MenuManager {
     const gm = window.gameManager;
     const currentProfile = gm?.state?.performanceProfile || 'high';
     const profiles = ['low', 'medium', 'high', 'max'];
+    const bloomEnabled = gm?.getSetting('bloomEnabled') ?? true;
+    const bloomStrength = gm?.getSetting('bloomStrength') ?? 0.15;
+    const bloomRadius = gm?.getSetting('bloomRadius') ?? 0.4;
+    const bloomThreshold = gm?.getSetting('bloomThreshold') ?? 0.8;
+
+    const bloomPresets = {
+      subtle: { strength: 0.08, radius: 0.3, threshold: 0.9 },
+      low: { strength: 0.15, radius: 0.4, threshold: 0.8 },
+      medium: { strength: 0.3, radius: 0.5, threshold: 0.7 },
+      high: { strength: 0.5, radius: 0.6, threshold: 0.5 },
+      intense: { strength: 0.8, radius: 0.8, threshold: 0.3 },
+    };
+
+    // Detect which preset matches current values (if any)
+    let currentBloomPreset = 'custom';
+    for (const [name, vals] of Object.entries(bloomPresets)) {
+      if (Math.abs(vals.strength - bloomStrength) < 0.01 &&
+          Math.abs(vals.radius - bloomRadius) < 0.01 &&
+          Math.abs(vals.threshold - bloomThreshold) < 0.01) {
+        currentBloomPreset = name;
+        break;
+      }
+    }
 
     return `
       <div class="options-section graphics-section">
@@ -1032,6 +1055,34 @@ class MenuManager {
         <p class="options-hint" style="margin-top: 12px; opacity: 0.5; font-size: 12px;">
           Changes particle counts, shadow quality, and render resolution. Takes effect on next match.
         </p>
+
+        <h3 style="margin-top: 20px;">BLOOM</h3>
+        <div class="keybind-row" style="grid-template-columns: 1fr 1fr;">
+          <span class="keybind-action">Enabled</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="bloom-toggle" ${bloomEnabled ? 'checked' : ''}>
+            <span class="toggle-label">${bloomEnabled ? 'ON' : 'OFF'}</span>
+          </label>
+        </div>
+        <div class="keybind-row" style="grid-template-columns: 1fr 1fr;">
+          <span class="keybind-action">Preset</span>
+          <select id="bloom-preset-select" class="preset-select">
+            ${Object.keys(bloomPresets).map(p => `<option value="${p}" ${p === currentBloomPreset ? 'selected' : ''}>${p.toUpperCase()}</option>`).join('')}
+            <option value="custom" ${currentBloomPreset === 'custom' ? 'selected' : ''}>CUSTOM</option>
+          </select>
+        </div>
+        <div class="keybind-row" style="grid-template-columns: 1fr 1fr;">
+          <span class="keybind-action">Strength <span id="bloom-strength-val" style="opacity:0.5">${bloomStrength.toFixed(2)}</span></span>
+          <input type="range" id="bloom-strength" class="options-slider" min="0" max="1" step="0.01" value="${bloomStrength}">
+        </div>
+        <div class="keybind-row" style="grid-template-columns: 1fr 1fr;">
+          <span class="keybind-action">Radius <span id="bloom-radius-val" style="opacity:0.5">${bloomRadius.toFixed(2)}</span></span>
+          <input type="range" id="bloom-radius" class="options-slider" min="0" max="1" step="0.01" value="${bloomRadius}">
+        </div>
+        <div class="keybind-row" style="grid-template-columns: 1fr 1fr;">
+          <span class="keybind-action">Threshold <span id="bloom-threshold-val" style="opacity:0.5">${bloomThreshold.toFixed(2)}</span></span>
+          <input type="range" id="bloom-threshold" class="options-slider" min="0" max="1" step="0.01" value="${bloomThreshold}">
+        </div>
       </div>
     `;
   }
@@ -1242,6 +1293,77 @@ class MenuManager {
         }
       });
     }
+
+    const bloomToggle = document.getElementById('bloom-toggle');
+    if (bloomToggle) {
+      bloomToggle.addEventListener('change', () => {
+        const enabled = bloomToggle.checked;
+        const label = bloomToggle.parentElement.querySelector('.toggle-label');
+        if (label) label.textContent = enabled ? 'ON' : 'OFF';
+        if (window.gameManager) {
+          window.gameManager.setSetting('bloomEnabled', enabled);
+          window.gameManager.emit('bloom:changed', enabled);
+        }
+      });
+    }
+
+    const bloomPresets = {
+      subtle: { strength: 0.08, radius: 0.3, threshold: 0.9 },
+      low: { strength: 0.15, radius: 0.4, threshold: 0.8 },
+      medium: { strength: 0.3, radius: 0.5, threshold: 0.7 },
+      high: { strength: 0.5, radius: 0.6, threshold: 0.5 },
+      intense: { strength: 0.8, radius: 0.8, threshold: 0.3 },
+    };
+
+    const applyBloomSettings = (strength, radius, threshold) => {
+      const gm = window.gameManager;
+      if (!gm) return;
+      gm.setSetting('bloomStrength', strength);
+      gm.setSetting('bloomRadius', radius);
+      gm.setSetting('bloomThreshold', threshold);
+      gm.emit('bloom:settings', { strength, radius, threshold });
+      
+      // Update slider positions and value labels
+      const sS = document.getElementById('bloom-strength');
+      const sR = document.getElementById('bloom-radius');
+      const sT = document.getElementById('bloom-threshold');
+      if (sS) { sS.value = strength; document.getElementById('bloom-strength-val').textContent = strength.toFixed(2); }
+      if (sR) { sR.value = radius; document.getElementById('bloom-radius-val').textContent = radius.toFixed(2); }
+      if (sT) { sT.value = threshold; document.getElementById('bloom-threshold-val').textContent = threshold.toFixed(2); }
+    };
+
+    const bloomPresetSelect = document.getElementById('bloom-preset-select');
+    if (bloomPresetSelect) {
+      bloomPresetSelect.addEventListener('change', () => {
+        const preset = bloomPresets[bloomPresetSelect.value];
+        if (preset) applyBloomSettings(preset.strength, preset.radius, preset.threshold);
+      });
+    }
+
+    const setupSlider = (id, settingKey, emitKey) => {
+      const slider = document.getElementById(id);
+      if (!slider) {
+        console.warn(`[Bloom] Slider not found: ${id}`);
+        return;
+      }
+      console.log(`[Bloom] Slider attached: ${id}, initial value: ${slider.value}`);
+      slider.addEventListener('input', () => {
+        const val = parseFloat(slider.value);
+        const valSpan = document.getElementById(id + '-val');
+        if (valSpan) valSpan.textContent = val.toFixed(2);
+        if (window.gameManager) {
+          window.gameManager.setSetting(settingKey, val);
+          window.gameManager.emit('bloom:settings', { [emitKey]: val });
+          console.log(`[Bloom] Slider ${emitKey} = ${val}`);
+        }
+        const presetSel = document.getElementById('bloom-preset-select');
+        if (presetSel) presetSel.value = 'custom';
+      });
+    };
+
+    setupSlider('bloom-strength', 'bloomStrength', 'strength');
+    setupSlider('bloom-radius', 'bloomRadius', 'radius');
+    setupSlider('bloom-threshold', 'bloomThreshold', 'threshold');
   }
 
   setupOptionsSectionListeners() {
@@ -1406,7 +1528,7 @@ class MenuManager {
     this.optionsSection = this.optionsSection || 'controls';
     
     this.container.innerHTML = `
-      <div class="menu-screen options-menu">
+      <div class="menu-screen options-menu in-game">
         <div class="menu-header">
           <button class="back-btn" id="btn-back">← BACK TO GAME</button>
           <h2>OPTIONS</h2>

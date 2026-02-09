@@ -53,7 +53,6 @@ export class Player {
     this.lookAccel = 0.1;
     this.lookMaxSpeed = 2.5;
     this.lookDrag = 0.93;
-    this.yawDrag = 0.90;
 
     this.fireFromLeft = true;
     this.missileFromLeft = true;
@@ -340,7 +339,10 @@ export class Player {
     }
 
     this.pitchVelocity *= this.lookDrag;
-    this.yawVelocity *= this.yawDrag;
+    this.yawVelocity *= this.lookDrag;
+
+    _pitchQuat.setFromAxisAngle(_right, this.pitchVelocity * delta);
+    _yawQuat.setFromAxisAngle(_up, this.yawVelocity * delta);
 
     // Roll with acceleration
     let rollInput = 0;
@@ -362,20 +364,6 @@ export class Player {
       this.rollVelocity = Math.sign(this.rollVelocity) * this.rollMaxSpeed;
     }
     this.rollVelocity *= this.rollDrag;
-
-    // Smoothly blend between world up and camera up based on roll amount
-    // This minimizes drift when not rolled but follows roll when present
-    const worldUp = new THREE.Vector3(0, 1, 0);
-    const upHorizontal = _up.clone();
-    upHorizontal.y = 0;
-    const rollAmount = Math.min(1, upHorizontal.length() * 2 + Math.abs(this.rollVelocity) * 0.5);
-    
-    // Blend between world up (no drift) and camera up (follows roll)
-    const yawAxis = new THREE.Vector3();
-    yawAxis.lerpVectors(worldUp, _up, rollAmount).normalize();
-
-    _pitchQuat.setFromAxisAngle(_right, this.pitchVelocity * delta);
-    _yawQuat.setFromAxisAngle(yawAxis, this.yawVelocity * delta);
 
     _rollQuat.setFromAxisAngle(_forward, this.rollVelocity * delta);
 

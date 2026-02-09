@@ -1,4 +1,8 @@
 import * as THREE from "three";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { NewSparkRenderer } from "@sparkjsdev/spark";
 import { initPhysics, stepWorld, castSphere } from "../physics/Physics.js";
 import { Input } from "./Input.js";
@@ -28,6 +32,9 @@ import MenuManager from "../ui/MenuManager.js";
 import { Prediction } from "../network/Prediction.js";
 import MusicManager from "../audio/MusicManager.js";
 import proceduralAudio from "../audio/ProceduralAudio.js";
+import sfxManager from "../audio/sfxManager.js";
+import sfxSounds from "../audio/sfxData.js";
+import engineAudio from "../audio/EngineAudio.js";
 
 const _fireDir = new THREE.Vector3();
 const _hitPos = new THREE.Vector3();
@@ -58,7 +65,7 @@ export class Game {
     this.lastMissileTime = 0;
     this.missileCooldown = 0.4;
     this.lastLaserTime = 0;
-    this.laserCooldown = 0.1; // 10 shots per second max
+    this.laserCooldown = 0.1;
     this.clock = new THREE.Clock();
     this.boundFireEnemy = (pos, dir) => this.fireEnemyWeapon(pos, dir);
 
@@ -117,6 +124,9 @@ export class Game {
       maxStdDev: Math.sqrt(5),
       lodSplatScale: 2.0,
     });
+    // Render splats in linear colour space so EffectComposer/bloom works correctly
+    console.log('sparkRenderer', this.sparkRenderer);
+    this.sparkRenderer.encodeLinear = true;
     this.sparkRenderer.renderOrder = -100;
     this.scene.add(this.sparkRenderer);
 
@@ -134,6 +144,39 @@ export class Game {
       this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
       this.renderer.toneMappingExposure = renderSettings.toneMappingExposure;
     }
+
+    // Bloom post-processing
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    
+    const bloomStrength = this.gameManager.getSetting('bloomStrength') ?? 0.15;
+    const bloomRadius = this.gameManager.getSetting('bloomRadius') ?? 0.4;
+    const bloomThreshold = this.gameManager.getSetting('bloomThreshold') ?? 0.8;
+    
+    this.bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      bloomStrength,
+      bloomRadius,
+      bloomThreshold
+    );
+    this.composer.addPass(this.bloomPass);
+    // OutputPass handles color space conversion + tone mapping that the renderer
+    // normally does automatically but EffectComposer bypasses
+    this.composer.addPass(new OutputPass());
+    this.bloomEnabled = this.gameManager.getSetting('bloomEnabled') ?? true;
+    this._updateBloomActive();
+
+    this.gameManager.on('bloom:changed', (enabled) => {
+      this.bloomEnabled = enabled;
+      this._updateBloomActive();
+    });
+    
+    this.gameManager.on('bloom:settings', (settings) => {
+      if (settings.strength !== undefined) this.bloomPass.strength = settings.strength;
+      if (settings.radius !== undefined) this.bloomPass.radius = settings.radius;
+      if (settings.threshold !== undefined) this.bloomPass.threshold = settings.threshold;
+      this._updateBloomActive();
+    });
 
     this.particles = new ParticleSystem(this.scene, perfProfile);
     window.particles = this.particles;
@@ -185,6 +228,7 @@ export class Game {
     this.level.generate({ skipVisuals: true, skipPhysics: true });
 
     await loadShipModels();
+    sfxManager.init(sfxSounds);
 
     window.addEventListener("resize", () => this.onResize());
 
@@ -222,6 +266,8 @@ export class Game {
     this.player.maxHealth = 100;
     this.player.missiles = 6;
     this.player.maxMissiles = 6;
+
+    engineAudio.init();
 
     // Spawn AI enemies
     this.spawnEnemies();
@@ -347,7 +393,7 @@ export class Game {
           { big: true }
         );
         this.explosions.push(explosion);
-        proceduralAudio.explosion(true);
+        sfxManager.play('ship-explosion', victimPos);
         
         // Multi-layer particle explosion (fireball + embers + smoke)
         if (this.particles) {
@@ -456,6 +502,8 @@ export class Game {
     this.player.hasLaserUpgrade = localPlayer.hasLaserUpgrade || false;
     this.player.acceleration = classStats.acceleration;
     this.player.maxSpeed = classStats.maxSpeed;
+
+    engineAudio.init();
 
     this.camera.position.set(localPlayer.x, localPlayer.y, localPlayer.z);
     this.camera.quaternion.set(localPlayer.qx, localPlayer.qy, localPlayer.qz, localPlayer.qw);
@@ -578,7 +626,7 @@ export class Game {
       this.networkProjectiles.set(id, { type: "projectile", obj: projectile });
       
       // Play spatial audio for other players' lasers
-      proceduralAudio.laserFire(position);
+      sfxManager.play('laser', position);
     }
   }
 
@@ -1042,7 +1090,7 @@ export class Game {
     this.projectiles.push(projectile);
 
     // Play spatial audio at spawn position
-    proceduralAudio.laserFire(spawnPos);
+    sfxManager.play('laser', spawnPos);
 
     this.dynamicLights?.flash(spawnPos, 0x00ffff, {
       intensity: 10,
@@ -1094,6 +1142,7 @@ export class Game {
       false
     );
     this.projectiles.push(projectile);
+    sfxManager.play('laser', position);
   }
 
   updateHUD(delta) {
@@ -1168,6 +1217,7 @@ export class Game {
       
       if (this.player) {
         this.player.update(delta, this.clock.elapsedTime);
+        engineAudio.update(delta, this.player);
       }
 
       // Update remote players
@@ -1294,7 +1344,11 @@ export class Game {
     // Dust motes are a global environment effect - fixed in world space
     // Don't update the emission box, it's set once at initialization
     
-    this.renderer.render(this.scene, this.camera);
+    if (this._bloomActive) {
+      this.composer.render();
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
   }
 
   checkCollisions() {
@@ -1351,6 +1405,7 @@ export class Game {
                   { big: true }
               );
               this.explosions.push(explosion);
+                sfxManager.play('ship-explosion', deathPos);
                 if (this.particles) {
                   this.explosionEffect.emitBigExplosion(deathPos);
                 }
@@ -1448,6 +1503,7 @@ export class Game {
               { big: true }
             );
             this.explosions.push(explosion);
+            sfxManager.play('ship-explosion', deathPos);
             if (this.particles) {
               this.explosionEffect.emitBigExplosion(deathPos);
             }
@@ -1496,9 +1552,16 @@ export class Game {
     }
   }
 
+  _updateBloomActive() {
+    // Bypass composer entirely when bloom is off or strength is negligible
+    this._bloomActive = this.bloomEnabled && this.bloomPass.strength > 0.01;
+    this.bloomPass.enabled = this._bloomActive;
+  }
+
   onResize() {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.composer?.setSize(window.innerWidth, window.innerHeight);
   }
 }

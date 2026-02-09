@@ -45,15 +45,24 @@ class GameManager {
   saveSettings() {
     try {
       const settings = {
-        performanceProfile: this.state.performanceProfile,
         ...(this.savedSettings || {}),
+        performanceProfile: this.state.performanceProfile,
       };
-      settings.performanceProfile = this.state.performanceProfile;
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
       this.savedSettings = settings;
     } catch (e) {
       console.warn("[GameManager] Failed to save settings:", e);
     }
+  }
+
+  getSetting(key) {
+    return this.savedSettings?.[key];
+  }
+
+  setSetting(key, value) {
+    if (!this.savedSettings) this.savedSettings = {};
+    this.savedSettings[key] = value;
+    this.saveSettings();
   }
 
   setPerformanceProfile(profile) {

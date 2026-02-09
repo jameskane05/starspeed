@@ -14,12 +14,6 @@ class ProceduralAudio {
     this.sfxVolume = 0.5;
     this.initialized = false;
     
-    // Laser sound files and iterator
-    this.laserSoundFiles = [];
-    this.laserSoundBuffers = []; // Audio buffers for spatial audio
-    this.laserSoundIndex = 0;
-    this.laserSoundsLoaded = false;
-    
     // Listener position (camera position) for spatial audio
     this.listenerPosition = { x: 0, y: 0, z: 0 };
     this.listenerForward = { x: 0, y: 0, z: -1 };
@@ -39,50 +33,8 @@ class ProceduralAudio {
       this.masterGain.gain.value = this.sfxVolume;
       this.initialized = true;
       console.log("[ProceduralAudio] Initialized");
-      
-      // Load laser sound files (async)
-      await this._loadLaserSounds();
     } catch (e) {
       console.error("[ProceduralAudio] Failed to initialize:", e);
-    }
-  }
-  
-  /**
-   * Load laser sound files as AudioBuffers for spatial audio
-   */
-  async _loadLaserSounds() {
-    if (this.laserSoundsLoaded) return;
-    
-    if (!this.ctx) {
-      console.warn("[ProceduralAudio] Cannot load laser sounds: audio context not initialized");
-      return;
-    }
-    
-    this.laserSoundFiles = [
-      './audio/sfx/laser-01.mp3',
-      './audio/sfx/laser-02.mp3',
-      './audio/sfx/laser-03.mp3',
-      './audio/sfx/laser-04.mp3',
-      './audio/sfx/laser-05.mp3',
-      './audio/sfx/laser-06.mp3',
-      './audio/sfx/laser-07.mp3',
-      './audio/sfx/laser-08.mp3'
-    ];
-    
-    // Load all sounds as AudioBuffers
-    try {
-      const loadPromises = this.laserSoundFiles.map(async (file) => {
-        const response = await fetch(file);
-        const arrayBuffer = await response.arrayBuffer();
-        const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
-        return audioBuffer;
-      });
-      
-      this.laserSoundBuffers = await Promise.all(loadPromises);
-      this.laserSoundsLoaded = true;
-      console.log(`[ProceduralAudio] Loaded ${this.laserSoundBuffers.length} laser sounds as AudioBuffers`);
-    } catch (error) {
-      console.error("[ProceduralAudio] Failed to load laser sounds:", error);
     }
   }
   
@@ -136,10 +88,6 @@ class ProceduralAudio {
     if (this.masterGain) {
       this.masterGain.gain.value = this.sfxVolume;
     }
-    // Update laser sound volumes
-    this.laserSounds.forEach(sound => {
-      sound.volume = this.sfxVolume;
-    });
   }
 
   // ============================================
@@ -300,121 +248,6 @@ class ProceduralAudio {
   // ============================================
   // COMBAT SOUNDS
   // ============================================
-
-  /**
-   * Laser fire sound - cycles through laser-01 through laser-08
-   * @param {THREE.Vector3} position - World position of the laser spawn point
-   */
-  laserFire(position = null) {
-    if (!this.ctx) {
-      this.resume();
-    }
-    
-    if (!this.laserSoundsLoaded || !this.laserSoundBuffers || this.laserSoundBuffers.length === 0) {
-      // Audio files not loaded yet - skip (procedural fallback disabled)
-      return;
-    }
-    
-    // Get current sound buffer using modulo iterator
-    const audioBuffer = this.laserSoundBuffers[this.laserSoundIndex % this.laserSoundBuffers.length];
-    
-    // Create AudioBufferSourceNode
-    const source = this.ctx.createBufferSource();
-    source.buffer = audioBuffer;
-    
-    // Create gain node for volume control
-    const gainNode = this.ctx.createGain();
-    gainNode.gain.value = this.sfxVolume;
-    
-    if (position && this.ctx.listener) {
-      // Spatial audio with PannerNode
-      const panner = this.ctx.createPanner();
-      panner.panningModel = 'HRTF'; // High-quality 3D audio
-      panner.distanceModel = 'inverse';
-      panner.refDistance = 1;
-      panner.maxDistance = 100;
-      panner.rolloffFactor = 1;
-      panner.coneInnerAngle = 360;
-      panner.coneOuterAngle = 0;
-      panner.coneOuterGain = 0;
-      
-      // Set source position
-      if (panner.positionX) {
-        // New API (Chrome)
-        panner.positionX.value = position.x;
-        panner.positionY.value = position.y;
-        panner.positionZ.value = position.z;
-      } else {
-        // Old API (fallback)
-        panner.setPosition(position.x, position.y, position.z);
-      }
-      
-      // Connect: source -> gain -> panner -> masterGain
-      source.connect(gainNode);
-      gainNode.connect(panner);
-      panner.connect(this.masterGain);
-    } else {
-      // Non-spatial audio (fallback)
-      source.connect(gainNode);
-      gainNode.connect(this.masterGain);
-    }
-    
-    // Play the sound
-    source.start(0);
-    
-    // Clean up after sound finishes
-    source.onended = () => {
-      if (gainNode) gainNode.disconnect();
-      if (source) source.disconnect();
-    };
-    
-    // Increment index for next call
-    this.laserSoundIndex = (this.laserSoundIndex + 1) % this.laserSoundBuffers.length;
-  }
-  
-  /**
-   * Fallback procedural laser fire (if audio files not loaded)
-   */
-  _laserFireProcedural() {
-    if (!this.ctx) return;
-    this.resume();
-    
-    const now = this.ctx.currentTime;
-    
-    // Main laser tone - descending "pew"
-    const osc1 = this.ctx.createOscillator();
-    const gain1 = this.ctx.createGain();
-    
-    osc1.type = "sawtooth";
-    osc1.frequency.setValueAtTime(1800, now);
-    osc1.frequency.exponentialRampToValueAtTime(200, now + 0.15);
-    
-    gain1.gain.setValueAtTime(0.15, now);
-    gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-    
-    osc1.connect(gain1);
-    gain1.connect(this.masterGain);
-    
-    osc1.start(now);
-    osc1.stop(now + 0.15);
-    
-    // High frequency sizzle
-    const osc2 = this.ctx.createOscillator();
-    const gain2 = this.ctx.createGain();
-    
-    osc2.type = "square";
-    osc2.frequency.setValueAtTime(3000, now);
-    osc2.frequency.exponentialRampToValueAtTime(800, now + 0.08);
-    
-    gain2.gain.setValueAtTime(0.05, now);
-    gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
-    
-    osc2.connect(gain2);
-    gain2.connect(this.masterGain);
-    
-    osc2.start(now);
-    osc2.stop(now + 0.08);
-  }
 
   /**
    * Missile fire sound
