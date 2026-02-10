@@ -4,7 +4,7 @@ import topLevelAwait from 'vite-plugin-top-level-await';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 
 export default defineConfig({
-  base: '/starstrafe/',  // GitHub Pages subdirectory
+  base: '/starspeed/',  // GitHub Pages subdirectory
   plugins: [wasm(), topLevelAwait(), basicSsl()],
   optimizeDeps: {
     exclude: ['@sparkjsdev/spark'],
