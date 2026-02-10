@@ -8,7 +8,7 @@ const os = require('os');
 
 module.exports = {
   apps : [{
-    name: "starstrafe-server",
+    name: "starspeed-server",
     script: 'server/build/index.js',
     cwd: './',
     time: true,

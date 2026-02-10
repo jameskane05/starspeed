@@ -1,5 +1,5 @@
-const STORAGE_KEY = 'starstrafe_keybindings';
-const PRESETS_KEY = 'starstrafe_keybinding_presets';
+const STORAGE_KEY = 'starspeed_keybindings';
+const PRESETS_KEY = 'starspeed_keybinding_presets';
 
 export const DEFAULT_BINDINGS = {
   forward: 'KeyW',

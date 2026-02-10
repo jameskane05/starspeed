@@ -183,7 +183,7 @@ export class Game {
     this.explosionEffect = new ExplosionEffect(this.particles);
     this.sparksEffect = new SparksEffect(this.particles);
     this.trailsEffect = new TrailsEffect(this.particles);
-    this.dustMotesEffect = new DustMotesEffect(this.particles);
+    // this.dustMotesEffect = new DustMotesEffect(this.particles); // TODO: revisit
     this.dynamicLights = new DynamicLightPool(this.scene, { size: 12 });
 
     this.gizmoManager = new GizmoManager(this.scene, this.camera, this.renderer);
@@ -235,6 +235,7 @@ export class Game {
     // Initialize menu and network listeners
     await MenuManager.init();
     MenuManager.on("gameStart", () => this.startMultiplayerGame());
+    MenuManager.on("campaignStart", () => this.startSoloDebug());
     
     this.setupNetworkListeners();
 
@@ -1329,7 +1330,7 @@ export class Game {
     }
 
     this.particles?.update(delta);
-    this.dustMotesEffect?.update(delta);
+    // this.dustMotesEffect?.update(delta);
     this.dynamicLights?.update(delta);
     this.musicManager?.update(delta);
     this.gizmoManager?.update(delta);

@@ -1,6 +1,6 @@
-const STORAGE_KEY = 'starstrafe_gamepad_bindings';
-const PRESETS_KEY = 'starstrafe_gamepad_presets';
-const ACTIVE_PRESET_KEY = 'starstrafe_gamepad_active_preset';
+const STORAGE_KEY = 'starspeed_gamepad_bindings';
+const PRESETS_KEY = 'starspeed_gamepad_presets';
+const ACTIVE_PRESET_KEY = 'starspeed_gamepad_active_preset';
 
 export const DEFAULT_GAMEPAD_BINDINGS = {
   leftStickX: 'moveX',      // Left stick horizontal -> strafe left/right

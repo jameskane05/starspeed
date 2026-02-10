@@ -1,11 +1,11 @@
-# STARSTRAFE
+# STARSPEED
 
 Zero-G aerial combat multiplayer game built with Three.js and Colyseus.
 
 ## Architecture
 
 ```
-starstrafe/
+starspeed/
 ├── src/                    # Client (Three.js game)
 │   ├── audio/              # Music manager & data
 │   ├── data/               # Game constants, levels, scene definitions
@@ -144,7 +144,7 @@ npm run deploy:gh
 ```
 Builds and deploys to `gh-pages` branch. Configure GitHub Pages to serve from that branch.
 
-Live at: https://jameskane05.github.io/starstrafe/
+Live at: https://jameskane05.github.io/starspeed/
 
 ### Server (Colyseus Cloud)
 ```bash

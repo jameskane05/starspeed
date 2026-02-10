@@ -12,7 +12,7 @@ import { GAME_STATES, initialState } from "../data/gameData.js";
 import { getSceneObjectsForState } from "../data/sceneData.js";
 import { DEFAULT_PROFILE, getPerformanceProfile } from "../data/performanceSettings.js";
 
-const SETTINGS_KEY = "starstrafe-settings";
+const SETTINGS_KEY = "starspeed-settings";
 
 class GameManager {
   constructor() {

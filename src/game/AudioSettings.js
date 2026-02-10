@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'starstrafe_audio_settings';
+const STORAGE_KEY = 'starspeed_audio_settings';
 
 const DEFAULT_SETTINGS = {
   musicVolume: 0.7,

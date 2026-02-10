@@ -22,7 +22,7 @@ class MenuManager {
     this.currentScreen = SCREENS.MAIN_MENU;
     this.container = null;
     this.eventListeners = {};
-    this.playerName = localStorage.getItem("starstrafe_callsign") || `Pilot_${Math.floor(Math.random() * 9999)}`;
+    this.playerName = localStorage.getItem("starspeed_callsign") || `Pilot_${Math.floor(Math.random() * 9999)}`;
     this.roomList = [];
     this.refreshInterval = null;
     
@@ -36,7 +36,7 @@ class MenuManager {
     
     // Chat state
     this.chatMessages = [];
-    this.mutedPlayers = new Set(JSON.parse(localStorage.getItem("starstrafe_muted") || "[]"));
+    this.mutedPlayers = new Set(JSON.parse(localStorage.getItem("starspeed_muted") || "[]"));
     this.maxChatMessages = 50;
   }
 
@@ -222,7 +222,7 @@ class MenuManager {
 
   saveCallsign(name) {
     this.playerName = name;
-    localStorage.setItem("starstrafe_callsign", name);
+    localStorage.setItem("starspeed_callsign", name);
   }
 
   setupNetworkListeners() {
@@ -369,7 +369,7 @@ class MenuManager {
         <div class="main-menu-right">
           <div class="menu-title">
             <p class="subtitle">JAMES C. KANE'S</p>
-            <h1>STARSTRAFE</h1>
+            <h1>STARSPEED</h1>
             <p class="subtitle">ZERO-G AERIAL COMBAT</p>
           </div>
           <div class="menu-panel">
@@ -379,7 +379,10 @@ class MenuManager {
                 <input type="text" id="player-name" value="${this.playerName}" maxlength="16" />
               </div>
               <div class="menu-buttons">
-                <label>MULTIPLAYER</label>
+                <label>SINGLE-PLAYER</label>
+                <button class="menu-btn" id="btn-testing">TESTING GROUNDS</button>
+                <button class="menu-btn" id="btn-campaign" disabled>CAMPAIGN</button>
+                <label>MULTI-PLAYER</label>
                 <button class="menu-btn" id="btn-quick">QUICKMATCH</button>
                 <button class="menu-btn" id="btn-join">JOIN MATCH</button>
                 <button class="menu-btn" id="btn-create">CREATE MATCH</button>
@@ -393,6 +396,10 @@ class MenuManager {
 
     document.getElementById("player-name").addEventListener("input", (e) => {
       this.saveCallsign(e.target.value || "Pilot");
+    });
+
+    document.getElementById("btn-testing").addEventListener("click", () => {
+      this.emit("campaignStart");
     });
 
     document.getElementById("btn-create").addEventListener("click", () => {
@@ -702,7 +709,7 @@ class MenuManager {
     } else {
       this.mutedPlayers.add(sessionId);
     }
-    localStorage.setItem("starstrafe_muted", JSON.stringify([...this.mutedPlayers]));
+    localStorage.setItem("starspeed_muted", JSON.stringify([...this.mutedPlayers]));
     this.renderLobby();
   }
 
@@ -889,7 +896,7 @@ class MenuManager {
       <div class="menu-screen loading-screen">
         <div class="loading-content">
           <div class="loading-title">
-            <h1>STARSTRAFE</h1>
+            <h1>STARSPEED</h1>
           </div>
           <div class="loading-message">${this.loadingMessage || "LOADING..."}</div>
           <div class="loading-progress">
