@@ -144,12 +144,17 @@ class MusicManager {
 
   setGameManager(gameManager) {
     this.gameManager = gameManager;
+    this._lastState = null;
 
-    gameManager.on("state:changed", (newState) => {
-      const state = newState.currentState;
-      if (state === GAME_STATES.MENU || state === GAME_STATES.PLAYING) {
+    gameManager.on("state:changed", (newState, oldState) => {
+      const curr = newState.currentState;
+      const prev = oldState.currentState;
+      if (curr === prev) return;
+
+      if (curr === GAME_STATES.MENU || curr === GAME_STATES.PLAYING) {
         this.reshuffleAndPlay(2.0);
       }
+      this._lastState = curr;
     });
 
     this._buildPlaylist();
