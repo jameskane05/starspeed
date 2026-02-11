@@ -51,7 +51,7 @@ function biasedWaypoint(currentPos, center, size, centroidBias = 0.35) {
 }
 
 export class Enemy {
-  constructor(scene, position, level, bounds) {
+  constructor(scene, position, level, bounds, options = {}) {
     this.level = level;
     this.health = 100;
     this.speed = 3 + Math.random() * 3;
@@ -82,6 +82,7 @@ export class Enemy {
     this.velocity = new THREE.Vector3();
     this.steerStrength = 1.5 + Math.random() * 1.0;
     this.stuckTimer = 0;
+    this.physicsFrame = Math.floor(Math.random() * 3);
 
     this.mesh = new THREE.Group();
     this.mesh.position.copy(position);
@@ -97,16 +98,18 @@ export class Enemy {
       });
       this.mesh.add(clone);
 
-      if (_deadLights.length > 0) {
-        this.shipLight = _deadLights.pop();
-        this.shipLight.intensity = 7;
-      } else {
-        this.shipLight = new THREE.PointLight(0xffffff, 7, 8, 1.5);
-        scene.add(this.shipLight);
+      if (options.enableLights !== false) {
+        if (_deadLights.length > 0) {
+          this.shipLight = _deadLights.pop();
+          this.shipLight.intensity = 7;
+        } else {
+          this.shipLight = new THREE.PointLight(0xffffff, 7, 8, 1.5);
+          scene.add(this.shipLight);
+        }
+        this.shipLight.position.copy(position);
+        this.shipLight.position.y += 0.3;
+        this.shipLight.position.z += 6;
       }
-      this.shipLight.position.copy(position);
-      this.shipLight.position.y += 0.3;
-      this.shipLight.position.z += 6;
     } else {
       const fallbackGeo = new THREE.OctahedronGeometry(0.8, 0);
       const fallbackMat = new THREE.MeshStandardMaterial({
@@ -167,10 +170,26 @@ export class Enemy {
     this.fireCooldown -= delta;
 
     const distToPlayerSq = this.mesh.position.distanceToSquared(playerPos);
+
+    // Distance cull — hide mesh and skip AI/physics when far away
+    const culled = distToPlayerSq > 10000; // 100m
+    if (this.mesh.visible !== !culled) {
+      this.mesh.visible = !culled;
+      if (this.shipLight) this.shipLight.visible = !culled;
+    }
+    if (culled) return;
+
+    this.physicsFrame++;
+
+    // Medium distance (50-100m): render but freeze wandering enemies
+    if (distToPlayerSq > 2500 && this.state === "wander") return;
+
     const detectionRangeSq = this.detectionRange * this.detectionRange;
 
+    // Scale LOS check frequency by distance — nearby check often, far less
+    const losInterval = distToPlayerSq < 400 ? 4 : distToPlayerSq < 1600 ? 8 : 16;
     this.losCheckCounter++;
-    if (this.losCheckCounter >= 8) {
+    if (this.losCheckCounter >= losInterval) {
       this.losCheckCounter = 0;
       if (distToPlayerSq < detectionRangeSq) {
         this.hasLOS = this.checkLOS(playerPos);
@@ -240,14 +259,19 @@ export class Enemy {
     _newPos.y += this.velocity.y * moveSpeed;
     _newPos.z += this.velocity.z * moveSpeed;
 
-    if (this.canMoveTo(this.mesh.position, _newPos)) {
-      this.mesh.position.copy(_newPos);
-      this.stuckTimer = 0;
-    } else {
-      this.stuckTimer += delta;
-      if (this.stuckTimer > 1.0) {
-        this._pickNewWaypoint();
+    // Throttle physics checks for wandering — only every 3rd frame
+    if (this.physicsFrame % 3 === 0) {
+      if (this.canMoveTo(this.mesh.position, _newPos)) {
+        this.mesh.position.copy(_newPos);
+        this.stuckTimer = 0;
+      } else {
+        this.stuckTimer += delta;
+        if (this.stuckTimer > 1.0) {
+          this._pickNewWaypoint();
+        }
       }
+    } else {
+      this.mesh.position.copy(_newPos);
     }
 
     // Face movement direction

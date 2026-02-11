@@ -138,22 +138,22 @@ export class Game {
       }
     });
 
-    this.sparkRenderer = new NewSparkRenderer({
-      renderer: this.renderer,
-      maxStdDev: Math.sqrt(5),
-      lodSplatScale: 2.0,
-    });
-    // Render splats in linear colour space so EffectComposer/bloom works correctly
-    console.log("sparkRenderer", this.sparkRenderer);
-    this.sparkRenderer.encodeLinear = true;
-    this.sparkRenderer.renderOrder = -100;
-    this.scene.add(this.sparkRenderer);
-
     this.gameManager = new GameManager();
     window.gameManager = this.gameManager;
 
-    // Apply performance profile to renderer and systems
     const perfProfile = this.gameManager.getPerformanceProfile();
+    const splatSettings = perfProfile.splat ?? {};
+
+    this.sparkRenderer = new NewSparkRenderer({
+      renderer: this.renderer,
+      maxStdDev: Math.sqrt(5),
+      lodSplatScale: splatSettings.lodSplatScale ?? 1.0,
+      lodRenderScale: splatSettings.lodRenderScale ?? 1.0,
+    });
+    this.sparkRenderer.renderOrder = -100;
+    this.scene.add(this.sparkRenderer);
+
+    // Apply performance profile to renderer and systems
     const renderSettings = perfProfile.rendering;
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(renderSettings.pixelRatio);
@@ -182,7 +182,8 @@ export class Game {
     // OutputPass handles color space conversion + tone mapping that the renderer
     // normally does automatically but EffectComposer bypasses
     this.composer.addPass(new OutputPass());
-    this.bloomEnabled = this.gameManager.getSetting("bloomEnabled") ?? true;
+    const bloomUserSetting = this.gameManager.getSetting("bloomEnabled");
+    this.bloomEnabled = bloomUserSetting ?? renderSettings.bloom ?? true;
     this._updateBloomActive();
 
     this.gameManager.on("bloom:changed", (enabled) => {
@@ -1145,18 +1146,25 @@ export class Game {
     }
   }
 
+  _enemySpawnOptions() {
+    const enableLights = this.gameManager.getPerformanceSetting("rendering", "enemyLights") ?? true;
+    return { enableLights };
+  }
+
   spawnEnemies() {
     if (this.spawnPoints.length === 0) {
       console.warn("[Game] No spawn points found in level mesh");
       return;
     }
 
+    const opts = this._enemySpawnOptions();
     for (const pos of this.spawnPoints) {
       const enemy = new Enemy(
         this.scene,
         pos.clone(),
         this.level,
         this._levelBounds,
+        opts,
       );
       this.enemies.push(enemy);
     }
@@ -1174,6 +1182,7 @@ export class Game {
       pos.clone(),
       this.level,
       this._levelBounds,
+      this._enemySpawnOptions(),
     );
     this.enemies.push(enemy);
     this.gameManager.setState({ enemiesRemaining: this.enemies.length });
@@ -1826,29 +1835,41 @@ export class Game {
         );
         if (wallHit) {
           const toi = Number(wallHit.toi) || 0;
-          _hitPos.set(
-            proj.prevPosition.x + proj.direction.x * toi,
-            proj.prevPosition.y + proj.direction.y * toi,
-            proj.prevPosition.z + proj.direction.z * toi,
-          );
-          if (isNaN(_hitPos.x)) _hitPos.copy(proj.prevPosition);
-          _hitNormal.set(
-            wallHit.normal2.x,
-            wallHit.normal2.y,
-            wallHit.normal2.z,
-          );
-          // Ensure normal points back toward the shooter, not through the wall
-          if (_hitNormal.dot(proj.direction) > 0) {
-            _hitNormal.negate();
+
+          // toi ≈ 0 means the cast started inside geometry (spawn overlap).
+          // Player-owned projectiles spawn near the player who is legitimately
+          // inside the level trimesh, so ignore these false positives.
+          if (proj.isPlayerOwned && toi < 0.01) {
+            // skip — spawn-point penetration, not a real wall hit
+          } else {
+            _hitPos.set(
+              proj.prevPosition.x + proj.direction.x * toi,
+              proj.prevPosition.y + proj.direction.y * toi,
+              proj.prevPosition.z + proj.direction.z * toi,
+            );
+            if (isNaN(_hitPos.x)) _hitPos.copy(proj.prevPosition);
+            _hitNormal.set(
+              wallHit.normal2.x,
+              wallHit.normal2.y,
+              wallHit.normal2.z,
+            );
+            if (_hitNormal.dot(proj.direction) > 0) {
+              _hitNormal.negate();
+            }
+            wallHitDetected = true;
+            hitSomething = true;
           }
-          wallHitDetected = true;
-          hitSomething = true;
         }
       }
 
       // Fallback overlap test (catches cases the swept cast misses on trimesh)
+      // Skip for player-owned projectiles still near spawn (overlap is spawn-point bleed)
+      const spawnOverlap = proj.isPlayerOwned &&
+        proj.spawnOrigin &&
+        projPos.distanceToSquared(proj.spawnOrigin) < 4;
       if (
         !hitSomething &&
+        !spawnOverlap &&
         checkSphereCollision(projPos.x, projPos.y, projPos.z, 0.5)
       ) {
         _hitPos.copy(proj.prevPosition);
@@ -1963,9 +1984,11 @@ export class Game {
   }
 
   _updateBloomActive() {
-    // Bypass composer entirely when bloom is off or strength is negligible
     this._bloomActive = this.bloomEnabled && this.bloomPass.strength > 0.01;
     this.bloomPass.enabled = this._bloomActive;
+    if (this.sparkRenderer) {
+      this.sparkRenderer.encodeLinear = this._bloomActive;
+    }
   }
 
   onResize() {

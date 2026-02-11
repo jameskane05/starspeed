@@ -61,6 +61,14 @@ export class Player {
     this.camera.position.set(0, 0, 0);
     this.camera.quaternion.identity();
 
+    this.headlight = new THREE.SpotLight(0xffffff, 40, 200, Math.PI / 4, 0.5, 1.5);
+    this.headlight.position.set(0, 0.5, -0.5);
+    this.headlight.target.position.set(0, 0, -10);
+    this.headlight.visible = true;
+    this.headlightEnabled = true;
+    this.camera.add(this.headlight);
+    this.camera.add(this.headlight.target);
+
     this.loadCockpit(scene);
   }
 
@@ -104,23 +112,6 @@ export class Player {
         const cockpitLight = new THREE.PointLight(0x88aaff, 1, 5);
         cockpitLight.position.set(0, 0.2, 0);
         this.camera.add(cockpitLight);
-
-        // Headlight spotlight - over player's seat, pointing forward
-        this.headlight = new THREE.SpotLight(
-          0xffffff,
-          10,
-          120,
-          Math.PI / 6,
-          0.5,
-          1.5,
-        );
-        this.headlight.position.set(0, 0.5, -0.5);
-        this.headlight.target.position.set(0, 0, -10);
-        this.camera.add(this.headlight);
-        this.camera.add(this.headlight.target);
-        this.headlightEnabled = false;
-        this.headlight.visible = false;
-        this.headlight.intensity = 0;
 
         // Splat cone headlight - disabled
         // this.createSplatConeHeadlight();

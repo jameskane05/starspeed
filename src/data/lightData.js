@@ -38,35 +38,6 @@ export const lights = {
     position: { x: -15, y: 6, z: -10 },
   },
 
-  hangarLight2: {
-    id: "hangar-light-2",
-    type: "PointLight",
-    color: 0xb3ccff,
-    intensity: 15,
-    distance: 50,
-    decay: 2,
-    position: { x: 15, y: 6, z: -10 },
-  },
-
-  warningLight1: {
-    id: "warning-light-1",
-    type: "PointLight",
-    color: 0xff3311,
-    intensity: 8,
-    distance: 25,
-    decay: 2,
-    position: { x: -20, y: 3, z: 15 },
-  },
-
-  warningLight2: {
-    id: "warning-light-2",
-    type: "PointLight",
-    color: 0xff3311,
-    intensity: 8,
-    distance: 25,
-    decay: 2,
-    position: { x: 20, y: 3, z: 15 },
-  },
 };
 
 export default lights;

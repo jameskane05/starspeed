@@ -45,6 +45,7 @@ export class StartScreenScene {
     this.starfield = null;
     this.sparkles = null;
     this.disposed = false;
+    this.paused = false;
     this.animationId = null;
     this.clock = new THREE.Clock();
 
@@ -374,7 +375,7 @@ export class StartScreenScene {
   }
 
   animate() {
-    if (this.disposed) return;
+    if (this.disposed || this.paused) return;
 
     this.animationId = requestAnimationFrame(() => this.animate());
 
@@ -407,6 +408,21 @@ export class StartScreenScene {
   onMouseMove(e) {
     this.mouseX = (e.clientX / window.innerWidth) * 2 - 1;
     this.mouseY = (e.clientY / window.innerHeight) * 2 - 1;
+  }
+
+  pause() {
+    if (this.paused) return;
+    this.paused = true;
+    if (this.animationId) {
+      cancelAnimationFrame(this.animationId);
+      this.animationId = null;
+    }
+  }
+
+  resume() {
+    if (!this.paused) return;
+    this.paused = false;
+    this.animate();
   }
 
   onResize() {

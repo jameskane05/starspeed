@@ -40,6 +40,7 @@ export class Projectile {
     this.isPlayerOwned = isPlayerOwned;
     this.lifetime = 3;
     this.disposed = false;
+    this.spawnOrigin = position.clone();
     this.prevPosition = position.clone();
 
     const geometry = isPlayerOwned ? playerGeometry : enemyGeometry;

@@ -291,13 +291,22 @@ class MenuManager {
   showScreen(screen) {
     this.currentScreen = screen;
     
-    // Show/hide start scene based on screen
-    if (this.startScene && this.startScene.renderer) {
-      const showScene = screen === SCREENS.MAIN_MENU || 
-                        screen === SCREENS.CREATE_GAME || 
+    if (this.startScene) {
+      const showScene = screen === SCREENS.MAIN_MENU ||
+                        screen === SCREENS.CREATE_GAME ||
                         screen === SCREENS.JOIN_GAME ||
                         screen === SCREENS.OPTIONS;
-      this.startScene.renderer.domElement.style.display = showScene ? "block" : "none";
+      if (showScene) {
+        this.startScene.resume();
+        if (this.startScene.renderer) {
+          this.startScene.renderer.domElement.style.display = "block";
+        }
+      } else {
+        this.startScene.pause();
+        if (this.startScene.renderer) {
+          this.startScene.renderer.domElement.style.display = "none";
+        }
+      }
     }
     
     this.render();
@@ -1937,13 +1946,22 @@ class MenuManager {
     if (this.container) {
       this.container.classList.remove("hidden");
     }
-    // Show start scene when returning to menus
-    if (this.startScene && this.startScene.renderer) {
-      const showScene = this.currentScreen === SCREENS.MAIN_MENU || 
-                        this.currentScreen === SCREENS.CREATE_GAME || 
+    if (this.startScene) {
+      const showScene = this.currentScreen === SCREENS.MAIN_MENU ||
+                        this.currentScreen === SCREENS.CREATE_GAME ||
                         this.currentScreen === SCREENS.JOIN_GAME ||
                         this.currentScreen === SCREENS.OPTIONS;
-      this.startScene.renderer.domElement.style.display = showScene ? "block" : "none";
+      if (showScene) {
+        this.startScene.resume();
+        if (this.startScene.renderer) {
+          this.startScene.renderer.domElement.style.display = "block";
+        }
+      } else {
+        this.startScene.pause();
+        if (this.startScene.renderer) {
+          this.startScene.renderer.domElement.style.display = "none";
+        }
+      }
     }
   }
 
@@ -1951,9 +1969,11 @@ class MenuManager {
     if (this.container) {
       this.container.classList.add("hidden");
     }
-    // Hide start scene when entering gameplay
-    if (this.startScene && this.startScene.renderer) {
-      this.startScene.renderer.domElement.style.display = "none";
+    if (this.startScene) {
+      this.startScene.pause();
+      if (this.startScene.renderer) {
+        this.startScene.renderer.domElement.style.display = "none";
+      }
     }
   }
 
