@@ -116,12 +116,21 @@ export class Input {
       return;
     }
     
+    if (e.code === 'Backquote') {
+      e.preventDefault();
+      this.game.showControlsHelp?.(true);
+      return;
+    }
     if (e.code === 'Tab' && this.game.gameManager?.isPlaying()) e.preventDefault();
     this.setKey(e.code, true);
   }
 
   onKeyUp(e) {
     if (this.rebindingAction) return;
+    if (e.code === 'Backquote') {
+      this.game.showControlsHelp?.(false);
+      return;
+    }
     this.setKey(e.code, false);
   }
 

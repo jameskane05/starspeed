@@ -2201,6 +2201,83 @@
 
 /* ========== RESPONSIVE ========== */
 
+/* Limited height (laptops, short screens) */
+@media (max-height: 800px) {
+  .main-menu.menu-screen {
+    padding: 1rem 2rem;
+  }
+  .main-menu .menu-title {
+    margin-bottom: 0.75rem;
+  }
+  .main-menu .menu-title h1 {
+    font-size: 2.8rem;
+  }
+  .main-menu .subtitle {
+    font-size: 0.65rem;
+    letter-spacing: 0.25em;
+    margin-top: 0.25rem;
+  }
+  .main-menu .menu-panel {
+    padding: 1rem 1.5rem;
+  }
+  .main-menu .menu-content {
+    gap: 0.75rem;
+  }
+  .menu-buttons {
+    gap: 0.5rem;
+  }
+  .menu-buttons > label {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+  }
+  .menu-btn {
+    padding: 0.6rem 1rem;
+    font-size: 0.95rem;
+  }
+  .options-btn-main {
+    margin-top: 0.5rem;
+  }
+  .name-input-group label {
+    font-size: 0.8rem;
+  }
+  .name-input-group input {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.95rem;
+  }
+}
+
+/* Very short viewport */
+@media (max-height: 650px) {
+  .main-menu.menu-screen {
+    padding: 0.75rem 1.5rem;
+  }
+  .main-menu {
+    justify-content: flex-start !important;
+    padding-top: 1rem;
+    overflow-y: auto;
+  }
+  .main-menu .menu-title {
+    margin-bottom: 0.5rem;
+  }
+  .main-menu .menu-title h1 {
+    font-size: 2.2rem;
+  }
+  .main-menu .subtitle {
+    font-size: 0.6rem;
+    margin-top: 0.15rem;
+  }
+  .main-menu .menu-panel {
+    padding: 0.75rem 1.25rem;
+  }
+  .main-menu .menu-content {
+    gap: 0.5rem;
+  }
+  .menu-btn {
+    padding: 0.5rem 0.9rem;
+    font-size: 0.9rem;
+  }
+}
+
 /* Tablet / small desktop */
 @media (max-width: 900px) {
   .main-menu .menu-title h1 {

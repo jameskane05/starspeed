@@ -11,6 +11,7 @@ import {
   checkSphereCollision,
 } from "../physics/Physics.js";
 import { Input } from "./Input.js";
+import { KeyBindings, ACTION_LABELS, getKeyDisplayName } from "./KeyBindings.js";
 import { Player } from "../entities/Player.js";
 import { Enemy, loadShipModels } from "../entities/Enemy.js";
 import { Projectile } from "../entities/Projectile.js";
@@ -105,6 +106,7 @@ export class Game {
     this.localMissileIds = new Map(); // serverId -> local missile
 
     this.xrManager = null;
+    this._frameCount = 0;
   }
 
   async init() {
@@ -252,6 +254,8 @@ export class Game {
       missiles: document.getElementById("missiles"),
       boost: document.getElementById("boost"),
     };
+
+    this.controlsHelpEl = document.getElementById("controls-help");
 
     this.level = new Level(this.scene);
     this.level.generate({ skipVisuals: true, skipPhysics: true });
@@ -1335,6 +1339,41 @@ export class Game {
     }
   }
 
+  showControlsHelp(visible) {
+    if (!this.controlsHelpEl) return;
+    if (!this.gameManager?.isPlaying()) {
+      if (!visible) this.controlsHelpEl.classList.remove("visible");
+      return;
+    }
+    if (visible) {
+      const bindings = KeyBindings.getAllBindings();
+      const rows = [
+        ["Move", "forward", "backward", "left", "right"],
+        ["Look", "lookUp", "lookDown", "lookLeft", "lookRight"],
+        ["Roll", "rollLeft", "rollRight"],
+        ["Strafe", "strafeUp", "strafeDown"],
+        ["Boost", "boost"],
+        ["Fire", null],
+        ["Missile", null],
+        ["Headlight", "toggleHeadlight"],
+        ["Leaderboard", "leaderboard"],
+        ["Pause", "pause"],
+      ];
+      const rowLabels = { Fire: "Left Click", Missile: "Right Click" };
+      const html = rows
+        .map(([label, ...actions]) => {
+          const keys = actions.filter(Boolean).map((a) => bindings[a] && getKeyDisplayName(bindings[a])).filter(Boolean).join(" ");
+          const display = rowLabels[label] || (keys || "-");
+          return `<span class="ctrl-row"><span class="ctrl-label">${label}:</span><span class="ctrl-key">${display}</span></span>`;
+        })
+        .join("");
+      this.controlsHelpEl.querySelector(".controls-help-content").innerHTML = html;
+      this.controlsHelpEl.classList.add("visible");
+    } else {
+      this.controlsHelpEl.classList.remove("visible");
+    }
+  }
+
   resumeGame() {
     if (!this.isEscMenuOpen) return;
     this.isEscMenuOpen = false;
@@ -1557,6 +1596,7 @@ export class Game {
   }
 
   animate(timestamp, frame) {
+    this._frameCount++;
     const delta = this.clock.getDelta();
     const isPlaying = this.gameManager.isPlaying();
 
@@ -1593,11 +1633,14 @@ export class Game {
 
       // Only update enemies in single player
       if (!this.isMultiplayer) {
+        const cullDist = this.gameManager.getPerformanceProfile().enemyCullDistance ?? 100;
         for (let i = 0; i < this.enemies.length; i++) {
           this.enemies[i].update(
             delta,
             this.camera.position,
             this.boundFireEnemy,
+            this._frameCount,
+            cullDist,
           );
         }
         this.tickEnemyRespawns(delta);
@@ -1759,9 +1802,7 @@ export class Game {
         if (proj.isPlayerOwned) {
           for (let j = this.enemies.length - 1; j >= 0; j--) {
             const enemy = this.enemies[j];
-            const distSq = projPos.distanceToSquared(enemy.mesh.position);
-
-            if (distSq < 2.25) {
+            if (enemy.pointInHitbox(projPos)) {
               enemy.takeDamage(25);
 
               _hitNormal.subVectors(projPos, enemy.mesh.position).normalize();
@@ -1910,9 +1951,7 @@ export class Game {
       // Check against single-player enemies
       for (let j = this.enemies.length - 1; j >= 0; j--) {
         const enemy = this.enemies[j];
-        const distSq = missilePos.distanceToSquared(enemy.mesh.position);
-
-        if (distSq < 3.24) {
+        if (enemy.pointInHitbox(missilePos)) {
           enemy.takeDamage(missile.damage);
           exploded = true;
 

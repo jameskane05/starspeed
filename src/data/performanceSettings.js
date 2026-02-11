@@ -22,6 +22,7 @@ export const PERFORMANCE_PROFILES = {
       toneMapping: true,
       toneMappingExposure: 1.5,
     },
+    enemyCullDistance: 100,
   },
   medium: {
     label: "Medium",
@@ -46,6 +47,7 @@ export const PERFORMANCE_PROFILES = {
       toneMapping: true,
       toneMappingExposure: 1.5,
     },
+    enemyCullDistance: 100,
   },
   high: {
     label: "High",
@@ -70,6 +72,7 @@ export const PERFORMANCE_PROFILES = {
       toneMapping: true,
       toneMappingExposure: 1.5,
     },
+    enemyCullDistance: 200,
   },
   max: {
     label: "Max",
@@ -94,6 +97,7 @@ export const PERFORMANCE_PROFILES = {
       toneMapping: true,
       toneMappingExposure: 1.5,
     },
+    enemyCullDistance: 200,
   },
 };
 

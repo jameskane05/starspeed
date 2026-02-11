@@ -455,7 +455,8 @@ export class Player {
       this.splatConeHeadlightSdf.rotation.set(0, -Math.PI, 0);
     }
 
-    // Rotation - reuse temp vectors
+    const controlDelta = Math.min(delta, 0.05);
+
     _right.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
     _up.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
     _forward.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
@@ -464,8 +465,8 @@ export class Player {
     if (useGamepad) {
       // Gamepad look (right stick)
       const gpLookSpeed = 4.0;
-      this.pitchVelocity += -gp.lookY * gpLookSpeed * delta;
-      this.yawVelocity += -gp.lookX * gpLookSpeed * delta;
+      this.pitchVelocity += -gp.lookY * gpLookSpeed * controlDelta;
+      this.yawVelocity += -gp.lookX * gpLookSpeed * controlDelta;
     } else {
       // Mouse look with acceleration/easing
       this.pitchVelocity += -mouse.y * this.lookAccel;
@@ -473,10 +474,10 @@ export class Player {
 
       // Keyboard look (arrow keys)
       const keyLookSpeed = 3.0;
-      if (keys.lookUp) this.pitchVelocity += keyLookSpeed * delta;
-      if (keys.lookDown) this.pitchVelocity -= keyLookSpeed * delta;
-      if (keys.lookLeft) this.yawVelocity += keyLookSpeed * delta;
-      if (keys.lookRight) this.yawVelocity -= keyLookSpeed * delta;
+      if (keys.lookUp) this.pitchVelocity += keyLookSpeed * controlDelta;
+      if (keys.lookDown) this.pitchVelocity -= keyLookSpeed * controlDelta;
+      if (keys.lookLeft) this.yawVelocity += keyLookSpeed * controlDelta;
+      if (keys.lookRight) this.yawVelocity -= keyLookSpeed * controlDelta;
     }
 
     if (Math.abs(this.pitchVelocity) > this.lookMaxSpeed) {
@@ -486,34 +487,32 @@ export class Player {
       this.yawVelocity = Math.sign(this.yawVelocity) * this.lookMaxSpeed;
     }
 
-    this.pitchVelocity *= this.lookDrag;
-    this.yawVelocity *= this.lookDrag;
+    this.pitchVelocity *= Math.pow(this.lookDrag, delta * 60);
+    this.yawVelocity *= Math.pow(this.lookDrag, delta * 60);
 
-    _pitchQuat.setFromAxisAngle(_right, this.pitchVelocity * delta);
-    _yawQuat.setFromAxisAngle(_up, this.yawVelocity * delta);
+    _pitchQuat.setFromAxisAngle(_right, this.pitchVelocity * controlDelta);
+    _yawQuat.setFromAxisAngle(_up, this.yawVelocity * controlDelta);
 
-    // Roll with acceleration
     let rollInput = 0;
     if (useGamepad) {
-      // Analog roll from HOTAS twist axis
       if (gp.rollAnalog && Math.abs(gp.rollAnalog) > 0.1) {
-        rollInput = gp.rollAnalog * this.rollAccel * delta;
+        rollInput = gp.rollAnalog * this.rollAccel * controlDelta;
       } else {
-        if (gp.rollLeft) rollInput -= this.rollAccel * delta;
-        if (gp.rollRight) rollInput += this.rollAccel * delta;
+        if (gp.rollLeft) rollInput -= this.rollAccel * controlDelta;
+        if (gp.rollRight) rollInput += this.rollAccel * controlDelta;
       }
     } else {
-      if (keys.rollLeft) rollInput -= this.rollAccel * delta;
-      if (keys.rollRight) rollInput += this.rollAccel * delta;
+      if (keys.rollLeft) rollInput -= this.rollAccel * controlDelta;
+      if (keys.rollRight) rollInput += this.rollAccel * controlDelta;
     }
 
     this.rollVelocity += rollInput;
     if (Math.abs(this.rollVelocity) > this.rollMaxSpeed) {
       this.rollVelocity = Math.sign(this.rollVelocity) * this.rollMaxSpeed;
     }
-    this.rollVelocity *= this.rollDrag;
+    this.rollVelocity *= Math.pow(this.rollDrag, delta * 60);
 
-    _rollQuat.setFromAxisAngle(_forward, this.rollVelocity * delta);
+    _rollQuat.setFromAxisAngle(_forward, this.rollVelocity * controlDelta);
 
     this.camera.quaternion.premultiply(_pitchQuat);
     this.camera.quaternion.premultiply(_yawQuat);

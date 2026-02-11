@@ -117,3 +117,29 @@ export function castSphere(fromX, fromY, fromZ, toX, toY, toZ, radius) {
   const shape = getBall(radius);
   return world.castShape(_position, _rotation, _direction, shape, length, true);
 }
+
+const _rayOrigin = { x: 0, y: 0, z: 0 };
+const _rayDir = { x: 0, y: 0, z: 0 };
+
+export function castRay(fromX, fromY, fromZ, toX, toY, toZ) {
+  if (!world) return null;
+
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const dz = toZ - fromZ;
+  const lenSq = dx * dx + dy * dy + dz * dz;
+  if (lenSq < 1e-10) return null;
+
+  const len = Math.sqrt(lenSq);
+  const inv = 1 / len;
+
+  _rayOrigin.x = fromX;
+  _rayOrigin.y = fromY;
+  _rayOrigin.z = fromZ;
+  _rayDir.x = dx * inv;
+  _rayDir.y = dy * inv;
+  _rayDir.z = dz * inv;
+
+  const ray = new RAPIER.Ray(_rayOrigin, _rayDir);
+  return world.castRay(ray, len, true);
+}

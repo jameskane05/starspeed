@@ -15,29 +15,8 @@ export const lights = {
     id: "ambient",
     type: "AmbientLight",
     color: 0x667788,
-    intensity: 1.0,
+    intensity: 20,
   },
-
-  hangarOverhead: {
-    id: "hangar-overhead",
-    type: "PointLight",
-    color: 0xffe6cc,
-    intensity: 100,
-    distance: 100,
-    decay: 2,
-    position: { x: 0, y: 8, z: 0 },
-  },
-
-  hangarLight1: {
-    id: "hangar-light-1",
-    type: "PointLight",
-    color: 0xb3ccff,
-    intensity: 150,
-    distance: 100,
-    decay: 2,
-    position: { x: -15, y: 6, z: -10 },
-  },
-
 };
 
 export default lights;

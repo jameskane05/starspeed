@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { castSphere } from "../physics/Physics.js";
+import { castSphere, castRay } from "../physics/Physics.js";
 
 const _direction = new THREE.Vector3();
 const _targetQuat = new THREE.Quaternion();
@@ -56,9 +56,11 @@ export class Enemy {
     this.health = 100;
     this.speed = 3 + Math.random() * 3;
     this.detectionRange = 50;
+    this.detectionRangeSq = 2500;
     this.fireRate = 2;
     this.fireCooldown = 0;
     this.collisionRadius = 3;
+    this.hitExtents = { x: 4, y: 2, z: 4 }; // 3x wider (x,z), 2x taller (y) vs 1.5 base
     this.disposed = false;
 
     // Level bounds for wander
@@ -83,6 +85,9 @@ export class Enemy {
     this.steerStrength = 1.5 + Math.random() * 1.0;
     this.stuckTimer = 0;
     this.physicsFrame = Math.floor(Math.random() * 3);
+    this._physicsSlot =
+      Math.abs(Math.floor(position.x * 31 + position.y * 17 + position.z * 7)) %
+      3;
 
     this.mesh = new THREE.Group();
     this.mesh.position.copy(position);
@@ -99,11 +104,17 @@ export class Enemy {
       this.mesh.add(clone);
 
       if (options.enableLights !== false) {
+        this.shipLightIntensity = 7;
         if (_deadLights.length > 0) {
           this.shipLight = _deadLights.pop();
-          this.shipLight.intensity = 7;
+          this.shipLight.intensity = this.shipLightIntensity;
         } else {
-          this.shipLight = new THREE.PointLight(0xffffff, 7, 8, 1.5);
+          this.shipLight = new THREE.PointLight(
+            0xffffff,
+            this.shipLightIntensity,
+            8,
+            1.5,
+          );
           scene.add(this.shipLight);
         }
         this.shipLight.position.copy(position);
@@ -139,16 +150,24 @@ export class Enemy {
   checkLOS(playerPos) {
     const dist = this.mesh.position.distanceTo(playerPos);
     if (dist < 0.1) return true;
-    const hit = castSphere(
+    const hit = castRay(
       this.mesh.position.x,
       this.mesh.position.y,
       this.mesh.position.z,
       playerPos.x,
       playerPos.y,
       playerPos.z,
-      0.3,
     );
-    return !hit || hit.toi >= dist - 0.5;
+    if (!hit) return true;
+    const toi = hit.timeOfImpact ?? hit.toi;
+    return toi >= dist - 0.5;
+  }
+
+  pointInHitbox(otherPos) {
+    const dx = (otherPos.x - this.mesh.position.x) / this.hitExtents.x;
+    const dy = (otherPos.y - this.mesh.position.y) / this.hitExtents.y;
+    const dz = (otherPos.z - this.mesh.position.z) / this.hitExtents.z;
+    return dx * dx + dy * dy + dz * dz < 1;
   }
 
   canMoveTo(from, to) {
@@ -164,18 +183,27 @@ export class Enemy {
     return !hit;
   }
 
-  update(delta, playerPos, fireCallback) {
+  update(delta, playerPos, fireCallback, frameCount = 0, cullDistance = 100) {
     if (this.disposed) return;
 
     this.fireCooldown -= delta;
 
     const distToPlayerSq = this.mesh.position.distanceToSquared(playerPos);
 
-    // Distance cull — hide mesh and skip AI/physics when far away
-    const culled = distToPlayerSq > 10000; // 100m
-    if (this.mesh.visible !== !culled) {
+    // Distance cull — hide mesh and skip AI/physics when far away.
+    // Use intensity=0 for lights (not visibility) to keep scene light count constant
+    // and avoid shader recompilation. Hysteresis (~90% in, ~110% out) prevents rapid toggling.
+    const wasCulled = !this.mesh.visible;
+    const cullOutSq = (cullDistance * 1.1) ** 2;
+    const cullInSq = (cullDistance * 0.9) ** 2;
+    const culled = wasCulled
+      ? distToPlayerSq > cullInSq
+      : distToPlayerSq > cullOutSq;
+    if (this.mesh.visible === culled) {
       this.mesh.visible = !culled;
-      if (this.shipLight) this.shipLight.visible = !culled;
+      if (this.shipLight) {
+        this.shipLight.intensity = culled ? 0 : this.shipLightIntensity;
+      }
     }
     if (culled) return;
 
@@ -184,14 +212,15 @@ export class Enemy {
     // Medium distance (50-100m): render but freeze wandering enemies
     if (distToPlayerSq > 2500 && this.state === "wander") return;
 
-    const detectionRangeSq = this.detectionRange * this.detectionRange;
-
-    // Scale LOS check frequency by distance — nearby check often, far less
-    const losInterval = distToPlayerSq < 400 ? 4 : distToPlayerSq < 1600 ? 8 : 16;
+    // Scale LOS check frequency by distance — fewer checks at range.
+    // Stagger by _physicsSlot so not all enemies do physics the same frame.
+    const losInterval =
+      distToPlayerSq < 400 ? 8 : distToPlayerSq < 1600 ? 16 : 32;
+    const physicsFrame = (frameCount + this._physicsSlot) % 3 === 0;
     this.losCheckCounter++;
-    if (this.losCheckCounter >= losInterval) {
+    if (physicsFrame && this.losCheckCounter >= losInterval) {
       this.losCheckCounter = 0;
-      if (distToPlayerSq < detectionRangeSq) {
+      if (distToPlayerSq < this.detectionRangeSq) {
         this.hasLOS = this.checkLOS(playerPos);
       } else {
         this.hasLOS = false;
@@ -200,7 +229,10 @@ export class Enemy {
 
     if (this.hasLOS) {
       this.state = "attack";
-    } else if (this.state === "attack" && distToPlayerSq >= detectionRangeSq) {
+    } else if (
+      this.state === "attack" &&
+      distToPlayerSq >= this.detectionRangeSq
+    ) {
       this.state = "wander";
     }
 
@@ -221,7 +253,7 @@ export class Enemy {
         _newPos.x += _direction.x * this.speed * delta;
         _newPos.y += _direction.y * this.speed * delta;
         _newPos.z += _direction.z * this.speed * delta;
-        if (this.canMoveTo(this.mesh.position, _newPos)) {
+        if (physicsFrame ? this.canMoveTo(this.mesh.position, _newPos) : true) {
           this.mesh.position.copy(_newPos);
         }
       }
@@ -231,11 +263,11 @@ export class Enemy {
         this.fireCooldown = 1 / this.fireRate;
       }
     } else {
-      this._updateWander(delta);
+      this._updateWander(delta, frameCount);
     }
   }
 
-  _updateWander(delta) {
+  _updateWander(delta, frameCount = 0) {
     this.wanderCooldown += delta;
 
     _toWaypoint.subVectors(this.waypoint, this.mesh.position);
@@ -259,8 +291,8 @@ export class Enemy {
     _newPos.y += this.velocity.y * moveSpeed;
     _newPos.z += this.velocity.z * moveSpeed;
 
-    // Throttle physics checks for wandering — only every 3rd frame
-    if (this.physicsFrame % 3 === 0) {
+    const physicsFrame = (frameCount + this._physicsSlot) % 3 === 0;
+    if (physicsFrame) {
       if (this.canMoveTo(this.mesh.position, _newPos)) {
         this.mesh.position.copy(_newPos);
         this.stuckTimer = 0;
