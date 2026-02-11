@@ -4,7 +4,12 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { NewSparkRenderer } from "@sparkjsdev/spark";
-import { initPhysics, stepWorld, castSphere } from "../physics/Physics.js";
+import {
+  initPhysics,
+  stepWorld,
+  castSphere,
+  checkSphereCollision,
+} from "../physics/Physics.js";
 import { Input } from "./Input.js";
 import { Player } from "../entities/Player.js";
 import { Enemy, loadShipModels } from "../entities/Enemy.js";
@@ -19,6 +24,7 @@ import GameManager from "../managers/GameManager.js";
 import SceneManager from "../managers/SceneManager.js";
 import LightManager from "../managers/LightManager.js";
 import { GAME_STATES, SHIP_CLASSES } from "../data/gameData.js";
+import { getSceneObjectsForState } from "../data/sceneData.js";
 import { getPerformanceProfile } from "../data/performanceSettings.js";
 import { ParticleSystem } from "../vfx/ParticleSystem.js";
 import { ExplosionEffect } from "../vfx/effects/ExplosionEffect.js";
@@ -35,10 +41,15 @@ import proceduralAudio from "../audio/ProceduralAudio.js";
 import sfxManager from "../audio/sfxManager.js";
 import sfxSounds from "../audio/sfxData.js";
 import engineAudio from "../audio/EngineAudio.js";
+import { XRManager } from "../xr/XRManager.js";
 
 const _fireDir = new THREE.Vector3();
 const _hitPos = new THREE.Vector3();
 const _hitNormal = new THREE.Vector3();
+const _sparkPos = new THREE.Vector3();
+const _audioForward = new THREE.Vector3();
+const _audioUp = new THREE.Vector3();
+const _unitForward = new THREE.Vector3();
 
 export class Game {
   constructor() {
@@ -58,6 +69,8 @@ export class Game {
     this.player = null;
     this.level = null;
     this.enemies = [];
+    this.spawnPoints = [];
+    this.enemyRespawnQueue = [];
     this.projectiles = [];
     this.missiles = [];
     this.explosions = [];
@@ -86,10 +99,12 @@ export class Game {
       smoothCorrection: true,
     });
     this.lastInputSeq = 0;
-    
+
     // Track local missiles with their server IDs for homing sync
     this.localMissileQueue = []; // Missiles waiting to be linked to server IDs
     this.localMissileIds = new Map(); // serverId -> local missile
+
+    this.xrManager = null;
   }
 
   async init() {
@@ -103,7 +118,7 @@ export class Game {
       70,
       window.innerWidth / window.innerHeight,
       0.1,
-      1000
+      1000,
     );
     this.scene.add(this.camera);
 
@@ -114,7 +129,11 @@ export class Game {
 
     // Click canvas to re-acquire pointer lock when playing
     this.renderer.domElement.addEventListener("click", () => {
-      if (this.gameManager?.isPlaying() && !this.isEscMenuOpen && !document.pointerLockElement) {
+      if (
+        this.gameManager?.isPlaying() &&
+        !this.isEscMenuOpen &&
+        !document.pointerLockElement
+      ) {
         this.renderer.domElement.requestPointerLock?.();
       }
     });
@@ -125,7 +144,7 @@ export class Game {
       lodSplatScale: 2.0,
     });
     // Render splats in linear colour space so EffectComposer/bloom works correctly
-    console.log('sparkRenderer', this.sparkRenderer);
+    console.log("sparkRenderer", this.sparkRenderer);
     this.sparkRenderer.encodeLinear = true;
     this.sparkRenderer.renderOrder = -100;
     this.scene.add(this.sparkRenderer);
@@ -148,33 +167,36 @@ export class Game {
     // Bloom post-processing
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    
-    const bloomStrength = this.gameManager.getSetting('bloomStrength') ?? 0.15;
-    const bloomRadius = this.gameManager.getSetting('bloomRadius') ?? 0.4;
-    const bloomThreshold = this.gameManager.getSetting('bloomThreshold') ?? 0.8;
-    
+
+    const bloomStrength = this.gameManager.getSetting("bloomStrength") ?? 0.15;
+    const bloomRadius = this.gameManager.getSetting("bloomRadius") ?? 0.4;
+    const bloomThreshold = this.gameManager.getSetting("bloomThreshold") ?? 0.8;
+
     this.bloomPass = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
       bloomStrength,
       bloomRadius,
-      bloomThreshold
+      bloomThreshold,
     );
     this.composer.addPass(this.bloomPass);
     // OutputPass handles color space conversion + tone mapping that the renderer
     // normally does automatically but EffectComposer bypasses
     this.composer.addPass(new OutputPass());
-    this.bloomEnabled = this.gameManager.getSetting('bloomEnabled') ?? true;
+    this.bloomEnabled = this.gameManager.getSetting("bloomEnabled") ?? true;
     this._updateBloomActive();
 
-    this.gameManager.on('bloom:changed', (enabled) => {
+    this.gameManager.on("bloom:changed", (enabled) => {
       this.bloomEnabled = enabled;
       this._updateBloomActive();
     });
-    
-    this.gameManager.on('bloom:settings', (settings) => {
-      if (settings.strength !== undefined) this.bloomPass.strength = settings.strength;
-      if (settings.radius !== undefined) this.bloomPass.radius = settings.radius;
-      if (settings.threshold !== undefined) this.bloomPass.threshold = settings.threshold;
+
+    this.gameManager.on("bloom:settings", (settings) => {
+      if (settings.strength !== undefined)
+        this.bloomPass.strength = settings.strength;
+      if (settings.radius !== undefined)
+        this.bloomPass.radius = settings.radius;
+      if (settings.threshold !== undefined)
+        this.bloomPass.threshold = settings.threshold;
       this._updateBloomActive();
     });
 
@@ -186,7 +208,11 @@ export class Game {
     // this.dustMotesEffect = new DustMotesEffect(this.particles); // TODO: revisit
     this.dynamicLights = new DynamicLightPool(this.scene, { size: 12 });
 
-    this.gizmoManager = new GizmoManager(this.scene, this.camera, this.renderer);
+    this.gizmoManager = new GizmoManager(
+      this.scene,
+      this.camera,
+      this.renderer,
+    );
     window.gizmoManager = this.gizmoManager;
 
     this.sceneManager = new SceneManager(this.scene, {
@@ -209,11 +235,13 @@ export class Game {
     this.musicManager.setGameManager(this.gameManager);
 
     this.gameManager.on("state:changed", (newState, oldState) =>
-      this.onStateChanged(newState, oldState)
+      this.onStateChanged(newState, oldState),
     );
     this.gameManager.on("game:started", () => this.onGameStarted());
     this.gameManager.on("game:over", () => this.onGameOver());
     this.gameManager.on("game:victory", () => this.onVictory());
+
+    this.xrManager = new XRManager(this.renderer);
 
     this.input = new Input(this);
 
@@ -236,23 +264,41 @@ export class Game {
     await MenuManager.init();
     MenuManager.on("gameStart", () => this.startMultiplayerGame());
     MenuManager.on("campaignStart", () => this.startSoloDebug());
-    
+    MenuManager.on("levelSelected", (level) => {
+      this.gameManager.setState({ currentLevel: level });
+    });
+
     this.setupNetworkListeners();
 
     this.gameManager.setState({ currentState: GAME_STATES.MENU });
 
     // Debug: ?solo to skip menu and start singleplayer with AI enemies
+    // ?solo=newworld to start on a specific level
     const params = new URLSearchParams(window.location.search);
-    if (params.has('solo')) {
-      console.log('[Debug] Auto-starting solo match');
+    if (params.has("solo")) {
+      const level = params.get("solo");
+      if (level && level !== "true" && level !== "") {
+        this.gameManager.setState({ currentLevel: level });
+      }
+      console.log(
+        "[Debug] Auto-starting solo match, level:",
+        this.gameManager.getState().currentLevel,
+      );
       this.startSoloDebug();
     }
 
-    this.animate();
+    this.renderer.setAnimationLoop((timestamp, frame) =>
+      this.animate(timestamp, frame),
+    );
   }
 
   async startSoloDebug() {
     this.isMultiplayer = false;
+
+    // Request XR session before any async work (needs user activation from click)
+    const xrActive = this.xrManager?.supported
+      ? await this.xrManager.enterVR(this.scene, this.camera)
+      : false;
 
     // Preload and wait for level
     await this.preloadLevel();
@@ -267,13 +313,26 @@ export class Game {
     this.player.maxHealth = 100;
     this.player.missiles = 6;
     this.player.maxMissiles = 6;
+    this.camera.quaternion.setFromAxisAngle(
+      _audioUp.set(0, 1, 0),
+      (-70 * Math.PI) / 180,
+    );
+
+    if (xrActive) {
+      this.player.setXRMode(this.xrManager);
+    }
 
     engineAudio.init();
 
-    // Spawn AI enemies
+    this._extractSpawnPoints();
+    this.dynamicLights?.warmupShaders(
+      this.renderer,
+      this.camera,
+      this.spawnPoints.length,
+    );
     this.spawnEnemies();
 
-    if (!this.input.mobile.shouldSkipPointerLock()) {
+    if (!xrActive && !this.input.mobile.shouldSkipPointerLock()) {
       document.body.requestPointerLock?.()?.catch?.(() => {});
     }
     document.getElementById("hud").classList.add("active");
@@ -312,14 +371,14 @@ export class Game {
         this.player.missiles = player.missiles;
         this.player.maxMissiles = player.maxMissiles;
         this.player.hasLaserUpgrade = player.hasLaserUpgrade;
-        
+
         // Server reconciliation for position
         const lastProcessed = player.lastProcessedInput;
         if (lastProcessed > 0) {
           this.prediction.applyServerState(
             { x: player.x, y: player.y, z: player.z },
             { x: player.qx, y: player.qy, z: player.qz, w: player.qw },
-            lastProcessed
+            lastProcessed,
           );
           NetworkManager.clearProcessedInputs(lastProcessed);
         }
@@ -327,13 +386,23 @@ export class Game {
     });
 
     NetworkManager.on("projectileSpawn", ({ projectile, id }) => {
-      console.log("[Game] Projectile spawn event:", id, "owner:", projectile.ownerId, "isLocal:", projectile.ownerId === NetworkManager.sessionId);
+      console.log(
+        "[Game] Projectile spawn event:",
+        id,
+        "owner:",
+        projectile.ownerId,
+        "isLocal:",
+        projectile.ownerId === NetworkManager.sessionId,
+      );
       if (projectile.ownerId !== NetworkManager.sessionId) {
         this.spawnNetworkProjectile(id, projectile);
       } else if (projectile.type === "missile") {
         // Link our local missile to this server ID for homing sync
         // Filter out any already-disposed missiles from queue first
-        while (this.localMissileQueue.length > 0 && this.localMissileQueue[0].disposed) {
+        while (
+          this.localMissileQueue.length > 0 &&
+          this.localMissileQueue[0].disposed
+        ) {
           this.localMissileQueue.shift();
         }
         const localMissile = this.localMissileQueue.shift();
@@ -366,7 +435,7 @@ export class Game {
 
     NetworkManager.on("kill", (data) => {
       this.showKillFeed(data.killerName, data.victimName);
-      
+
       // Create a big explosion at the victim's position
       let victimPos = null;
       if (data.victimId === NetworkManager.sessionId) {
@@ -384,7 +453,7 @@ export class Game {
           proceduralAudio.killConfirm();
         }
       }
-      
+
       // Spawn big player death explosion (based on Unity BigExplosionEffect)
       if (victimPos) {
         const explosion = new Explosion(
@@ -392,11 +461,11 @@ export class Game {
           victimPos,
           0xff4400,
           this.dynamicLights,
-          { big: true }
+          { big: true },
         );
         this.explosions.push(explosion);
-        sfxManager.play('ship-explosion', victimPos);
-        
+        sfxManager.play("ship-explosion", victimPos);
+
         // Multi-layer particle explosion (fireball + embers + smoke)
         if (this.particles) {
           this.explosionEffect.emitBigExplosion(victimPos);
@@ -426,76 +495,101 @@ export class Game {
    * Preload level assets in the background (called when joining lobby)
    */
   async preloadLevel() {
-    // Don't preload if already loading or loaded
-    if (this.isLoadingLevel || this.sceneManager.hasObject("level")) {
-      return;
-    }
-    
+    if (this.isLoadingLevel) return;
+
     console.log("[Game] Preloading level...");
     this.isLoadingLevel = true;
-    
+
     try {
-      const sceneData = await import("../data/sceneData.js");
-      const levelData = sceneData.sceneObjects?.level || sceneData.default?.level;
-      
-      if (levelData) {
-        // Start loading but don't block - SceneManager handles deduplication
-        await this.sceneManager.loadObject(levelData, (progress) => {
-          console.log(`[Game] Preload progress: ${Math.round(progress * 100)}%`);
-        });
-        console.log("[Game] Level preloaded successfully");
+      // Use the criteria system to determine which objects to load for the current level
+      const state = this.gameManager.getState();
+      // Temporarily set state to PLAYING so criteria matches level objects
+      const objectsToLoad = getSceneObjectsForState({
+        ...state,
+        currentState: GAME_STATES.PLAYING,
+      });
+
+      const loads = [];
+      for (const obj of objectsToLoad) {
+        if (this.sceneManager.hasObject(obj.id)) continue;
+        loads.push(
+          this.sceneManager.loadObject(
+            obj,
+            obj.type === "splat"
+              ? (progress) => {
+                  console.log(
+                    `[Game] Preload progress (${obj.id}): ${Math.round(progress * 100)}%`,
+                  );
+                }
+              : null,
+          ),
+        );
       }
+      await Promise.all(loads);
+      console.log("[Game] Level preloaded successfully");
     } catch (err) {
       console.error("[Game] Level preload failed:", err);
     }
-    
+
     this.isLoadingLevel = false;
   }
 
   async loadLevelAndStart() {
-    // Set state to PLAYING
-    this.gameManager.setState({ 
+    // Set state to PLAYING (currentLevel should already be set before calling this)
+    this.gameManager.setState({
       currentState: GAME_STATES.PLAYING,
-      currentLevel: "hangar"
     });
-    
-    // Wait for level if still loading from preload, or load now if not started
-    if (!this.sceneManager.hasObject("level")) {
-      console.log("[Game] Waiting for level to load...");
+
+    // Load any level objects not yet loaded via the criteria system
+    const objectsToLoad = getSceneObjectsForState(this.gameManager.getState());
+    const loads = [];
+    for (const obj of objectsToLoad) {
+      if (this.sceneManager.hasObject(obj.id)) continue;
+      loads.push(
+        this.sceneManager.loadObject(
+          obj,
+          obj.type === "splat"
+            ? (progress) => {
+                MenuManager.updateLoadingProgress(progress);
+              }
+            : null,
+        ),
+      );
+    }
+    if (loads.length > 0) {
+      console.log("[Game] Loading level objects...");
       try {
-        const sceneData = await import("../data/sceneData.js");
-        const levelData = sceneData.sceneObjects?.level || sceneData.default?.level;
-        
-        if (levelData) {
-          // SceneManager deduplicates - if preload started, this awaits that promise
-          await this.sceneManager.loadObject(levelData, (progress) => {
-            MenuManager.updateLoadingProgress(progress);
-          });
-          console.log("[Game] Level loaded successfully");
-        }
+        await Promise.all(loads);
+        console.log("[Game] Level loaded successfully");
       } catch (err) {
         console.error("[Game] Level load failed:", err);
       }
     } else {
       console.log("[Game] Level already preloaded");
     }
-    
+
     MenuManager.loadingComplete();
   }
 
   startMultiplayerGame() {
     this.isMultiplayer = true;
-    
+
     // Show game canvas
     this.renderer.domElement.style.display = "block";
-    
+
     const state = NetworkManager.getState();
     const localPlayer = NetworkManager.getLocalPlayer();
-    
+
+    // Set the current level from the server room state
+    if (state?.level) {
+      this.gameManager.setState({ currentLevel: state.level });
+    }
+
     if (!localPlayer) return;
 
-    const classStats = SHIP_CLASSES[localPlayer.shipClass] || SHIP_CLASSES.fighter;
-    
+    const classStats =
+      SHIP_CLASSES[localPlayer.shipClass] || SHIP_CLASSES.fighter;
+
     this.player = new Player(this.camera, this.input, this.level, this.scene);
     this.player.health = localPlayer.health;
     this.player.maxHealth = localPlayer.maxHealth;
@@ -507,8 +601,18 @@ export class Game {
 
     engineAudio.init();
 
+    this.dynamicLights?.warmupShaders(this.renderer, this.camera);
+
+    // Remove spawn cubes from level (no AI enemies in multiplayer)
+    this._extractSpawnPoints();
+
     this.camera.position.set(localPlayer.x, localPlayer.y, localPlayer.z);
-    this.camera.quaternion.set(localPlayer.qx, localPlayer.qy, localPlayer.qz, localPlayer.qw);
+    this.camera.quaternion.set(
+      localPlayer.qx,
+      localPlayer.qy,
+      localPlayer.qz,
+      localPlayer.qw,
+    );
 
     // Create remote players for others already in the room
     NetworkManager.getPlayers().forEach(([sessionId, playerData]) => {
@@ -540,7 +644,7 @@ export class Game {
     const remote = new RemotePlayer(
       this.scene,
       playerData,
-      state?.mode === "team"
+      state?.mode === "team",
     );
     this.remotePlayers.set(sessionId, remote);
   }
@@ -555,7 +659,7 @@ export class Game {
 
   spawnCollectible(id, data) {
     if (this.collectibles.has(id)) return;
-    
+
     const collectible = new Collectible(this.scene, data, this.dynamicLights);
     this.collectibles.set(id, collectible);
     console.log(`[Game] Spawned collectible: ${id} (${data.type})`);
@@ -572,20 +676,21 @@ export class Game {
 
   handleCollectiblePickup(data) {
     const collectible = this.collectibles.get(data.collectibleId);
-    
+
     if (collectible) {
       collectible.playPickupEffect();
-      
+
       // Add particle burst at pickup location
       if (this.particles) {
         const pos = { x: data.x, y: data.y, z: data.z };
-        const color = data.type === "missile" 
-          ? { r: 1, g: 0.4, b: 0 }
-          : { r: 0, g: 1, b: 0.3 };
+        const color =
+          data.type === "missile"
+            ? { r: 1, g: 0.4, b: 0 }
+            : { r: 0, g: 1, b: 0.3 };
         this.sparksEffect.emitHitSparks(pos, color, 30);
       }
     }
-    
+
     // Update local player if they picked it up
     if (data.playerId === NetworkManager.sessionId && this.player) {
       proceduralAudio.collectPickup();
@@ -601,12 +706,12 @@ export class Game {
   showPickupMessage(text) {
     const existing = document.querySelector(".pickup-message");
     if (existing) existing.remove();
-    
+
     const msg = document.createElement("div");
     msg.className = "pickup-message";
     msg.textContent = text;
     document.body.appendChild(msg);
-    
+
     setTimeout(() => msg.classList.add("visible"), 10);
     setTimeout(() => {
       msg.classList.remove("visible");
@@ -615,7 +720,22 @@ export class Game {
   }
 
   spawnNetworkProjectile(id, data) {
-    console.log("[Game] Spawning network projectile:", id, "type:", data.type, "pos:", data.x, data.y, data.z, "dir:", data.dx, data.dy, data.dz, "speed:", data.speed);
+    console.log(
+      "[Game] Spawning network projectile:",
+      id,
+      "type:",
+      data.type,
+      "pos:",
+      data.x,
+      data.y,
+      data.z,
+      "dir:",
+      data.dx,
+      data.dy,
+      data.dz,
+      "speed:",
+      data.speed,
+    );
     const position = new THREE.Vector3(data.x, data.y, data.z);
     const direction = new THREE.Vector3(data.dx, data.dy, data.dz);
 
@@ -626,11 +746,17 @@ export class Game {
       this.networkProjectiles.set(id, { type: "missile", obj: missile });
     } else {
       // Other player projectiles should be visible as player (cyan) projectiles, not enemy (orange)
-      const projectile = new Projectile(this.scene, position, direction, true, data.speed);
+      const projectile = new Projectile(
+        this.scene,
+        position,
+        direction,
+        true,
+        data.speed,
+      );
       this.networkProjectiles.set(id, { type: "projectile", obj: projectile });
-      
+
       // Play spatial audio for other players' lasers
-      sfxManager.play('laser', position);
+      sfxManager.play("laser", position);
     }
   }
 
@@ -649,19 +775,30 @@ export class Game {
   updateNetworkProjectile(id, projectile) {
     const data = this.networkProjectiles.get(id);
     if (!data) return;
-    
-    console.log("[Game] Updating network projectile:", id, "pos:", projectile.x.toFixed(1), projectile.y.toFixed(1), projectile.z.toFixed(1));
-    
+
+    console.log(
+      "[Game] Updating network projectile:",
+      id,
+      "pos:",
+      projectile.x.toFixed(1),
+      projectile.y.toFixed(1),
+      projectile.z.toFixed(1),
+    );
+
     // Update position and direction from server (for homing missiles)
     if (data.type === "missile") {
       data.obj.group.position.set(projectile.x, projectile.y, projectile.z);
-      data.obj.direction.set(projectile.dx, projectile.dy, projectile.dz).normalize();
+      data.obj.direction
+        .set(projectile.dx, projectile.dy, projectile.dz)
+        .normalize();
       // Update visual rotation to match direction
       const forward = new THREE.Vector3(0, 0, 1);
       data.obj.group.quaternion.setFromUnitVectors(forward, data.obj.direction);
     } else {
       data.obj.mesh.position.set(projectile.x, projectile.y, projectile.z);
-      data.obj.direction.set(projectile.dx, projectile.dy, projectile.dz).normalize();
+      data.obj.direction
+        .set(projectile.dx, projectile.dy, projectile.dz)
+        .normalize();
     }
   }
 
@@ -669,20 +806,21 @@ export class Game {
     console.log("[Game] Network hit received:", data);
     const hitPos = new THREE.Vector3(data.x, data.y, data.z);
     // Use hit normal from data if available, otherwise default to (0,1,0)
-    const hitNormal = data.nx !== undefined && data.ny !== undefined && data.nz !== undefined
-      ? new THREE.Vector3(data.nx, data.ny, data.nz)
-      : new THREE.Vector3(0, 1, 0);
-    
+    const hitNormal =
+      data.nx !== undefined && data.ny !== undefined && data.nz !== undefined
+        ? new THREE.Vector3(data.nx, data.ny, data.nz)
+        : new THREE.Vector3(0, 1, 0);
+
     // Determine hit color based on who shot
     const isOurShot = data.shooterId === NetworkManager.sessionId;
     const hitColor = isOurShot ? 0x00ffff : 0xff8800;
-    
+
     const impact = new LaserImpact(
       this.scene,
       hitPos,
       hitNormal,
       hitColor,
-      this.dynamicLights
+      this.dynamicLights,
     );
     this.impacts.push(impact);
 
@@ -696,13 +834,16 @@ export class Game {
       // Check laser projectiles
       for (let i = this.projectiles.length - 1; i >= 0; i--) {
         const proj = this.projectiles[i];
-        if (proj.isPlayerOwned && proj.mesh.position.distanceToSquared(hitPos) < 25) {
+        if (
+          proj.isPlayerOwned &&
+          proj.mesh.position.distanceToSquared(hitPos) < 25
+        ) {
           proj.dispose(this.scene);
           this.projectiles.splice(i, 1);
           break;
         }
       }
-      
+
       // Check missiles
       for (let i = this.missiles.length - 1; i >= 0; i--) {
         const missile = this.missiles[i];
@@ -711,7 +852,7 @@ export class Game {
             this.scene,
             missile.getPosition(),
             0xff4400,
-            this.dynamicLights
+            this.dynamicLights,
           );
           this.explosions.push(explosion);
           missile.dispose(this.scene);
@@ -741,49 +882,49 @@ export class Game {
     const camPos = this.camera.position.clone();
     const camDir = new THREE.Vector3();
     this.camera.getWorldDirection(camDir);
-    
+
     const toHit = hitWorldPos.clone().sub(camPos).normalize();
-    
+
     // Get camera's right and up vectors
     const camRight = new THREE.Vector3();
     const camUp = new THREE.Vector3();
     camRight.crossVectors(camDir, this.camera.up).normalize();
     camUp.crossVectors(camRight, camDir).normalize();
-    
+
     // Project hit direction onto camera plane
     const dotRight = toHit.dot(camRight);
     const dotUp = toHit.dot(camUp);
     const dotForward = toHit.dot(camDir);
-    
+
     // Determine which indicators to show based on hit direction
     const indicators = [];
     const threshold = 0.3;
-    
+
     if (dotForward < 0.5) {
       // Hit came from side/behind
-      if (dotRight > threshold) indicators.push('right');
-      if (dotRight < -threshold) indicators.push('left');
-      if (dotUp > threshold) indicators.push('top');
-      if (dotUp < -threshold) indicators.push('bottom');
+      if (dotRight > threshold) indicators.push("right");
+      if (dotRight < -threshold) indicators.push("left");
+      if (dotUp > threshold) indicators.push("top");
+      if (dotUp < -threshold) indicators.push("bottom");
     }
-    
+
     // Always show center vignette for any hit
-    indicators.push('center');
-    
+    indicators.push("center");
+
     // Activate the indicators
-    indicators.forEach(dir => {
+    indicators.forEach((dir) => {
       const el = document.querySelector(`.damage-indicator-${dir}`);
       if (el) {
-        el.classList.remove('fading');
-        el.classList.add('active');
-        
+        el.classList.remove("fading");
+        el.classList.add("active");
+
         setTimeout(() => {
-          el.classList.remove('active');
-          el.classList.add('fading');
+          el.classList.remove("active");
+          el.classList.add("fading");
         }, 80);
-        
+
         setTimeout(() => {
-          el.classList.remove('fading');
+          el.classList.remove("fading");
         }, 450);
       }
     });
@@ -792,11 +933,11 @@ export class Game {
   handleLocalPlayerDeath() {
     const overlay = document.getElementById("respawn-overlay");
     overlay.classList.add("active");
-    
+
     let timeLeft = 5;
     const timerEl = document.getElementById("respawn-time");
     timerEl.textContent = timeLeft;
-    
+
     const interval = setInterval(() => {
       timeLeft--;
       timerEl.textContent = timeLeft;
@@ -804,6 +945,46 @@ export class Game {
         clearInterval(interval);
       }
     }, 1000);
+  }
+
+  _startSoloRespawn() {
+    this._soloRespawning = true;
+    if (this.player?.cockpit) this.player.cockpit.visible = false;
+
+    const overlay = document.getElementById("respawn-overlay");
+    overlay.classList.add("active");
+
+    let timeLeft = 3;
+    const timerEl = document.getElementById("respawn-time");
+    timerEl.textContent = timeLeft;
+
+    const interval = setInterval(() => {
+      timeLeft--;
+      timerEl.textContent = timeLeft;
+      if (timeLeft <= 0) {
+        clearInterval(interval);
+        this._finishSoloRespawn();
+      }
+    }, 1000);
+  }
+
+  _finishSoloRespawn() {
+    const overlay = document.getElementById("respawn-overlay");
+    overlay.classList.remove("active");
+
+    this.player.health = this.player.maxHealth;
+    this.player.missiles = this.player.maxMissiles;
+    this.player.lastDamageTime = 0;
+    this.camera.position.set(0, 0, 0);
+    this.camera.quaternion.setFromAxisAngle(
+      _audioUp.set(0, 1, 0),
+      -Math.PI / 2,
+    );
+
+    this._hudLast.health = null;
+    this._hudLast.missiles = null;
+    this._soloRespawning = false;
+    if (this.player?.cockpit) this.player.cockpit.visible = true;
   }
 
   handleLocalPlayerRespawn() {
@@ -817,8 +998,13 @@ export class Game {
       this.player.missiles = localPlayer.missiles;
       this.player.lastDamageTime = 0;
       this.camera.position.set(localPlayer.x, localPlayer.y, localPlayer.z);
-      this.camera.quaternion.set(localPlayer.qx, localPlayer.qy, localPlayer.qz, localPlayer.qw);
-      
+      this.camera.quaternion.set(
+        localPlayer.qx,
+        localPlayer.qy,
+        localPlayer.qz,
+        localPlayer.qw,
+      );
+
       // Force HUD update
       this._hudLast.health = null;
       this._hudLast.missiles = null;
@@ -831,7 +1017,7 @@ export class Game {
     entry.className = "kill-entry";
     entry.innerHTML = `<span class="killer">${killer}</span> → <span class="victim">${victim}</span>`;
     feed.appendChild(entry);
-    
+
     setTimeout(() => entry.remove(), 5000);
   }
 
@@ -847,7 +1033,7 @@ export class Game {
   cleanupMultiplayer() {
     this.remotePlayers.forEach((remote) => remote.dispose());
     this.remotePlayers.clear();
-    
+
     this.networkProjectiles.forEach((data) => {
       if (data.type === "missile") {
         data.obj.dispose(this.scene);
@@ -866,7 +1052,7 @@ export class Game {
   onGameStarted() {
     if (!this.isMultiplayer && !this.input.mobile.shouldSkipPointerLock()) {
       document.body.requestPointerLock?.()?.catch?.(() => {});
-    document.getElementById("crosshair").classList.add("active");
+      document.getElementById("crosshair").classList.add("active");
       document.getElementById("hud").classList.add("active");
     }
   }
@@ -884,14 +1070,124 @@ export class Game {
     document.getElementById("hud").classList.remove("active");
   }
 
+  _getLevelOcclusion() {
+    return (
+      this.sceneManager.getObject("levelOcclusion") ||
+      this.sceneManager.getObject("newworldOcclusion")
+    );
+  }
+
+  _extractSpawnPoints() {
+    const spawnId = this.sceneManager.hasObject("newworldSpawns")
+      ? "newworldSpawns"
+      : this.sceneManager.hasObject("levelSpawns")
+        ? "levelSpawns"
+        : null;
+
+    const spawnModel = spawnId ? this.sceneManager.getObject(spawnId) : null;
+
+    if (spawnModel) {
+      spawnModel.updateMatrixWorld(true);
+
+      const points = [];
+      spawnModel.traverse((child) => {
+        if (!child.isMesh) return;
+        const pos = new THREE.Vector3();
+        child.getWorldPosition(pos);
+        points.push(pos);
+      });
+
+      this.spawnPoints = points;
+      this.sceneManager.removeObject(spawnId);
+      console.log(
+        `[Game] Extracted ${points.length} spawn points from ${spawnId}`,
+      );
+    } else {
+      // Fallback: pull Cube* meshes from the occlusion mesh (legacy path)
+      const levelMesh = this._getLevelOcclusion();
+      if (!levelMesh) {
+        console.warn(
+          "[Game] No spawn GLB and no occlusion mesh — cannot extract spawn points",
+        );
+        return;
+      }
+
+      levelMesh.updateMatrixWorld(true);
+      const toRemove = [];
+      const points = [];
+      levelMesh.traverse((child) => {
+        if (!child.isMesh || !child.name?.startsWith("Cube")) return;
+        const pos = new THREE.Vector3();
+        child.getWorldPosition(pos);
+        points.push(pos);
+        toRemove.push(child);
+      });
+
+      for (const obj of toRemove) {
+        obj.removeFromParent();
+        obj.geometry?.dispose();
+        obj.material?.dispose();
+      }
+      this.spawnPoints = points;
+      console.log(
+        `[Game] Extracted ${points.length} spawn points from occlusion mesh (fallback)`,
+      );
+    }
+
+    // Compute bounds for enemy wander from the occlusion mesh
+    const levelMesh = this._getLevelOcclusion();
+    if (levelMesh) {
+      const box = new THREE.Box3().setFromObject(levelMesh);
+      this._levelBounds = {
+        center: box.getCenter(new THREE.Vector3()),
+        size: box.getSize(new THREE.Vector3()),
+      };
+    }
+  }
+
   spawnEnemies() {
-    const spawnPoints = this.level.getEnemySpawnPoints();
-    spawnPoints.forEach((pos) => {
-      const enemy = new Enemy(this.scene, pos, this.level);
+    if (this.spawnPoints.length === 0) {
+      console.warn("[Game] No spawn points found in level mesh");
+      return;
+    }
+
+    for (const pos of this.spawnPoints) {
+      const enemy = new Enemy(
+        this.scene,
+        pos.clone(),
+        this.level,
+        this._levelBounds,
+      );
       this.enemies.push(enemy);
-    });
+    }
+
+    console.log(
+      `[Game] Spawned ${this.enemies.length} enemies at authored positions`,
+    );
     this.gameManager.setState({ enemiesRemaining: this.enemies.length });
     this.updateHUD();
+  }
+
+  spawnAtPoint(pos) {
+    const enemy = new Enemy(
+      this.scene,
+      pos.clone(),
+      this.level,
+      this._levelBounds,
+    );
+    this.enemies.push(enemy);
+    this.gameManager.setState({ enemiesRemaining: this.enemies.length });
+  }
+
+  tickEnemyRespawns(delta) {
+    for (let i = this.enemyRespawnQueue.length - 1; i >= 0; i--) {
+      this.enemyRespawnQueue[i].timer -= delta;
+      if (this.enemyRespawnQueue[i].timer <= 0) {
+        const { pos } = this.enemyRespawnQueue[i];
+        this.enemyRespawnQueue.splice(i, 1);
+        this.spawnAtPoint(pos);
+      }
+    }
   }
 
   start() {
@@ -902,7 +1198,7 @@ export class Game {
   toggleEscMenu() {
     // Only allow escape menu during gameplay
     if (!this.gameManager?.isPlaying()) return;
-    
+
     if (this.isEscMenuOpen) {
       this.resumeGame();
     } else if (document.pointerLockElement) {
@@ -919,13 +1215,13 @@ export class Game {
     this.isEscMenuOpen = true;
     document.exitPointerLock();
     document.getElementById("crosshair").classList.remove("active");
-    
+
     if (!this.escMenu) {
       this.escMenu = document.createElement("div");
       this.escMenu.id = "esc-menu";
       document.body.appendChild(this.escMenu);
     }
-    
+
     this.escMenu.innerHTML = `
       <div class="esc-overlay"></div>
       <div class="esc-content">
@@ -937,11 +1233,17 @@ export class Game {
         </div>
       </div>
     `;
-    
-    document.getElementById("esc-resume").addEventListener("click", () => this.resumeGame());
-    document.getElementById("esc-options").addEventListener("click", () => this.showOptionsMenu());
-    document.getElementById("esc-leave").addEventListener("click", () => this.leaveMatch());
-    
+
+    document
+      .getElementById("esc-resume")
+      .addEventListener("click", () => this.resumeGame());
+    document
+      .getElementById("esc-options")
+      .addEventListener("click", () => this.showOptionsMenu());
+    document
+      .getElementById("esc-leave")
+      .addEventListener("click", () => this.leaveMatch());
+
     this.escMenu.style.display = "flex";
   }
 
@@ -964,11 +1266,33 @@ export class Game {
       this.leaderboardEl.id = "tab-leaderboard";
       document.body.appendChild(this.leaderboardEl);
     }
-    
-    const players = NetworkManager.getPlayers()
-      .map(([id, p]) => ({ id, name: p.name, kills: p.kills, deaths: p.deaths }))
-      .sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
-    
+
+    let players;
+    let localId;
+
+    if (this.isMultiplayer) {
+      localId = NetworkManager.sessionId;
+      players = NetworkManager.getPlayers()
+        .map(([id, p]) => ({
+          id,
+          name: p.name,
+          kills: p.kills,
+          deaths: p.deaths,
+        }))
+        .sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
+    } else {
+      const state = this.gameManager.getState();
+      localId = "local";
+      players = [
+        {
+          id: "local",
+          name: MenuManager.playerName || "Pilot",
+          kills: state.enemiesKilled || 0,
+          deaths: state.deaths || 0,
+        },
+      ];
+    }
+
     this.leaderboardEl.innerHTML = `
       <div class="leaderboard">
         <h2>LEADERBOARD</h2>
@@ -978,17 +1302,21 @@ export class Game {
           <span class="lb-kills">K</span>
           <span class="lb-deaths">D</span>
         </div>
-        ${players.map((p, i) => `
-          <div class="leaderboard-row ${p.id === NetworkManager.sessionId ? 'local' : ''}">
+        ${players
+          .map(
+            (p, i) => `
+          <div class="leaderboard-row ${p.id === localId ? "local" : ""}">
             <span class="lb-rank">${i + 1}</span>
             <span class="lb-name">${p.name}</span>
             <span class="lb-kills">${p.kills}</span>
             <span class="lb-deaths">${p.deaths}</span>
           </div>
-        `).join('')}
+        `,
+          )
+          .join("")}
       </div>
     `;
-    
+
     this.leaderboardEl.classList.add("active");
   }
 
@@ -1001,42 +1329,42 @@ export class Game {
   resumeGame() {
     if (!this.isEscMenuOpen) return;
     this.isEscMenuOpen = false;
-    
+
     if (this.escMenu) {
       this.escMenu.style.display = "none";
     }
-    
+
     document.getElementById("crosshair").classList.add("active");
 
     if (!this.input.mobile.shouldSkipPointerLock()) {
       const canvas = this.renderer.domElement;
       canvas.requestPointerLock?.()?.catch?.(() => {
-      // Pointer lock requires user gesture - add click listener
-      const clickToLock = () => {
-        canvas.requestPointerLock?.();
-        canvas.removeEventListener("click", clickToLock);
-      };
-      canvas.addEventListener("click", clickToLock);
-    });
+        // Pointer lock requires user gesture - add click listener
+        const clickToLock = () => {
+          canvas.requestPointerLock?.();
+          canvas.removeEventListener("click", clickToLock);
+        };
+        canvas.addEventListener("click", clickToLock);
+      });
     }
   }
 
   leaveMatch() {
     this.isEscMenuOpen = false;
-    
+
     if (this.escMenu) {
       this.escMenu.style.display = "none";
     }
-    
+
     if (this.isMultiplayer) {
       NetworkManager.leaveRoom();
       this.cleanupMultiplayer();
       this.isMultiplayer = false;
     }
-    
+
     // Hide game canvas when returning to menu
     this.renderer.domElement.style.display = "none";
-    
+
     document.getElementById("crosshair").classList.remove("active");
     document.getElementById("hud").classList.remove("active");
     this.player = null;
@@ -1064,7 +1392,7 @@ export class Game {
 
   handleGamepadFire() {
     if (!this.input.isGamepadMode()) return;
-    
+
     const gp = this.input.gamepad;
     if (gp.fire) {
       this.firePlayerWeapon();
@@ -1082,7 +1410,10 @@ export class Game {
     if (now - this.lastLaserTime < this.laserCooldown) return;
     this.lastLaserTime = now;
 
-    _fireDir.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    const fireQuat = this.xrManager?.isPresenting
+      ? this.xrManager.rig.quaternion
+      : this.camera.quaternion;
+    _fireDir.set(0, 0, -1).applyQuaternion(fireQuat);
     const spawnPos = this.player.getWeaponSpawnPoint();
 
     if (this.isMultiplayer) {
@@ -1095,7 +1426,7 @@ export class Game {
     this.projectiles.push(projectile);
 
     // Play spatial audio at spawn position
-    sfxManager.play('laser', spawnPos);
+    sfxManager.play("laser", spawnPos);
 
     this.dynamicLights?.flash(spawnPos, 0x00ffff, {
       intensity: 10,
@@ -1115,7 +1446,10 @@ export class Game {
 
     this.player.missiles--;
 
-    _fireDir.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    const fireQuat = this.xrManager?.isPresenting
+      ? this.xrManager.rig.quaternion
+      : this.camera.quaternion;
+    _fireDir.set(0, 0, -1).applyQuaternion(fireQuat);
     const spawnPos = this.player.getMissileSpawnPoint();
 
     const missile = new Missile(this.scene, spawnPos, _fireDir, {
@@ -1144,10 +1478,10 @@ export class Game {
       this.scene,
       position.clone(),
       direction,
-      false
+      false,
     );
     this.projectiles.push(projectile);
-    sfxManager.play('laser', position);
+    sfxManager.play("laser", position);
   }
 
   updateHUD(delta) {
@@ -1157,10 +1491,16 @@ export class Game {
     if (this._hudAccum < 0.1) return;
     this._hudAccum = 0;
 
-    const healthPercent = Math.max(0, Math.round((this.player.health / this.player.maxHealth) * 100));
+    const healthPercent = Math.max(
+      0,
+      Math.round((this.player.health / this.player.maxHealth) * 100),
+    );
     const missiles = this.player.missiles;
-    const boostPercent = Math.max(0, Math.round((this.player.boostFuel / this.player.maxBoostFuel) * 100));
-    
+    const boostPercent = Math.max(
+      0,
+      Math.round((this.player.boostFuel / this.player.maxBoostFuel) * 100),
+    );
+
     let kills = 0;
     if (this.isMultiplayer) {
       const localPlayer = NetworkManager.getLocalPlayer();
@@ -1207,22 +1547,29 @@ export class Game {
     });
   }
 
-  animate() {
-    requestAnimationFrame(() => this.animate());
-
+  animate(timestamp, frame) {
     const delta = this.clock.getDelta();
     const isPlaying = this.gameManager.isPlaying();
-    
+
+    // Update XR input each frame
+    if (this.xrManager) {
+      this.xrManager.update(timestamp, frame);
+    }
+
     // Poll gamepad every frame
     this.input.pollGamepad();
 
     if (isPlaying) {
-      this.input.update(delta);
-      this.handleGamepadFire();
+      stepWorld();
 
-      if (this.player) {
-        this.player.update(delta, this.clock.elapsedTime);
-        engineAudio.update(delta, this.player);
+      if (!this._soloRespawning) {
+        this.input.update(delta);
+        this.handleGamepadFire();
+
+        if (this.player) {
+          this.player.update(delta, this.clock.elapsedTime);
+          engineAudio.update(delta, this.player);
+        }
       }
 
       // Update remote players
@@ -1237,19 +1584,23 @@ export class Game {
 
       // Only update enemies in single player
       if (!this.isMultiplayer) {
-      for (let i = 0; i < this.enemies.length; i++) {
-        this.enemies[i].update(
-          delta,
-          this.camera.position,
-          this.boundFireEnemy
-        );
+        for (let i = 0; i < this.enemies.length; i++) {
+          this.enemies[i].update(
+            delta,
+            this.camera.position,
+            this.boundFireEnemy,
+          );
         }
+        this.tickEnemyRespawns(delta);
       }
 
       this.projectiles.forEach((proj) => proj.update(delta));
-      
+
       // Combine enemies and remote players as potential missile targets
-      const missileTargets = [...this.enemies, ...Array.from(this.remotePlayers.values())];
+      const missileTargets = [
+        ...this.enemies,
+        ...Array.from(this.remotePlayers.values()),
+      ];
       this.missiles.forEach((m) => m.update(delta, missileTargets));
 
       // Send position updates for all local missiles to server (for remote clients to see)
@@ -1262,7 +1613,7 @@ export class Game {
             NetworkManager.sendMissileUpdate(
               serverId,
               missile.group.position,
-              missile.direction
+              missile.direction,
             );
           }
         });
@@ -1277,12 +1628,21 @@ export class Game {
           // Get current position from server state
           const serverProj = NetworkManager.getState()?.projectiles?.get(id);
           if (serverProj) {
-            data.obj.group.position.set(serverProj.x, serverProj.y, serverProj.z);
-            data.obj.direction.set(serverProj.dx, serverProj.dy, serverProj.dz).normalize();
-            const forward = new THREE.Vector3(0, 0, 1);
-            data.obj.group.quaternion.setFromUnitVectors(forward, data.obj.direction);
+            data.obj.group.position.set(
+              serverProj.x,
+              serverProj.y,
+              serverProj.z,
+            );
+            data.obj.direction
+              .set(serverProj.dx, serverProj.dy, serverProj.dz)
+              .normalize();
+            _unitForward.set(0, 0, 1);
+            data.obj.group.quaternion.setFromUnitVectors(
+              _unitForward,
+              data.obj.direction,
+            );
           }
-          
+
           // Update particle effects
           data.obj.lifetime -= delta;
           if (data.obj.particles) {
@@ -1292,7 +1652,7 @@ export class Game {
               data.obj.trailsEffect.emitMissileExhaust(
                 data.obj.group.position,
                 data.obj.group.quaternion,
-                data.obj.direction
+                data.obj.direction,
               );
             }
           }
@@ -1315,7 +1675,7 @@ export class Game {
       // Always check collisions (handles lifetime expiry and wall hits)
       // In multiplayer, damage is handled by server
       this.checkCollisions();
-      
+
       this.updateHUD(delta);
       this.sendInputToServer(delta);
 
@@ -1324,8 +1684,16 @@ export class Game {
         this.prediction.applySmoothCorrection(this.camera.position, delta);
       }
 
-      if (this.player && this.player.health <= 0 && !this.isMultiplayer) {
-        this.stop();
+      if (
+        this.player &&
+        this.player.health <= 0 &&
+        !this.isMultiplayer &&
+        !this._soloRespawning
+      ) {
+        this.gameManager.setState({
+          deaths: (this.gameManager.getState().deaths || 0) + 1,
+        });
+        this._startSoloRespawn();
       }
     }
 
@@ -1334,22 +1702,24 @@ export class Game {
     this.dynamicLights?.update(delta);
     this.musicManager?.update(delta);
     this.gizmoManager?.update(delta);
-    
+
     // Update spatial audio listener position (camera position and orientation)
     if (this.camera && proceduralAudio) {
-      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
-      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
+      _audioForward.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
+      _audioUp.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
       proceduralAudio.setListenerPosition(
         this.camera.position,
-        forward,
-        up
+        _audioForward,
+        _audioUp,
       );
     }
-    
+
     // Dust motes are a global environment effect - fixed in world space
     // Don't update the emission box, it's set once at initialization
-    
-    if (this._bloomActive) {
+
+    if (this.xrManager?.isPresenting) {
+      this.renderer.render(this.scene, this.camera);
+    } else if (this._bloomActive) {
       this.composer.render();
     } else {
       this.renderer.render(this.scene, this.camera);
@@ -1357,7 +1727,9 @@ export class Game {
   }
 
   checkCollisions() {
-    const playerPos = this.camera.position;
+    const playerPos = this.xrManager?.isPresenting
+      ? this.xrManager.rig.position
+      : this.camera.position;
     const playerRadiusSq = 0.64;
 
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
@@ -1375,68 +1747,73 @@ export class Game {
 
       // In single-player, check entity collisions (multiplayer uses server for this)
       if (!this.isMultiplayer) {
-      if (proj.isPlayerOwned) {
-        for (let j = this.enemies.length - 1; j >= 0; j--) {
-          const enemy = this.enemies[j];
-          const distSq = projPos.distanceToSquared(enemy.mesh.position);
+        if (proj.isPlayerOwned) {
+          for (let j = this.enemies.length - 1; j >= 0; j--) {
+            const enemy = this.enemies[j];
+            const distSq = projPos.distanceToSquared(enemy.mesh.position);
 
-          if (distSq < 2.25) {
-            enemy.takeDamage(25);
+            if (distSq < 2.25) {
+              enemy.takeDamage(25);
 
-            _hitNormal.subVectors(projPos, enemy.mesh.position).normalize();
-            const impact = new LaserImpact(
-              this.scene,
-              projPos,
-              _hitNormal,
-              projColor,
-              this.dynamicLights
-            );
-            this.impacts.push(impact);
+              _hitNormal.subVectors(projPos, enemy.mesh.position).normalize();
+              const impact = new LaserImpact(
+                this.scene,
+                projPos,
+                _hitNormal,
+                projColor,
+                this.dynamicLights,
+              );
+              this.impacts.push(impact);
 
               // Electrical sparks on enemy hit
               if (this.particles) {
-                this.sparksEffect.emitElectricalSparks(projPos, _hitNormal, 100);
+                this.sparksEffect.emitElectricalSparks(projPos, _hitNormal, 30);
               }
 
-            hitSomething = true;
+              hitSomething = true;
 
-            if (enemy.health <= 0) {
+              if (enemy.health <= 0) {
                 const deathPos = enemy.mesh.position.clone();
-              const explosion = new Explosion(
-                this.scene,
+                const explosion = new Explosion(
+                  this.scene,
                   deathPos,
-                enemy.glowColor,
+                  enemy.glowColor,
                   this.dynamicLights,
-                  { big: true }
-              );
-              this.explosions.push(explosion);
-                sfxManager.play('ship-explosion', deathPos);
+                  { big: true },
+                );
+                this.explosions.push(explosion);
+                sfxManager.play("ship-explosion", deathPos);
                 if (this.particles) {
                   this.explosionEffect.emitBigExplosion(deathPos);
                 }
-              enemy.dispose(this.scene);
-              this.enemies.splice(j, 1);
-              this.gameManager.setState({
-                enemiesRemaining: this.enemies.length,
-                enemiesKilled: this.gameManager.getState().enemiesKilled + 1,
-              });
+                const respawnPos = enemy.spawnPoint;
+                enemy.dispose(this.scene);
+                this.enemies.splice(j, 1);
+                if (!this.isMultiplayer) {
+                  this.enemyRespawnQueue.push({ timer: 20, pos: respawnPos });
+                }
+                this.gameManager.setState({
+                  enemiesRemaining: this.enemies.length,
+                  enemiesKilled: this.gameManager.getState().enemiesKilled + 1,
+                });
+              }
+              break;
             }
-            break;
           }
-        }
-      } else {
-        const distSq = projPos.distanceToSquared(playerPos);
-        if (distSq < playerRadiusSq) {
-          this.player.health -= 10;
+        } else {
+          const distSq = projPos.distanceToSquared(playerPos);
+          if (distSq < playerRadiusSq) {
+            this.player.health -= 10;
             this.player.lastDamageTime = this.clock.elapsedTime;
             this.showDamageIndicator(projPos);
             proceduralAudio.shieldHit();
-          hitSomething = true;
+            hitSomething = true;
           }
         }
       }
 
-      // Always check wall collisions
+      // Wall collisions: swept cast from previous to current position
+      let wallHitDetected = false;
       if (!hitSomething && proj.prevPosition) {
         const wallHit = castSphere(
           proj.prevPosition.x,
@@ -1445,30 +1822,50 @@ export class Game {
           projPos.x,
           projPos.y,
           projPos.z,
-          0.1
+          0.3,
         );
         if (wallHit) {
+          const toi = Number(wallHit.toi) || 0;
           _hitPos.set(
-            proj.prevPosition.x + proj.direction.x * wallHit.toi,
-            proj.prevPosition.y + proj.direction.y * wallHit.toi,
-            proj.prevPosition.z + proj.direction.z * wallHit.toi
+            proj.prevPosition.x + proj.direction.x * toi,
+            proj.prevPosition.y + proj.direction.y * toi,
+            proj.prevPosition.z + proj.direction.z * toi,
           );
+          if (isNaN(_hitPos.x)) _hitPos.copy(proj.prevPosition);
           _hitNormal.set(
-            wallHit.normal1.x,
-            wallHit.normal1.y,
-            wallHit.normal1.z
+            wallHit.normal2.x,
+            wallHit.normal2.y,
+            wallHit.normal2.z,
           );
-
-          const impact = new LaserImpact(
-            this.scene,
-            _hitPos,
-            _hitNormal,
-            projColor,
-            this.dynamicLights
-          );
-          this.impacts.push(impact);
+          // Ensure normal points back toward the shooter, not through the wall
+          if (_hitNormal.dot(proj.direction) > 0) {
+            _hitNormal.negate();
+          }
+          wallHitDetected = true;
           hitSomething = true;
         }
+      }
+
+      // Fallback overlap test (catches cases the swept cast misses on trimesh)
+      if (
+        !hitSomething &&
+        checkSphereCollision(projPos.x, projPos.y, projPos.z, 0.5)
+      ) {
+        _hitPos.copy(proj.prevPosition);
+        _hitNormal.copy(proj.direction).negate();
+        wallHitDetected = true;
+        hitSomething = true;
+      }
+
+      if (wallHitDetected && this.particles) {
+        _sparkPos.copy(_hitPos).addScaledVector(_hitNormal, 0.05);
+        this.sparksEffect.emitElectricalSparks(_sparkPos, _hitNormal, 100);
+        this.dynamicLights?.flash(_hitPos, projColor, {
+          intensity: 8,
+          distance: 12,
+          ttl: 0.05,
+          fade: 0.1,
+        });
       }
 
       if (hitSomething) {
@@ -1505,15 +1902,19 @@ export class Game {
               deathPos,
               enemy.glowColor,
               this.dynamicLights,
-              { big: true }
+              { big: true },
             );
             this.explosions.push(explosion);
-            sfxManager.play('ship-explosion', deathPos);
+            sfxManager.play("ship-explosion", deathPos);
             if (this.particles) {
               this.explosionEffect.emitBigExplosion(deathPos);
             }
+            const respawnPos = enemy.spawnPoint;
             enemy.dispose(this.scene);
             this.enemies.splice(j, 1);
+            if (!this.isMultiplayer) {
+              this.enemyRespawnQueue.push({ timer: 20, pos: respawnPos });
+            }
             this.gameManager.setState({
               enemiesRemaining: this.enemies.length,
               enemiesKilled: this.gameManager.getState().enemiesKilled + 1,
@@ -1545,11 +1946,15 @@ export class Game {
           this.scene,
           missilePos,
           0xff4400,
-          this.dynamicLights
+          this.dynamicLights,
         );
         this.explosions.push(explosion);
         if (this.particles) {
-          this.explosionEffect.emitExplosionParticles(missilePos, { r: 1, g: 0.4, b: 0.1 }, 30);
+          this.explosionEffect.emitExplosionParticles(
+            missilePos,
+            { r: 1, g: 0.4, b: 0.1 },
+            30,
+          );
         }
         missile.dispose(this.scene);
         this.missiles.splice(i, 1);

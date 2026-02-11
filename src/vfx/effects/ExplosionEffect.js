@@ -54,11 +54,7 @@ export class ExplosionEffect {
    * Proper emission shapes from Unity metadata.
    */
   emitBigExplosion(position) {
-    console.log('[VFX] emitBigExplosion at', position.x?.toFixed(1), position.y?.toFixed(1), position.z?.toFixed(1));
-    
-    // ── Fire (Shape: Sphere r=1.52, 60 burst, startSpeed=0, size=0.75-2, lifetime=0.5-1s) ──
-    // Unity: Velocity over Lifetime Linear X 4 Y 10 Z 4 (constant velocity in world space)
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 25; i++) {
       const e = emitSphere(position, 1.52);
       const drift = 0.3;
       const vx = e.dx * 0.5 + (Math.random() - 0.5) * drift;
@@ -82,8 +78,7 @@ export class ExplosionEffect {
       });
     }
 
-    // ── Embers (Shape: Cone r=0.5 angle=32, 200 burst, startSpeed=0, size=0-0.075) ──
-    for (let i = 0; i < 200; i++) {
+    for (let i = 0; i < 60; i++) {
       const e = emitSphere(position, 0.5);
       const baseSpeed = 5;
       const drift = 1.0;
@@ -100,10 +95,7 @@ export class ExplosionEffect {
       });
     }
 
-    // ── Debris (Shape: Hemisphere r=1, burst 5-10, startSpeed 25-50, lifetime 2s) ──
-    // Fast-moving chunks that shoot out in random directions
-    // Sub-emitters: DerisFire and DebrisSmoke trail behind each chunk (rateOverDistance)
-    const debrisCount = 5 + Math.floor(Math.random() * 6);
+    const debrisCount = 3 + Math.floor(Math.random() * 3);
     for (let i = 0; i < debrisCount; i++) {
       const e = emitHemisphere(position, 1.0);
       const speed = 25 + Math.random() * 25;
@@ -124,7 +116,7 @@ export class ExplosionEffect {
       });
 
       // Simulate sub-emitter: fire puffs along the debris trajectory
-      const trailSteps = 6 + Math.floor(Math.random() * 4);
+      const trailSteps = 3 + Math.floor(Math.random() * 3);
       for (let s = 0; s < trailSteps; s++) {
         const t = (s + 1) / trailSteps;
         const delay = t * 0.15;
@@ -170,9 +162,7 @@ export class ExplosionEffect {
       }
     }
 
-    // ── Root Smoke (Shape: Hemisphere r=0.7, 60 burst, startSpeed=2-4, lifetime=1-3s) ──
-    // Unity: Velocity over Lifetime Linear X 0 Y 10 Z 0 (constant upward velocity in world space)
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 20; i++) {
       const e = emitHemisphere(position, 0.7);
       const speed = 2 + Math.random() * 2;
       const drift = 0.3;
@@ -198,8 +188,7 @@ export class ExplosionEffect {
       });
     }
 
-    // ── Secondary Smoke (Shape: Sphere r=0.5, 40 burst, lifetime=2-4s) ──
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 15; i++) {
       const e = emitSphere(position, 0.5);
       const speed = 1 + Math.random() * 2;
       const drift = 0.5;

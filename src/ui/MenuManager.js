@@ -804,6 +804,11 @@ class MenuManager {
                 </button>
               `).join("")}
             </div>
+
+            <div class="lobby-map-info">
+              <h3>MAP</h3>
+              <div class="map-name">${LEVELS[state.level]?.name || state.level || "Unknown"}</div>
+            </div>
             
             <div class="lobby-actions">
               <label class="ready-checkbox">
@@ -1823,6 +1828,7 @@ class MenuManager {
   }
 
   async createGame(roomName, mode, isPublic, killLimit, maxPlayers = 8, level = "hangar", roomCode = null) {
+    this.emit("levelSelected", level);
     this.showLoading("Creating arena...");
     await NetworkManager.connect();
     await NetworkManager.createRoom({

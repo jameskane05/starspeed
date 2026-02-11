@@ -153,6 +153,10 @@ export class Input {
     if (KeyBindings.isKeyBound('pause', code) && value) {
       this.game.toggleEscMenu();
     }
+
+    if (code === 'KeyL' && value) {
+      this.game.lightManager?.toggleGUI();
+    }
   }
 
   onMouseMove(e) {

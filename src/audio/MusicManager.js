@@ -1,75 +1,135 @@
-import { Howl, Howler } from "howler";
-import { musicTracks, getMusicForState } from "./musicData.js";
+import { Howl } from "howler";
+import { musicTracks, shuffled } from "./musicData.js";
 import { AudioSettings } from "../game/AudioSettings.js";
+import { GAME_STATES } from "../data/gameData.js";
 
 class MusicManager {
   constructor() {
-    this.tracks = {};
+    this.loaded = {};
+    this.playlist = [];
+    this.playlistIndex = 0;
     this.currentTrack = null;
+    this.currentPath = null;
     this.isTransitioning = false;
-    this.gameManager = null;
     this.hasUserInteracted = false;
-    this.pendingTrack = null;
+    this.pendingPlay = false;
 
-    this.crossfadeState = {
-      active: false,
-      fadeOutTrack: null,
-      fadeInTrack: null,
-      fadeOutStartVolume: 0,
-      fadeInTargetVolume: 0,
-      duration: 0,
-      startTime: 0,
-    };
+    this.crossfadeState = { active: false };
+    this.fadeState = { active: false };
 
-    this.fadeState = {
-      active: false,
-      trackName: null,
-      startVolume: 0,
-      targetVolume: 0,
-      duration: 0,
-      startTime: 0,
-    };
-
-    this._initializeTracks();
     this._setupInteractionListeners();
-
     AudioSettings.onChange(() => this._applyVolumeSettings());
   }
 
-  _initializeTracks() {
-    Object.values(musicTracks).forEach((track) => {
-      if (track.preload) {
-        this._loadTrack(track);
-      }
-    });
+  _buildPlaylist() {
+    this.playlist = shuffled(musicTracks);
+    this.playlistIndex = 0;
   }
 
-  _loadTrack(trackData) {
-    if (this.tracks[trackData.id]) return this.tracks[trackData.id];
+  _loadTrack(path) {
+    if (this.loaded[path]) return this.loaded[path];
 
     const volume = AudioSettings.getMusicVolume();
-
-    this.tracks[trackData.id] = new Howl({
-      src: [trackData.path],
-      loop: trackData.loop !== false,
+    const howl = new Howl({
+      src: [path],
+      loop: false,
       volume: volume,
       preload: true,
-      onload: () => console.log(`[Music] Loaded: ${trackData.id}`),
-      onloaderror: (id, error) => console.error(`[Music] Failed to load ${trackData.id}:`, error),
+      onend: () => this._onTrackEnd(path),
+      onloaderror: (id, error) => console.error(`[Music] Failed to load ${path}:`, error),
     });
 
-    return this.tracks[trackData.id];
+    this.loaded[path] = howl;
+    return howl;
+  }
+
+  _onTrackEnd(path) {
+    if (this.currentPath !== path) return;
+    this._playNext(2.0);
+  }
+
+  _playNext(fadeTime = 0) {
+    this.playlistIndex++;
+    if (this.playlistIndex >= this.playlist.length) {
+      this._buildPlaylist();
+    }
+    this._playCurrent(fadeTime);
+  }
+
+  _playCurrent(fadeTime = 0) {
+    const path = this.playlist[this.playlistIndex];
+    if (!path) return;
+
+    if (!this.hasUserInteracted) {
+      this.pendingPlay = true;
+      return;
+    }
+
+    const track = this._loadTrack(path);
+    const previousPath = this.currentPath;
+    const previousTrack = this.currentTrack;
+
+    this.currentPath = path;
+    this.currentTrack = track;
+    this.isTransitioning = true;
+
+    const targetVolume = AudioSettings.getMusicVolume();
+
+    const startNewTrack = () => {
+      if (track.state() === "loaded") {
+        this._beginPlayback(track, previousTrack, targetVolume, fadeTime);
+      } else {
+        track.once("load", () => {
+          this._beginPlayback(track, previousTrack, targetVolume, fadeTime);
+        });
+      }
+    };
+
+    startNewTrack();
+  }
+
+  _beginPlayback(track, previousTrack, targetVolume, fadeTime) {
+    if (fadeTime > 0 && previousTrack && previousTrack.playing()) {
+      const fadeOutStartVolume = previousTrack.volume();
+      track.volume(0);
+      track.play();
+      this.crossfadeState = {
+        active: true,
+        fadeOutTrack: previousTrack,
+        fadeInTrack: track,
+        fadeOutStartVolume,
+        fadeInTargetVolume: targetVolume,
+        duration: fadeTime,
+        startTime: Date.now(),
+      };
+    } else if (fadeTime > 0) {
+      track.volume(0);
+      track.play();
+      this.fadeState = {
+        active: true,
+        track,
+        startVolume: 0,
+        targetVolume,
+        duration: fadeTime,
+        startTime: Date.now(),
+      };
+      this.isTransitioning = false;
+    } else {
+      if (previousTrack && previousTrack !== track) previousTrack.stop();
+      track.volume(targetVolume);
+      track.play();
+      this.isTransitioning = false;
+    }
   }
 
   _setupInteractionListeners() {
     const handleInteraction = () => {
       if (this.hasUserInteracted) return;
       this.hasUserInteracted = true;
-      console.log("[Music] User interaction detected, audio unlocked");
 
-      if (this.pendingTrack) {
-        this.changeMusic(this.pendingTrack.id, this.pendingTrack.fadeTime || 0);
-        this.pendingTrack = null;
+      if (this.pendingPlay) {
+        this.pendingPlay = false;
+        this._playCurrent(0);
       }
 
       document.removeEventListener("click", handleInteraction);
@@ -85,141 +145,54 @@ class MusicManager {
   setGameManager(gameManager) {
     this.gameManager = gameManager;
 
-    gameManager.on("state:changed", (newState, oldState) => {
-      const track = getMusicForState(newState);
-
-      if (!track) {
-        if (this.currentTrack) {
-          this.stopMusic(1.0);
-        }
-        return;
-      }
-
-      if (this.currentTrack !== track.id) {
-        this.changeMusic(track.id, track.fadeTime || 0);
+    gameManager.on("state:changed", (newState) => {
+      const state = newState.currentState;
+      if (state === GAME_STATES.MENU || state === GAME_STATES.PLAYING) {
+        this.reshuffleAndPlay(2.0);
       }
     });
 
-    const initialTrack = getMusicForState(gameManager.getState());
-    if (initialTrack) {
-      if (this.hasUserInteracted) {
-        this.changeMusic(initialTrack.id, 0);
-      } else {
-        this.pendingTrack = initialTrack;
-      }
-    }
+    this._buildPlaylist();
+    this._playCurrent(0);
   }
 
-  async changeMusic(trackName, fadeTime = 0) {
-    const trackData = musicTracks[trackName];
-    if (!trackData) {
-      console.warn(`[Music] Track "${trackName}" not found in musicData`);
-      return;
-    }
-
-    if (!this.hasUserInteracted) {
-      this.pendingTrack = trackData;
-      return;
-    }
-
-    if (!this.tracks[trackName]) {
-      this._loadTrack(trackData);
-      await new Promise((resolve) => {
-        const howl = this.tracks[trackName];
-        if (howl.state() === "loaded") {
-          resolve();
-        } else {
-          howl.once("load", resolve);
-          howl.once("loaderror", resolve);
-        }
-      });
-    }
-
-    if (this.isTransitioning) return;
-
-    const track = this.tracks[trackName];
-    if (!track) return;
-
-    this.isTransitioning = true;
-    const previousTrack = this.currentTrack;
-    this.currentTrack = trackName;
-
-    const targetVolume = AudioSettings.getMusicVolume();
-
-    if (fadeTime > 0 && previousTrack && this.tracks[previousTrack]?.playing()) {
-      const fadeOutStartVolume = this.tracks[previousTrack].volume();
-      track.volume(0);
-      track.play();
-
-      this.crossfadeState = {
-        active: true,
-        fadeOutTrack: previousTrack,
-        fadeInTrack: trackName,
-        fadeOutStartVolume,
-        fadeInTargetVolume: targetVolume,
-        duration: fadeTime,
-        startTime: Date.now(),
-      };
-    } else if (fadeTime > 0) {
-      track.volume(0);
-      track.play();
-      this._startFadeIn(trackName, targetVolume, fadeTime);
-    } else {
-      if (previousTrack && this.tracks[previousTrack]) {
-        this.tracks[previousTrack].stop();
-      }
-      track.volume(targetVolume);
-      track.play();
-      this.isTransitioning = false;
-    }
-  }
-
-  _startFadeIn(trackName, targetVolume, duration) {
-    this.fadeState = {
-      active: true,
-      trackName,
-      startVolume: 0,
-      targetVolume,
-      duration,
-      startTime: Date.now(),
-    };
+  reshuffleAndPlay(fadeTime = 2.0) {
+    this._buildPlaylist();
+    this._playCurrent(fadeTime);
   }
 
   stopMusic(fadeTime = 0) {
-    if (!this.currentTrack || !this.tracks[this.currentTrack]) return;
+    if (!this.currentTrack) return;
 
     if (fadeTime > 0) {
       this.fadeState = {
         active: true,
-        trackName: this.currentTrack,
-        startVolume: this.tracks[this.currentTrack].volume(),
+        track: this.currentTrack,
+        startVolume: this.currentTrack.volume(),
         targetVolume: 0,
         duration: fadeTime,
         startTime: Date.now(),
         stopAfterFade: true,
       };
     } else {
-      this.tracks[this.currentTrack].stop();
+      this.currentTrack.stop();
     }
     this.currentTrack = null;
+    this.currentPath = null;
   }
 
   pauseMusic() {
-    if (this.currentTrack && this.tracks[this.currentTrack]) {
-      this.tracks[this.currentTrack].pause();
-    }
+    if (this.currentTrack) this.currentTrack.pause();
   }
 
   resumeMusic() {
-    if (this.currentTrack && this.tracks[this.currentTrack]) {
-      this.tracks[this.currentTrack].play();
-    }
+    if (this.currentTrack) this.currentTrack.play();
   }
 
   _applyVolumeSettings() {
     const volume = AudioSettings.getMusicVolume();
-    if (this.currentTrack && this.tracks[this.currentTrack]) {
-      this.tracks[this.currentTrack].volume(volume);
+    if (this.currentTrack && this.currentTrack.playing()) {
+      this.currentTrack.volume(volume);
     }
   }
 
@@ -228,13 +201,11 @@ class MusicManager {
       const elapsed = (Date.now() - this.crossfadeState.startTime) / 1000;
       const t = Math.min(elapsed / this.crossfadeState.duration, 1);
 
-      const fadeOutTrack = this.tracks[this.crossfadeState.fadeOutTrack];
-      const fadeInTrack = this.tracks[this.crossfadeState.fadeInTrack];
+      const { fadeOutTrack, fadeInTrack } = this.crossfadeState;
 
       if (fadeOutTrack) {
         fadeOutTrack.volume(this._lerp(this.crossfadeState.fadeOutStartVolume, 0, t));
       }
-
       if (fadeInTrack) {
         fadeInTrack.volume(this._lerp(0, this.crossfadeState.fadeInTargetVolume, t));
       }
@@ -249,15 +220,12 @@ class MusicManager {
     if (!this.crossfadeState.active && this.fadeState.active) {
       const elapsed = (Date.now() - this.fadeState.startTime) / 1000;
       const t = Math.min(elapsed / this.fadeState.duration, 1);
-      const track = this.tracks[this.fadeState.trackName];
+      const { track } = this.fadeState;
 
       if (track) {
         track.volume(this._lerp(this.fadeState.startVolume, this.fadeState.targetVolume, t));
-
         if (t >= 1) {
-          if (this.fadeState.stopAfterFade) {
-            track.stop();
-          }
+          if (this.fadeState.stopAfterFade) track.stop();
           this.fadeState.active = false;
           this.isTransitioning = false;
         }
@@ -270,17 +238,18 @@ class MusicManager {
   }
 
   getCurrentTrack() {
-    return this.currentTrack;
+    return this.currentPath;
   }
 
   isPlaying() {
-    return this.currentTrack && this.tracks[this.currentTrack]?.playing();
+    return this.currentTrack?.playing();
   }
 
   destroy() {
-    Object.values(this.tracks).forEach((track) => track.unload());
-    this.tracks = {};
+    Object.values(this.loaded).forEach((track) => track.unload());
+    this.loaded = {};
     this.currentTrack = null;
+    this.currentPath = null;
   }
 }
 

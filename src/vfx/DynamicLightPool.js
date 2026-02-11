@@ -15,9 +15,28 @@ export class DynamicLightPool {
 
     for (let i = 0; i < this.size; i++) {
       const light = new THREE.PointLight(0xffffff, 0, this.defaultDistance, this.defaultDecay);
-      light.visible = false;
       this.lights.push(light);
       scene.add(light);
+    }
+  }
+
+  warmupShaders(renderer, camera, extraLightCount = 0) {
+    for (const light of this.lights) {
+      light.intensity = 1;
+    }
+    // Add temporary lights to cover enemy ship lights that will be added later
+    const temps = [];
+    for (let i = 0; i < extraLightCount; i++) {
+      const t = new THREE.PointLight(0xffffff, 1, 8, 2);
+      this.scene.add(t);
+      temps.push(t);
+    }
+    renderer.compile(this.scene, camera);
+    for (const t of temps) {
+      this.scene.remove(t);
+    }
+    for (const light of this.lights) {
+      light.intensity = 0;
     }
   }
 
@@ -31,7 +50,6 @@ export class DynamicLightPool {
     light.distance = options.distance ?? this.defaultDistance;
     light.decay = options.decay ?? this.defaultDecay;
     light.intensity = options.intensity ?? 12;
-    light.visible = true;
 
     this.baseIntensity[idx] = light.intensity;
     this.ttl[idx] = options.ttl ?? 0.08;
@@ -82,7 +100,6 @@ export class DynamicLightPool {
   _free(i) {
     const light = this.lights[i];
     light.intensity = 0;
-    light.visible = false;
     this.active[i] = false;
     this.ttl[i] = 0;
     this.fade[i] = 0;

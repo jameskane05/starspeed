@@ -22,8 +22,10 @@ export const sceneObjects = {
   level: {
     id: "level",
     type: "splat",
+    //path: "./splats/newworld/newworld-lod-0.spz",
     path: "./splats/scifi-lod/scifi-lod-0.spz",
     description: "Level environment gaussian splat with LOD",
+    //position: { x: 0, y: 0, z: 0 },
     position: { x: 0, y: -90, z: 0 },
     rotation: { x: 0, y: 0, z: 0 },
     scale: 1,
@@ -41,18 +43,79 @@ export const sceneObjects = {
     id: "levelOcclusion",
     type: "gltf",
     path: "./starstrafe-level1-phys.glb",
-    position: { x: 0, y: -90, z: 0 },
+    position: { x: 4.51, y: 2.23, z: -3.37 },
     rotation: { x: 0, y: 0, z: 0 },
     scale: 1,
     priority: 95,
     preload: false,
-    gizmo: true,
+    gizmo: false,
     options: {
-      occluder: true, // Writes to depth buffer for particle/projectile occlusion
-      debugWireframe: true, // Show wireframe for alignment (disable for production)
+      occluder: true,
+      debugWireframe: false,
+      physicsCollider: true,
     },
     criteria: {
       currentLevel: "hangar",
+      currentState: { $in: [GAME_STATES.PLAYING, GAME_STATES.PAUSED] },
+    },
+  },
+
+  // === New World level ===
+
+  newworldLevel: {
+    id: "newworldLevel",
+    type: "splat",
+    path: "./splats/newworld/newworld-lod-0.spz",
+    description: "New World environment gaussian splat with LOD",
+    position: { x: -56.68, y: 0.0, z: 29.79 },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: 0.514,
+    priority: 100,
+    preload: false,
+    paged: true,
+    gizmo: false,
+    criteria: {
+      currentLevel: "newworld",
+      currentState: { $in: [GAME_STATES.PLAYING, GAME_STATES.PAUSED] },
+    },
+  },
+
+  newworldOcclusion: {
+    id: "newworldOcclusion",
+    type: "gltf",
+    path: "./scifi-level.glb",
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: 1,
+    priority: 95,
+    preload: false,
+    gizmo: false,
+    options: {
+      occluder: true,
+      debugWireframe: false,
+      physicsCollider: true,
+    },
+    criteria: {
+      currentLevel: "newworld",
+      currentState: { $in: [GAME_STATES.PLAYING, GAME_STATES.PAUSED] },
+    },
+  },
+
+  newworldSpawns: {
+    id: "newworldSpawns",
+    type: "gltf",
+    path: "./scifi-enemies.glb",
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: 1,
+    priority: 90,
+    preload: false,
+    gizmo: false,
+    options: {
+      visible: false,
+    },
+    criteria: {
+      currentLevel: "newworld",
       currentState: { $in: [GAME_STATES.PLAYING, GAME_STATES.PAUSED] },
     },
   },
@@ -104,7 +167,7 @@ export function checkCriteria(state, criteria) {
  */
 export function getSceneObjectsForState(state, options = {}) {
   const sortedObjects = Object.values(sceneObjects).sort(
-    (a, b) => (b.priority || 0) - (a.priority || 0)
+    (a, b) => (b.priority || 0) - (a.priority || 0),
   );
 
   const matchingObjects = [];

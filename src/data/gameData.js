@@ -28,6 +28,12 @@ export const LEVELS = {
     description: "Abandoned space station with tight corridors",
     thumbnail: null,
   },
+  newworld: {
+    id: "newworld",
+    name: "New World",
+    description: "Open planetary environment",
+    thumbnail: null,
+  },
 };
 
 export const SHIP_CLASSES = {
@@ -83,25 +89,24 @@ export const initialState = {
   isRunning: false,
   isPaused: false,
   isMultiplayer: false,
-  
+
   // Player stats
   playerHealth: 100,
   playerMissiles: 6,
   playerMaxMissiles: 6,
   playerClass: "fighter",
-  
+
   // Game progress
   enemiesRemaining: 0,
   enemiesKilled: 0,
   kills: 0,
   deaths: 0,
-  
+
   // Current level/environment
-  currentLevel: "hangar",
+  currentLevel: "newworld",
 
   // Performance
   performanceProfile: null, // Set on init from saved settings or auto-detected
 };
 
 export default { GAME_STATES, LEVELS, SHIP_CLASSES, initialState };
-

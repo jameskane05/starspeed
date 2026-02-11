@@ -14,8 +14,8 @@ export const lights = {
   ambient: {
     id: "ambient",
     type: "AmbientLight",
-    color: 0x334455,
-    intensity: 0.4,
+    color: 0x667788,
+    intensity: 1.0,
   },
 
   hangarOverhead: {

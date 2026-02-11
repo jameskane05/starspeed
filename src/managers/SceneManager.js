@@ -11,6 +11,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { SplatMesh } from "@sparkjsdev/spark";
+import { createTrimeshCollider } from "../physics/Physics.js";
 
 class SceneManager {
   constructor(scene, options = {}) {
@@ -84,14 +85,17 @@ class SceneManager {
    * Load a gaussian splat
    */
   async _loadSplat(objectData, onProgress = null) {
-    const { id, path, position, rotation, scale, quaternion, paged } = objectData;
+    const { id, path, position, rotation, scale, quaternion, paged } =
+      objectData;
 
-    console.log(`[SceneManager] Loading splat: ${path}${paged ? ' (paged/LOD)' : ''}`);
-    
+    console.log(
+      `[SceneManager] Loading splat: ${path}${paged ? " (paged/LOD)" : ""}`,
+    );
+
     const splatMesh = new SplatMesh({
       url: path,
       editable: true, // Allow SplatEdit layers to affect this splat (for headlight effects)
-      paged: paged || false,  // Enable streaming for LOD files
+      paged: paged || false, // Enable streaming for LOD files
       onProgress: (progress) => {
         if (onProgress) onProgress(progress);
       },
@@ -99,7 +103,12 @@ class SceneManager {
 
     // Apply transform
     if (quaternion) {
-      splatMesh.quaternion.set(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
+      splatMesh.quaternion.set(
+        quaternion.x,
+        quaternion.y,
+        quaternion.z,
+        quaternion.w,
+      );
     } else if (rotation) {
       splatMesh.rotation.set(rotation.x || 0, rotation.y || 0, rotation.z || 0);
     }
@@ -117,12 +126,12 @@ class SceneManager {
     }
 
     this.scene.add(splatMesh);
-    
+
     // Wait for initialization with timeout
-    const timeout = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error(`Splat load timeout: ${path}`)), 60000)
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Splat load timeout: ${path}`)), 60000),
     );
-    
+
     try {
       await Promise.race([splatMesh.initialized, timeout]);
     } catch (err) {
@@ -147,11 +156,19 @@ class SceneManager {
 
           // Apply transform
           if (position) {
-            model.position.set(position.x || 0, position.y || 0, position.z || 0);
+            model.position.set(
+              position.x || 0,
+              position.y || 0,
+              position.z || 0,
+            );
           }
 
           if (rotation) {
-            model.rotation.set(rotation.x || 0, rotation.y || 0, rotation.z || 0);
+            model.rotation.set(
+              rotation.x || 0,
+              rotation.y || 0,
+              rotation.z || 0,
+            );
           }
 
           if (scale !== undefined) {
@@ -173,9 +190,8 @@ class SceneManager {
               this._applyOccluderMaterial(model, options.debugWireframe);
             }
 
-            // Physics collider support (would need physicsManager)
-            if (options.physicsCollider && this.physicsManager) {
-              this._createPhysicsCollider(id, model, position, rotation);
+            if (options.physicsCollider) {
+              this._createPhysicsCollider(id, model, position);
             }
           }
 
@@ -185,7 +201,7 @@ class SceneManager {
         undefined,
         (error) => {
           reject(error);
-        }
+        },
       );
     });
   }
@@ -198,8 +214,13 @@ class SceneManager {
   _applyOccluderMaterial(model, debugWireframe = false) {
     model.traverse((child) => {
       if (child.isMesh) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach((m) => m.dispose());
+        } else if (child.material) {
+          child.material.dispose();
+        }
+
         if (debugWireframe) {
-          // Debug mode: visible green wireframe
           child.material = new THREE.MeshBasicMaterial({
             color: 0x00ff00,
             wireframe: true,
@@ -209,14 +230,26 @@ class SceneManager {
             depthTest: true,
           });
         } else {
-          // Production mode: invisible but writes to depth buffer
-          child.material = new THREE.MeshBasicMaterial({
-            colorWrite: false, // Don't write any color pixels
-            depthWrite: true, // Write to depth buffer
+          child.material = new THREE.ShaderMaterial({
+            vertexShader: `
+              void main() {
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+              }
+            `,
+            fragmentShader: `
+              void main() {
+                gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+              }
+            `,
             depthTest: true,
+            depthWrite: true,
+            transparent: true,
+            side: THREE.DoubleSide,
           });
         }
-        child.renderOrder = -50; // Render after splats (-100) but before everything else
+        child.castShadow = false;
+        child.receiveShadow = false;
+        child.renderOrder = -50;
       }
     });
   }
@@ -233,13 +266,59 @@ class SceneManager {
     }
   }
 
-  /**
-   * Create physics collider from GLTF mesh
-   */
-  _createPhysicsCollider(id, model, position, rotation) {
-    // This would integrate with Physics.js to create trimesh colliders
-    // For now, just log that we would create one
-    console.log(`[SceneManager] Would create physics collider for "${id}"`);
+  _createPhysicsCollider(id, model, position) {
+    const vertices = [];
+    const indices = [];
+    let indexOffset = 0;
+
+    model.traverse((child) => {
+      if (!child.isMesh) return;
+      if (child.name && child.name.startsWith("Cube")) return;
+
+      const geo = child.geometry;
+      const pos = geo.attributes.position;
+      const idx = geo.index;
+
+      child.updateWorldMatrix(true, false);
+      const matrix = child.matrixWorld;
+      const modelPos = model.position;
+      const localMatrix = matrix.clone();
+      localMatrix.elements[12] -= modelPos.x;
+      localMatrix.elements[13] -= modelPos.y;
+      localMatrix.elements[14] -= modelPos.z;
+
+      const v = new THREE.Vector3();
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(localMatrix);
+        vertices.push(v.x, v.y, v.z);
+      }
+
+      if (idx) {
+        for (let i = 0; i < idx.count; i++) {
+          indices.push(idx.getX(i) + indexOffset);
+        }
+      } else {
+        for (let i = 0; i < pos.count; i++) {
+          indices.push(i + indexOffset);
+        }
+      }
+      indexOffset += pos.count;
+    });
+
+    if (vertices.length === 0) {
+      console.warn(
+        `[SceneManager] No geometry found for physics collider "${id}"`,
+      );
+      return;
+    }
+
+    const px = position?.x || 0;
+    const py = position?.y || 0;
+    const pz = position?.z || 0;
+    createTrimeshCollider(vertices, indices, px, py, pz);
+    console.log(
+      `[SceneManager] Created trimesh collider for "${id}" (${vertices.length / 3} verts, ${indices.length / 3} tris)`,
+    );
   }
 
   /**
@@ -253,11 +332,15 @@ class SceneManager {
         object.dispose();
       }
 
-      // Remove from scene
+      // Remove from scene and parent
+      object.removeFromParent();
       this.scene.remove(object);
 
       // Dispose geometries and materials
-      object.traverse((child) => {
+      const toDispose = [];
+      object.traverse((child) => toDispose.push(child));
+      for (const child of toDispose) {
+        child.removeFromParent();
         if (child.geometry) child.geometry.dispose();
         if (child.material) {
           if (Array.isArray(child.material)) {
@@ -266,7 +349,7 @@ class SceneManager {
             child.material.dispose();
           }
         }
-      });
+      }
 
       this.objects.delete(id);
       this.objectData.delete(id);
@@ -306,4 +389,3 @@ class SceneManager {
 }
 
 export default SceneManager;
-

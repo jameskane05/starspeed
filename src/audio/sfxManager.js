@@ -54,7 +54,7 @@ class SFXManager {
 
   play(id, position = null) {
     if (!this.ctx || !this.masterGain) return;
-    proceduralAudio.resume();
+    if (this.ctx.state === "suspended") proceduralAudio.resume();
     this._ensureLoaded();
 
     const entry = this.buffers.get(id);
@@ -86,27 +86,38 @@ class SFXManager {
     gain.gain.value = this.sfxVolume * resolvedVol;
 
     if (position && def?.spatial) {
-      const panner = this.ctx.createPanner();
-      panner.panningModel = 'HRTF';
-      panner.distanceModel = 'inverse';
-      panner.refDistance = def.refDistance ?? 1;
-      panner.maxDistance = def.maxDistance ?? 100;
-      panner.rolloffFactor = def.rolloffFactor ?? 1;
-      panner.coneInnerAngle = 360;
-      panner.coneOuterAngle = 0;
-      panner.coneOuterGain = 0;
+      const panner = this.ctx.createStereoPanner
+        ? this.ctx.createStereoPanner()
+        : null;
 
-      if (panner.positionX) {
-        panner.positionX.value = position.x;
-        panner.positionY.value = position.y;
-        panner.positionZ.value = position.z;
+      if (!panner) {
+        source.connect(gain);
+        gain.connect(this.masterGain);
       } else {
-        panner.setPosition(position.x, position.y, position.z);
-      }
+        // Cheap stereo pan based on listener-relative position
+        const lp = proceduralAudio.listenerPosition;
+        const lf = proceduralAudio.listenerForward;
+        if (lp && lf) {
+          const dx = position.x - lp.x;
+          const dz = position.z - lp.z;
+          const right = -lf.z * dx + lf.x * dz;
+          panner.pan.value = Math.max(-1, Math.min(1, right * 0.05));
+        }
 
-      source.connect(gain);
-      gain.connect(panner);
-      panner.connect(this.masterGain);
+        const dist = lp ? Math.sqrt(
+          (position.x - lp.x) ** 2 +
+          (position.y - lp.y) ** 2 +
+          (position.z - lp.z) ** 2
+        ) : 1;
+        const ref = def.refDistance ?? 1;
+        const rolloff = def.rolloffFactor ?? 1;
+        const attenuation = ref / (ref + rolloff * Math.max(0, dist - ref));
+        gain.gain.value *= attenuation;
+
+        source.connect(panner);
+        panner.connect(gain);
+        gain.connect(this.masterGain);
+      }
     } else {
       source.connect(gain);
       gain.connect(this.masterGain);

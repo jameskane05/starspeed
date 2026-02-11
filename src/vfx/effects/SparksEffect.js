@@ -27,10 +27,17 @@ export class SparksEffect {
         x: position.x + (Math.random() - 0.5) * 0.3,
         y: position.y + (Math.random() - 0.5) * 0.3,
         z: position.z + (Math.random() - 0.5) * 0.3,
-        vx: (vx / len) * speed, vy: (vy / len) * speed, vz: (vz / len) * speed,
-        r: color.r, g: color.g + Math.random() * 0.2, b: color.b,
-        alpha: 1.0, size: 6 + Math.random() * 8,
-        life: 0.2 + Math.random() * 0.3, drag: 0.94, rise: 0,
+        vx: (vx / len) * speed,
+        vy: (vy / len) * speed,
+        vz: (vz / len) * speed,
+        r: color.r,
+        g: color.g + Math.random() * 0.2,
+        b: color.b,
+        alpha: 1.0,
+        size: 6 + Math.random() * 8,
+        life: 0.2 + Math.random() * 0.3,
+        drag: 0.94,
+        rise: 0,
       });
     }
   }
@@ -49,37 +56,59 @@ export class SparksEffect {
    * - Gravity modifier: 0.5
    */
   emitElectricalSparks(position, normal, count = 80) {
-    _tmp.set(0, 1, 0);
-    const quat = new THREE.Quaternion();
-    if (Math.abs(_tmp.dot(normal)) < 0.99) {
-      quat.setFromUnitVectors(_tmp, normal);
+    // Normalize the incoming normal
+    _dir.set(normal.x, normal.y, normal.z);
+    const len = _dir.length();
+    if (len < 0.001) {
+      _dir.set(0, 1, 0);
     } else {
-      quat.identity();
+      _dir.multiplyScalar(1 / len);
     }
 
+    // Build a tangent frame around the normal
+    if (Math.abs(_dir.y) < 0.99) {
+      _tmp.set(0, 1, 0);
+    } else {
+      _tmp.set(1, 0, 0);
+    }
+    const tangent = _tmp.clone().cross(_dir).normalize();
+    const bitangent = _dir.clone().cross(tangent);
+
     for (let i = 0; i < count; i++) {
-      // Cone emission aligned to hit normal
-      const coneAngle = 25 * Math.PI / 180;
-      const spread = Math.tan(coneAngle) * Math.random();
+      // Hemisphere cone: random direction biased along normal
+      const coneAngle = (60 * Math.PI) / 180;
+      const cosAngle = Math.cos(coneAngle);
+      const z = cosAngle + Math.random() * (1 - cosAngle); // uniform in [cosAngle, 1]
+      const r = Math.sqrt(1 - z * z);
       const theta = Math.random() * Math.PI * 2;
-      _dir.set(
-        Math.cos(theta) * spread,
-        1,
-        Math.sin(theta) * spread
-      ).normalize().applyQuaternion(quat);
+
+      const vx =
+        _dir.x * z +
+        tangent.x * r * Math.cos(theta) +
+        bitangent.x * r * Math.sin(theta);
+      const vy =
+        _dir.y * z +
+        tangent.y * r * Math.cos(theta) +
+        bitangent.y * r * Math.sin(theta);
+      const vz =
+        _dir.z * z +
+        tangent.z * r * Math.cos(theta) +
+        bitangent.z * r * Math.sin(theta);
 
       const speed = 8 + Math.random() * 20;
-      const vx = _dir.x * speed;
-      const vy = _dir.y * speed;
-      const vz = _dir.z * speed;
 
-      // Bright white/cyan electrical color
       const bright = 0.7 + Math.random() * 0.3;
 
       this.particles.lineSparks.emit({
-        x: position.x, y: position.y, z: position.z,
-        vx, vy, vz,
-        r: bright, g: bright, b: 1.0,
+        x: position.x,
+        y: position.y,
+        z: position.z,
+        vx: vx * speed,
+        vy: vy * speed,
+        vz: vz * speed,
+        r: bright,
+        g: bright,
+        b: 1.0,
         alpha: 1.0,
         life: 0.15 + Math.random() * 0.35,
         drag: 0.92,
