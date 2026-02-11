@@ -27,8 +27,8 @@ export const PERFORMANCE_PROFILES = {
   medium: {
     label: "Medium",
     splat: {
-      lodSplatScale: 0.5,
-      lodRenderScale: 0.6,
+      lodSplatScale: 0.7,
+      lodRenderScale: 0.7,
     },
     particles: {
       sparks: 400,
