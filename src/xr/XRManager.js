@@ -43,7 +43,7 @@ export class XRManager {
 
     try {
       const session = await navigator.xr.requestSession("immersive-vr", {
-        optionalFeatures: ["local-floor", "hand-tracking"],
+        optionalFeatures: ["local-floor"],
       });
 
       this.session = session;
@@ -54,8 +54,8 @@ export class XRManager {
       this.renderer.xr.enabled = true;
       await this.renderer.xr.setSession(session);
 
-      // Reparent camera under rig, preserving world transform
-      this.rig.position.copy(camera.position);
+      // Rig at floor level (x,z from spawn) so XR head height isn't doubled
+      this.rig.position.set(camera.position.x, 0, camera.position.z);
       this.rig.quaternion.copy(camera.quaternion);
       scene.add(this.rig);
       this.rig.add(camera);
@@ -67,12 +67,18 @@ export class XRManager {
       );
       session.addEventListener("selectstart", (e) => this._onSelectStart(e));
       session.addEventListener("selectend", (e) => this._onSelectEnd(e));
-      session.addEventListener("end", () => this._onSessionEnd());
+      session.addEventListener("end", () => {
+        this._onSessionEnd();
+        this.onSessionEnd?.();
+      });
 
       this.isPresenting = true;
       console.log("[XR] Entered immersive-vr session");
       return true;
     } catch (err) {
+      if (err?.name === "NotSupportedError" || err?.message?.includes("not supported")) {
+        return false;
+      }
       console.error("[XR] Failed to enter VR:", err);
       return false;
     }
@@ -104,23 +110,22 @@ export class XRManager {
     const source = event.inputSource;
     if (source.targetRayMode !== "transient-pointer") return;
 
-    if (source.handedness === "right") {
+    const hand = source.handedness || "none";
+    if (hand === "right" || (hand === "none" && !this.rightHand)) {
       this.rightHand = { source, startDir: null };
-      console.log("[XR] Right hand pinch start (look)");
-    } else if (source.handedness === "left") {
+    } else if (hand === "left" || (hand === "none" && !this.leftHand)) {
       this.leftHand = { source, startPos: null };
-      console.log("[XR] Left hand pinch start (move)");
     }
   }
 
   _onSelectEnd(event) {
     const source = event.inputSource;
-    if (source.handedness === "right" && this.rightHand?.source === source) {
+    if (this.rightHand?.source === source) {
       this.rightHand = null;
       this.lookInput.x = 0;
       this.lookInput.y = 0;
     }
-    if (source.handedness === "left" && this.leftHand?.source === source) {
+    if (this.leftHand?.source === source) {
       this.leftHand = null;
       this.moveInput.x = 0;
       this.moveInput.y = 0;
@@ -208,7 +213,8 @@ export class XRManager {
   _updateLeftHand(frame, refSpace) {
     if (!this.leftHand) return;
 
-    const pose = frame.getPose(this.leftHand.source.targetRaySpace, refSpace);
+    const space = this.leftHand.source.gripSpace || this.leftHand.source.targetRaySpace;
+    const pose = frame.getPose(space, refSpace);
     if (!pose) return;
 
     const p = pose.transform.position;

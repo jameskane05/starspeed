@@ -256,8 +256,21 @@ export class Player {
   }
 
   setXRMode(xrManager) {
+    if (this.xrManager) {
+      this.xrManager.onSessionEnd = null;
+    }
     this.xrManager = xrManager;
-    this._reparentToRig();
+    if (xrManager) {
+      xrManager.onSessionEnd = () => this._restoreCockpitFromXR();
+      this._reparentToRig();
+    }
+  }
+
+  _restoreCockpitFromXR() {
+    if (this.cockpit) {
+      this.cockpit.scale.setScalar(1.0);
+      this.cockpit.position.set(0, 0, 5.35);
+    }
   }
 
   _reparentToRig() {
@@ -265,8 +278,8 @@ export class Player {
     const rig = this.xrManager.rig;
 
     if (this.cockpit && this.cockpit.parent === this.camera) {
-      this.camera.remove(this.cockpit);
-      rig.add(this.cockpit);
+      this.cockpit.scale.setScalar(1.5);
+      this.cockpit.position.set(0, -0.4, 4.5);
     }
     if (this.headlight && this.headlight.parent === this.camera) {
       this.camera.remove(this.headlight);

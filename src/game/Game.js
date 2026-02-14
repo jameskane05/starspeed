@@ -11,7 +11,11 @@ import {
   checkSphereCollision,
 } from "../physics/Physics.js";
 import { Input } from "./Input.js";
-import { KeyBindings, ACTION_LABELS, getKeyDisplayName } from "./KeyBindings.js";
+import {
+  KeyBindings,
+  ACTION_LABELS,
+  getKeyDisplayName,
+} from "./KeyBindings.js";
 import { Player } from "../entities/Player.js";
 import { Enemy, loadShipModels } from "../entities/Enemy.js";
 import { Projectile } from "../entities/Projectile.js";
@@ -146,12 +150,20 @@ export class Game {
     const perfProfile = this.gameManager.getPerformanceProfile();
     const splatSettings = perfProfile.splat ?? {};
 
+    const boostDoFFocalDistance = 100;
+    const boostDoFApertureSize = 0.4;
+    const boostDoFApertureAngle =
+      2 * Math.atan((0.5 * boostDoFApertureSize) / boostDoFFocalDistance);
     this.sparkRenderer = new NewSparkRenderer({
       renderer: this.renderer,
       maxStdDev: Math.sqrt(5),
       lodSplatScale: splatSettings.lodSplatScale ?? 1.0,
       lodRenderScale: splatSettings.lodRenderScale ?? 1.0,
+      focalDistance: boostDoFFocalDistance,
+      apertureAngle: 0,
     });
+    this._boostDoFApertureAngle = 0;
+    this._boostDoFAngleMax = boostDoFApertureAngle;
     this.sparkRenderer.renderOrder = -100;
     this.scene.add(this.sparkRenderer);
 
@@ -617,10 +629,7 @@ export class Game {
 
     // Remove spawn cubes from level (no AI enemies in multiplayer)
     this._extractSpawnPoints();
-    if (
-      NetworkManager.isHost() &&
-      this.spawnPoints.length > 0
-    ) {
+    if (NetworkManager.isHost() && this.spawnPoints.length > 0) {
       NetworkManager.sendSpawnPoints(this.spawnPoints);
     }
 
@@ -1167,7 +1176,9 @@ export class Game {
   }
 
   _enemySpawnOptions() {
-    const enableLights = this.gameManager.getPerformanceSetting("rendering", "enemyLights") ?? true;
+    const enableLights =
+      this.gameManager.getPerformanceSetting("rendering", "enemyLights") ??
+      true;
     return { enableLights };
   }
 
@@ -1378,12 +1389,17 @@ export class Game {
       const rowLabels = { Fire: "Left Click", Missile: "Right Click" };
       const html = rows
         .map(([label, ...actions]) => {
-          const keys = actions.filter(Boolean).map((a) => bindings[a] && getKeyDisplayName(bindings[a])).filter(Boolean).join(" ");
-          const display = rowLabels[label] || (keys || "-");
+          const keys = actions
+            .filter(Boolean)
+            .map((a) => bindings[a] && getKeyDisplayName(bindings[a]))
+            .filter(Boolean)
+            .join(" ");
+          const display = rowLabels[label] || keys || "-";
           return `<span class="ctrl-row"><span class="ctrl-label">${label}:</span><span class="ctrl-key">${display}</span></span>`;
         })
         .join("");
-      this.controlsHelpEl.querySelector(".controls-help-content").innerHTML = html;
+      this.controlsHelpEl.querySelector(".controls-help-content").innerHTML =
+        html;
       this.controlsHelpEl.classList.add("visible");
     } else {
       this.controlsHelpEl.classList.remove("visible");
@@ -1634,6 +1650,7 @@ export class Game {
         if (this.player) {
           this.player.update(delta, this.clock.elapsedTime);
           engineAudio.update(delta, this.player);
+          this._updateBoostDoF(delta);
           if (!this.isMultiplayer) {
             const p = this.player;
             const elapsed = this.clock.elapsedTime;
@@ -1677,7 +1694,8 @@ export class Game {
 
       // Only update enemies in single player
       if (!this.isMultiplayer) {
-        const cullDist = this.gameManager.getPerformanceProfile().enemyCullDistance ?? 100;
+        const cullDist =
+          this.gameManager.getPerformanceProfile().enemyCullDistance ?? 100;
         for (let i = 0; i < this.enemies.length; i++) {
           this.enemies[i].update(
             delta,
@@ -1949,7 +1967,8 @@ export class Game {
 
       // Fallback overlap test (catches cases the swept cast misses on trimesh)
       // Skip for player-owned projectiles still near spawn (overlap is spawn-point bleed)
-      const spawnOverlap = proj.isPlayerOwned &&
+      const spawnOverlap =
+        proj.isPlayerOwned &&
         proj.spawnOrigin &&
         projPos.distanceToSquared(proj.spawnOrigin) < 4;
       if (
@@ -2064,6 +2083,15 @@ export class Game {
         this.missiles.splice(i, 1);
       }
     }
+  }
+
+  _updateBoostDoF(delta) {
+    if (!this.sparkRenderer || !this.player) return;
+    const target = this.player.isBoosting ? this._boostDoFAngleMax : 0;
+    const rate = 6;
+    const t = 1 - Math.exp(-rate * delta);
+    this._boostDoFApertureAngle += (target - this._boostDoFApertureAngle) * t;
+    this.sparkRenderer.apertureAngle = this._boostDoFApertureAngle;
   }
 
   _updateBloomActive() {
