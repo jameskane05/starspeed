@@ -1,3 +1,7 @@
+import dotenv from "dotenv";
+dotenv.config({ path: ".env" });
+dotenv.config({ path: process.env.NODE_ENV === "production" ? ".env.production" : ".env.development" });
+
 /**
  * IMPORTANT:
  * ---------

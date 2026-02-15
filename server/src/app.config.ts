@@ -7,6 +7,9 @@ import {
     createEndpoint,
     matchMaker,
 } from "colyseus";
+import { auth } from "@colyseus/auth";
+
+import "./config/auth.js";
 
 /**
  * Import your Room files
@@ -57,6 +60,21 @@ const server = defineServer({
      * Read more: https://expressjs.com/en/starter/basic-routing.html
      */
     express: (app) => {
+        app.use(auth.prefix, (req, res, next) => {
+            if (req.path.match(/\/provider\/[^/]+\/callback$/)) {
+                const origSend = res.send;
+                res.send = function (body: unknown) {
+                    const grant = (req as any).session?.grant;
+                    if (grant?.response?.error) {
+                        console.error("[Auth] OAuth token exchange error:", JSON.stringify(grant.response));
+                    }
+                    return origSend.call(this, body);
+                };
+            }
+            next();
+        });
+        app.use(auth.prefix, auth.routes());
+
         app.get("/hi", (req, res) => {
             res.send("It's time to kick ass and chew bubblegum!");
         });

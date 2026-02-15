@@ -387,6 +387,12 @@ class MenuManager {
                 <label>CALLSIGN</label>
                 <input type="text" id="player-name" value="${this.playerName}" maxlength="16" />
               </div>
+              <div class="auth-buttons">
+                <span class="auth-label">Link account</span>
+                <button class="auth-btn" id="auth-discord" title="Discord">Discord</button>
+                <button class="auth-btn" id="auth-google" title="Google">Google</button>
+                <button class="auth-btn" id="auth-apple" title="Apple">Apple</button>
+              </div>
               <div class="menu-buttons">
                 <label>SINGLE-PLAYER</label>
                 <button class="menu-btn" id="btn-testing">TESTING GROUNDS</button>
@@ -405,6 +411,11 @@ class MenuManager {
 
     document.getElementById("player-name").addEventListener("input", (e) => {
       this.saveCallsign(e.target.value || "Pilot");
+    });
+
+    ["discord", "google", "apple"].forEach((p) => {
+      const btn = document.getElementById(`auth-${p}`);
+      if (btn) btn.addEventListener("click", () => NetworkManager.signInWithProvider(p));
     });
 
     document.getElementById("btn-testing").addEventListener("click", () => {

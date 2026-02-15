@@ -177,6 +177,18 @@ const CLOUD_SERVER_URL = "https://us-ord-23ba76a6.colyseus.cloud";
 const CLOUD_SERVER_URL = null;
 ```
 
+### OAuth (Discord, Google, Apple)
+
+Auth runs on the **Colyseus server**, not the static frontend. Add these redirect URIs in each provider's developer console:
+
+| Environment | Redirect URI |
+|-------------|--------------|
+| Local dev | `http://localhost:2567/auth/provider/{discord,google,apple}/callback` |
+| Colyseus Cloud | `https://us-ord-23ba76a6.colyseus.cloud/auth/provider/{discord,google,apple}/callback` |
+| Self-hosted (starspeed.game) | `https://starspeed.game/auth/provider/{discord,google,apple}/callback` |
+
+Set `AUTH_BACKEND_URL` in server `.env` to match where the Colyseus server runs. For Colyseus Cloud deployment, use the cloud URL (e.g. `https://us-ord-23ba76a6.colyseus.cloud`).
+
 ## Performance Profiles
 
 The game supports 4 performance profiles: `low`, `medium`, `high`, `max`. Set via Options → Graphics in-game, persisted to `localStorage`.

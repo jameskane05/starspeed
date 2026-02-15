@@ -25,12 +25,51 @@ class NetworkManager {
     try {
       this.client = new Colyseus.Client(this.serverUrl);
       this.connected = true;
+      await this.ensureAuth();
       console.log("[Network] Connected to server:", this.serverUrl);
       return true;
     } catch (err) {
       console.error("[Network] Connection failed:", err);
       this.emit("error", { type: "connection", error: err });
       return false;
+    }
+  }
+
+  async ensureAuth() {
+    if (!this.client) return;
+    if (this.client.auth?.token) return;
+    try {
+      await this.client.auth.signInAnonymously({ name: localStorage.getItem("starspeed_callsign") || undefined });
+    } catch (err) {
+      console.warn("[Network] Anonymous sign-in failed, retrying without name:", err);
+      await this.client.auth.signInAnonymously();
+    }
+  }
+
+  async signInWithProvider(provider) {
+    if (!this.client && !(await this.connect())) return null;
+    try {
+      const res = await this.client.auth.signInWithProvider(provider);
+      this.emit("auth", res);
+      return res;
+    } catch (err) {
+      console.error("[Network] Sign in failed:", err);
+      this.emit("error", { type: "auth", error: err });
+      return null;
+    }
+  }
+
+  signOut() {
+    if (this.client?.auth) this.client.auth.signOut();
+  }
+
+  async getAuthUser() {
+    if (!this.client?.auth?.token) return null;
+    try {
+      const res = await this.client.auth.getUserData();
+      return res?.user ?? null;
+    } catch {
+      return null;
     }
   }
 

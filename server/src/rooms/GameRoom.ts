@@ -1,4 +1,5 @@
-import { Room, Client, matchMaker } from "colyseus";
+import { Room, Client, matchMaker, ServerError } from "colyseus";
+import { JWT } from "@colyseus/auth";
 import { GameState, Player, Projectile, Collectible } from "./schema/GameState.js";
 
 const SHIP_CLASSES = {
@@ -27,9 +28,19 @@ const COLLECTIBLE_COLLECT_RADIUS = 3;
 const COLLECTIBLE_RESPAWN_TIME = 15;
 
 export class GameRoom extends Room {
-  // State is typed via setState()
   declare state: GameState;
   maxClients = 8;
+
+  static async onAuth(token: string, options: Record<string, unknown>, context: { token?: string }) {
+    const t = context?.token ?? token;
+    if (!t) throw new ServerError(401, "Authentication required");
+    try {
+      const payload = await JWT.verify(t);
+      return payload as { id: string; name?: string; anonymous?: boolean };
+    } catch {
+      throw new ServerError(401, "Invalid token");
+    }
+  }
   private tickInterval: ReturnType<typeof setInterval> | null = null;
   private projectileIdCounter = 0;
   private collectibleIdCounter = 0;
@@ -119,10 +130,11 @@ export class GameRoom extends Room {
     });
   }
 
-  onJoin(client: Client, options: any) {
+  onJoin(client: Client, options: any, auth?: { id: string; name?: string }) {
     const player = new Player();
     player.id = client.sessionId;
-    player.name = this.getUniqueName(options.name || `Player ${this.state.players.size + 1}`);
+    const baseName = options.name || auth?.name || `Player ${this.state.players.size + 1}`;
+    player.name = this.getUniqueName(baseName);
     player.shipClass = options.shipClass || "fighter";
     player.ready = false;
     player.alive = false;
