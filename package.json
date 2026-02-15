@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "build-lod": "node scripts/build-lod.cjs",
     "dev": "vite",
     "dev:all": "concurrently \"npm run dev\" \"npm run server\"",
     "server": "npx kill-port 2567 && cd server && npm start",

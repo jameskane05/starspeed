@@ -38,6 +38,7 @@ import { TrailsEffect } from "../vfx/effects/TrailsEffect.js";
 import { DustMotesEffect } from "../vfx/effects/DustMotesEffect.js";
 import { DynamicLightPool } from "../vfx/DynamicLightPool.js";
 import GizmoManager from "../utils/GizmoManager.js";
+import { detectPlatform } from "../utils/platformDetection.js";
 import NetworkManager from "../network/NetworkManager.js";
 import MenuManager from "../ui/MenuManager.js";
 import { Prediction } from "../network/Prediction.js";
@@ -146,9 +147,14 @@ export class Game {
 
     this.gameManager = new GameManager();
     window.gameManager = this.gameManager;
+    detectPlatform(this.gameManager);
 
     const perfProfile = this.gameManager.getPerformanceProfile();
     const splatSettings = perfProfile.splat ?? {};
+
+    const maxPagedSplats = this.gameManager.state.isIOS
+      ? 96 * 65536
+      : 256 * 65536;
 
     const boostDoFFocalDistance = 100;
     const boostDoFApertureSize = 0.4;
@@ -157,6 +163,7 @@ export class Game {
     this.sparkRenderer = new NewSparkRenderer({
       renderer: this.renderer,
       maxStdDev: Math.sqrt(5),
+      maxPagedSplats,
       lodSplatScale: splatSettings.lodSplatScale ?? 1.0,
       lodRenderScale: splatSettings.lodRenderScale ?? 1.0,
       focalDistance: boostDoFFocalDistance,

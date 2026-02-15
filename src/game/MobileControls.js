@@ -1,4 +1,5 @@
 import { KeyBindings } from './KeyBindings.js';
+import { GAME_STATES } from '../data/gameData.js';
 
 export class MobileControls {
   constructor(game) {
@@ -27,7 +28,20 @@ export class MobileControls {
     if (!container) return;
 
     this.active = true;
+    this.container = container;
     container.classList.add('active');
+
+    const gm = this.game?.gameManager;
+    if (gm) {
+      const updateVisibility = () => {
+        const s = gm.state?.currentState;
+        const inGameplay =
+          s === GAME_STATES.PLAYING || s === GAME_STATES.PAUSED;
+        this.setGameplayVisible(inGameplay);
+      };
+      gm.on('state:changed', updateVisibility);
+      updateVisibility();
+    }
 
     this.moveBase = container.querySelector('.joystick-move');
     this.moveThumb = container.querySelector('.joystick-move .thumb');
@@ -120,6 +134,11 @@ export class MobileControls {
     base.addEventListener('touchcancel', onEnd, { passive: false });
   }
 
+  setGameplayVisible(visible) {
+    if (!this.container) return;
+    this.container.classList.toggle('gameplay', visible);
+  }
+
   setupButtons(container) {
     const setKey = (action, value) => {
       const code = KeyBindings.getBinding(action);
@@ -133,8 +152,6 @@ export class MobileControls {
     const rollLeft = container.querySelector('[data-action="roll-left"]');
     const rollRight = container.querySelector('[data-action="roll-right"]');
     const boost = container.querySelector('[data-action="boost"]');
-    const headlight = container.querySelector('[data-action="headlight"]');
-    const pause = container.querySelector('[data-action="pause"]');
 
     const handle = (el, fn) => {
       if (!el) return;
@@ -146,17 +163,12 @@ export class MobileControls {
 
     handle(fireMissile, () => this.game.firePlayerMissile());
     handle(fireWeapon, () => this.game.firePlayerWeapon());
-    handle(pause, () => this.game.toggleEscMenu());
 
     handle(strafeUp, () => setKey('strafeUp', true));
     handle(strafeDown, () => setKey('strafeDown', true));
     handle(rollLeft, () => setKey('rollLeft', true));
     handle(rollRight, () => setKey('rollRight', true));
     handle(boost, () => setKey('boost', true));
-    handle(headlight, () => {
-      setKey('toggleHeadlight', true);
-      setTimeout(() => setKey('toggleHeadlight', false), 50);
-    });
 
     const releaseHandlers = (el, actions) => {
       if (!el) return;

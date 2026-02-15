@@ -154,14 +154,18 @@ Requires Colyseus Cloud account and deploy key configured in GitHub repo.
 
 ## Splat LOD Processing
 
-Convert PLY splat files to paged LOD-enabled SPZ format for streaming:
+**iOS memory:** `maxPagedSplats` is set to 96×65536 (vs default 256×65536) to avoid memory allocation crashes on iOS.
+
+Pre-build LoD scenes for better performance: run `npm run build-lod -- <basename>` (e.g. `npm run build-lod -- scifi` for `scifi.ply`), then tune `lodSplatScale` in Options → Graphics to trade off performance, latency, and detail.
+
+Convert PLY splat files to paged LOD-enabled SPZ format:
 
 ```bash
-# From the spark-lod repo (already cloned at c:/Users/James/work/spark-lod)
-c:/Users/James/work/spark-lod/rust/target/release/build-lod.exe --chunked public/splats/your-file.ply
+npm run build-lod -- scifi
+# Uses BUILD_LOD_PATH env or c:/Users/James/work/spark-lod/rust/target/release/build-lod.exe
 ```
 
-This generates chunked files `your-file-lod-0.spz`, `your-file-lod-1.spz`, etc. Update `src/data/sceneData.js` with the base path (without extension) and `paged: true`.
+Generates chunked files `your-file-lod-0.spz`, `your-file-lod-1.spz`, etc. Update `src/data/sceneData.js` with the base path (without extension) and `paged: true`.
 
 ## Configuration
 
@@ -186,6 +190,7 @@ Profiles control:
 - **Explosion particle scale and debris count**
 - **Renderer pixel ratio**
 - **Shadow maps on/off**
+- **Splat LoD** (`lodSplatScale`, `lodRenderScale`) – tune for performance vs quality
 
 Defined in `src/data/performanceSettings.js`. Default is `high`.
 

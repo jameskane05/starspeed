@@ -272,7 +272,7 @@ canvas {
   z-index: 40;
 }
 
-#mobile-controls.active {
+#mobile-controls.active.gameplay {
   display: block;
   pointer-events: auto;
 }
@@ -311,15 +311,39 @@ canvas {
   right: 24px;
 }
 
-#mobile-controls .action-buttons {
+#mobile-controls .combat-buttons {
   position: absolute;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
+  gap: 16px;
+  align-items: center;
 }
 
-#mobile-controls .action-buttons button {
+#mobile-controls .combat-buttons button {
+  width: 56px;
+  height: 56px;
+  font-size: 1.5rem;
+  border: 2px solid rgba(255, 200, 0, 0.6);
+  background: rgba(80, 30, 0, 0.7);
+  color: #fff;
+  border-radius: 12px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#mobile-controls .directional-buttons {
+  position: absolute;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+  gap: 8px;
+  width: 156px;
+  height: 156px;
+}
+
+#mobile-controls .directional-buttons button {
   width: 48px;
   height: 48px;
   font-size: 1.4rem;
@@ -329,15 +353,25 @@ canvas {
   border-radius: 12px;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  justify-self: center;
+  align-self: center;
 }
 
+#mobile-controls .directional-buttons [data-action="strafe-up"] { grid-column: 2; grid-row: 1; }
+#mobile-controls .directional-buttons [data-action="strafe-down"] { grid-column: 2; grid-row: 3; }
+#mobile-controls .directional-buttons [data-action="roll-left"] { grid-column: 1; grid-row: 2; }
+#mobile-controls .directional-buttons [data-action="roll-right"] { grid-column: 3; grid-row: 2; }
+#mobile-controls .directional-buttons [data-action="boost"] { grid-column: 2; grid-row: 2; }
+
 @media (orientation: landscape) {
-  #mobile-controls .action-buttons {
-    top: 50%;
-    right: 140px;
-    transform: translateY(-50%);
-    flex-direction: column;
-    gap: 12px;
+  #mobile-controls .combat-buttons {
+    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+  }
+  #mobile-controls .directional-buttons {
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    transform: translateX(-50%);
   }
 }
 
@@ -345,14 +379,15 @@ canvas {
   #mobile-controls .joystick {
     bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   }
-  #mobile-controls .action-buttons {
-    bottom: calc(150px + env(safe-area-inset-bottom, 0px));
+  #mobile-controls .combat-buttons {
+    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+  #mobile-controls .directional-buttons {
+    bottom: calc(160px + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
-    flex-direction: row;
-    gap: 12px;
   }
-  #mobile-controls .action-buttons button {
+  #mobile-controls .directional-buttons button {
     min-width: 52px;
     min-height: 52px;
   }

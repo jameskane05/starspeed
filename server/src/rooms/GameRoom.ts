@@ -2,9 +2,9 @@ import { Room, Client, matchMaker } from "colyseus";
 import { GameState, Player, Projectile, Collectible } from "./schema/GameState.js";
 
 const SHIP_CLASSES = {
-  fighter: { speed: 1.0, health: 100, missiles: 6, maxMissiles: 6, laserSpeed: 200, missileSpeed: 80, missileDamage: 75 },
-  tank: { speed: 0.7, health: 150, missiles: 8, maxMissiles: 8, laserSpeed: 200, missileSpeed: 70, missileDamage: 150 },
-  rogue: { speed: 1.4, health: 70, missiles: 4, maxMissiles: 4, laserSpeed: 200, missileSpeed: 100, missileDamage: 60 },
+  fighter: { speed: 1.0, health: 100, missiles: 6, maxMissiles: 6, laserSpeed: 200, missileSpeed: 56, missileDamage: 75 },
+  tank: { speed: 0.7, health: 150, missiles: 8, maxMissiles: 8, laserSpeed: 200, missileSpeed: 49, missileDamage: 150 },
+  rogue: { speed: 1.4, health: 70, missiles: 4, maxMissiles: 4, laserSpeed: 200, missileSpeed: 70, missileDamage: 60 },
 };
 
 // Spawn points with rotation facing center (0,0,0)
