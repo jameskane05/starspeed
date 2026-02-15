@@ -2,12 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" href="./favicon.ico" sizes="48x48" />
+    <link rel="icon" href="./logo.svg" sizes="any" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon-180x180.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#050510" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="manifest" href="/manifest.json" />
+    <meta name="description" content="Zero-G aerial combat multiplayer game. 6DOF space shooter." />
     <title>STARSPEED</title>
     <link rel="stylesheet" href="/src/ui/hud.css" />
   </head>
@@ -21,16 +23,22 @@
       <div class="joystick joystick-look">
         <div class="thumb"></div>
       </div>
-      <div class="combat-buttons">
-        <button data-action="fire-missile" type="button">🚀</button>
-        <button data-action="fire-weapon" type="button">⚡</button>
-      </div>
-      <div class="directional-buttons">
+      <div class="directional-left">
         <button data-action="strafe-up" type="button">⬆️</button>
         <button data-action="strafe-down" type="button">⬇️</button>
+      </div>
+      <div class="directional-right">
         <button data-action="roll-left" type="button">↺</button>
         <button data-action="roll-right" type="button">↻</button>
-        <button data-action="boost" type="button">⏩</button>
+      </div>
+      <div class="combat-center">
+        <div class="combat-left">
+          <button data-action="boost" type="button">⏩</button>
+          <button data-action="fire-missile" type="button">🚀</button>
+        </div>
+        <div class="combat-right">
+          <button data-action="fire-weapon" type="button">⚡</button>
+        </div>
       </div>
     </div>
     <div id="damage-vignette">

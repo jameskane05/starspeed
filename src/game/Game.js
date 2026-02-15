@@ -282,7 +282,10 @@ export class Game {
     await loadShipModels();
     sfxManager.init(sfxSounds);
 
-    window.addEventListener("resize", () => this.onResize());
+    const onResizeOrViewport = () => this.onResize();
+    window.addEventListener("resize", onResizeOrViewport);
+    window.visualViewport?.addEventListener("resize", onResizeOrViewport);
+    this.onResize();
 
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
@@ -2110,9 +2113,12 @@ export class Game {
   }
 
   onResize() {
-    this.camera.aspect = window.innerWidth / window.innerHeight;
+    const vp = window.visualViewport;
+    const w = vp ? Math.round(vp.width) : window.innerWidth;
+    const h = vp ? Math.round(vp.height) : window.innerHeight;
+    this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.composer?.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setSize(w, h);
+    this.composer?.setSize(w, h);
   }
 }

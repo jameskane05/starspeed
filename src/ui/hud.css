@@ -7,13 +7,27 @@
 html,
 body {
   width: 100%;
+  min-height: 100%;
+  min-height: -webkit-fill-available;
+  min-height: 100dvh;
+  min-height: calc(100dvh + env(safe-area-inset-bottom, 0px));
   height: 100%;
   overflow: hidden;
-  background: transparent;
+  background: #050510;
 }
 
 canvas {
   display: block;
+}
+
+#game-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  min-height: calc(100dvh + env(safe-area-inset-bottom, 0px));
 }
 
 #hud {
@@ -126,10 +140,10 @@ canvas {
 
 #respawn-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100%;
   height: 100%;
+  min-height: 100dvh;
   display: none;
   justify-content: center;
   align-items: center;
@@ -157,10 +171,10 @@ canvas {
 
 #damage-vignette {
   position: fixed;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100%;
   height: 100%;
+  min-height: 100dvh;
   pointer-events: none;
   z-index: 100;
 }
@@ -269,6 +283,7 @@ canvas {
   pointer-events: none;
   position: fixed;
   inset: 0;
+  min-height: 100dvh;
   z-index: 40;
 }
 
@@ -281,11 +296,25 @@ canvas {
   pointer-events: auto;
 }
 
+#mobile-controls .combat-center,
+#mobile-controls .directional-left,
+#mobile-controls .directional-right {
+  pointer-events: none;
+}
+
+#mobile-controls .combat-center button,
+#mobile-controls .combat-left button,
+#mobile-controls .combat-right button,
+#mobile-controls .directional-left button,
+#mobile-controls .directional-right button {
+  pointer-events: auto;
+}
+
 #mobile-controls .joystick {
   position: absolute;
   width: 120px;
   height: 120px;
-  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   border-radius: 50%;
   background: rgba(0, 40, 60, 0.6);
   border: 2px solid rgba(0, 255, 255, 0.4);
@@ -304,24 +333,54 @@ canvas {
 }
 
 #mobile-controls .joystick-move {
-  left: 24px;
+  left: calc(24px + env(safe-area-inset-left, 0px));
 }
 
 #mobile-controls .joystick-look {
-  right: 24px;
+  right: calc(24px + env(safe-area-inset-right, 0px));
 }
 
-#mobile-controls .combat-buttons {
+#mobile-controls .directional-left,
+#mobile-controls .directional-right {
   position: absolute;
-  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+}
+
+#mobile-controls .directional-left button,
+#mobile-controls .directional-right button {
+  width: 48px;
+  height: 48px;
+  font-size: 1.4rem;
+  border: 2px solid rgba(0, 255, 255, 0.5);
+  background: rgba(0, 40, 60, 0.7);
+  color: #fff;
+  border-radius: 12px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#mobile-controls .combat-center {
+  position: absolute;
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   gap: 16px;
+  align-items: flex-end;
+}
+
+#mobile-controls .combat-left,
+#mobile-controls .combat-right {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   align-items: center;
 }
 
-#mobile-controls .combat-buttons button {
+#mobile-controls .combat-center button {
   width: 56px;
   height: 56px;
   font-size: 1.5rem;
@@ -333,61 +392,67 @@ canvas {
   -webkit-tap-highlight-color: transparent;
 }
 
-#mobile-controls .directional-buttons {
-  position: absolute;
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: 1fr 1fr 1fr;
-  gap: 8px;
-  width: 156px;
-  height: 156px;
-}
-
-#mobile-controls .directional-buttons button {
-  width: 48px;
-  height: 48px;
-  font-size: 1.4rem;
-  border: 2px solid rgba(0, 255, 255, 0.5);
-  background: rgba(0, 40, 60, 0.7);
-  color: #fff;
-  border-radius: 12px;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  justify-self: center;
-  align-self: center;
-}
-
-#mobile-controls .directional-buttons [data-action="strafe-up"] { grid-column: 2; grid-row: 1; }
-#mobile-controls .directional-buttons [data-action="strafe-down"] { grid-column: 2; grid-row: 3; }
-#mobile-controls .directional-buttons [data-action="roll-left"] { grid-column: 1; grid-row: 2; }
-#mobile-controls .directional-buttons [data-action="roll-right"] { grid-column: 3; grid-row: 2; }
-#mobile-controls .directional-buttons [data-action="boost"] { grid-column: 2; grid-row: 2; }
-
 @media (orientation: landscape) {
-  #mobile-controls .combat-buttons {
-    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
-    left: 50%;
+  #mobile-controls .joystick-move {
+    left: calc(12px + env(safe-area-inset-left, 0px));
   }
-  #mobile-controls .directional-buttons {
-    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
-    left: 50%;
-    transform: translateX(-50%);
+  #mobile-controls .joystick-look {
+    right: calc(12px + env(safe-area-inset-right, 0px));
+  }
+  #mobile-controls .directional-left {
+    left: calc(12px + env(safe-area-inset-left, 0px));
+    bottom: calc(8px + 120px + 12px + env(safe-area-inset-bottom, 0px));
+    align-items: flex-end;
+  }
+  #mobile-controls .directional-right {
+    right: calc(12px + env(safe-area-inset-right, 0px));
+    bottom: calc(8px + 120px + 12px + env(safe-area-inset-bottom, 0px));
+    align-items: flex-end;
+  }
+  #mobile-controls .directional-left button,
+  #mobile-controls .directional-right button {
+    flex-shrink: 0;
+  }
+  #mobile-controls .combat-center {
+    left: 0;
+    right: 0;
+    transform: none;
+    justify-content: space-between;
+    padding-left: calc(12px + 120px + 12px + env(safe-area-inset-left, 0px));
+    padding-right: calc(12px + 120px + 12px + env(safe-area-inset-right, 0px));
   }
 }
 
-@media (orientation: portrait) {
+@media (orientation: portrait), (max-aspect-ratio: 1/1) {
   #mobile-controls .joystick {
-    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   }
-  #mobile-controls .combat-buttons {
-    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  #mobile-controls .directional-left {
+    left: 24px;
+    bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+    align-items: flex-end;
   }
-  #mobile-controls .directional-buttons {
-    bottom: calc(160px + env(safe-area-inset-bottom, 0px));
+  #mobile-controls .directional-right {
+    right: 24px;
+    bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+    align-items: flex-end;
+  }
+  #mobile-controls .directional-left,
+  #mobile-controls .directional-right {
+    flex-direction: row;
+  }
+  #mobile-controls .combat-center {
     left: 50%;
     transform: translateX(-50%);
+    flex-direction: row;
+    align-items: flex-end;
   }
-  #mobile-controls .directional-buttons button {
+  #mobile-controls .combat-left {
+    flex-direction: column;
+  }
+  #mobile-controls .directional-left button,
+  #mobile-controls .directional-right button,
+  #mobile-controls .combat-center button {
     min-width: 52px;
     min-height: 52px;
   }

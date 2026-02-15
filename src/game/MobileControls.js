@@ -9,6 +9,7 @@ export class MobileControls {
 
     this.moveStick = { x: 0, y: 0 };
     this.lookStick = { x: 0, y: 0 };
+    this.boostHeld = false;
     this.moveTouchId = null;
     this.lookTouchId = null;
 
@@ -168,7 +169,20 @@ export class MobileControls {
     handle(strafeDown, () => setKey('strafeDown', true));
     handle(rollLeft, () => setKey('rollLeft', true));
     handle(rollRight, () => setKey('rollRight', true));
-    handle(boost, () => setKey('boost', true));
+
+    if (boost) {
+      boost.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        this.boostHeld = true;
+        setKey('boost', true);
+      }, { passive: false });
+      const releaseBoost = () => {
+        this.boostHeld = false;
+        setKey('boost', false);
+      };
+      boost.addEventListener('touchend', (e) => { e.preventDefault(); releaseBoost(); }, { passive: false });
+      boost.addEventListener('touchcancel', (e) => { e.preventDefault(); releaseBoost(); }, { passive: false });
+    }
 
     const releaseHandlers = (el, actions) => {
       if (!el) return;
@@ -181,7 +195,6 @@ export class MobileControls {
     releaseHandlers(strafeDown, ['strafeDown']);
     releaseHandlers(rollLeft, ['rollLeft']);
     releaseHandlers(rollRight, ['rollRight']);
-    releaseHandlers(boost, ['boost']);
   }
 
   getMoveInput() {
@@ -189,7 +202,7 @@ export class MobileControls {
     const y = this.moveStick.y;
     const x = this.moveStick.x;
     return {
-      forward: y < -0.2,
+      forward: y < -0.2 || this.boostHeld,
       backward: y > 0.2,
       left: x < -0.2,
       right: x > 0.2,

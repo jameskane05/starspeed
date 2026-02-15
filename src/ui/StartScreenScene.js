@@ -71,12 +71,10 @@ export class StartScreenScene {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x020208);
 
-    this.camera = new THREE.PerspectiveCamera(
-      50,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      2000,
-    );
+    const initAspect = window.visualViewport
+      ? window.visualViewport.width / window.visualViewport.height
+      : window.innerWidth / window.innerHeight;
+    this.camera = new THREE.PerspectiveCamera(50, initAspect, 0.1, 2000);
     // Camera in front of ship, looking back at it
     this.camera.position.copy(this.cameraBasePos);
     this.camera.lookAt(
@@ -86,7 +84,10 @@ export class StartScreenScene {
     );
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    const vp = window.visualViewport;
+    const initW = vp ? Math.round(vp.width) : window.innerWidth;
+    const initH = vp ? Math.round(vp.height) : window.innerHeight;
+    this.renderer.setSize(initW, initH);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(this.renderer.domElement);
     this.renderer.domElement.style.position = "fixed";
@@ -101,6 +102,7 @@ export class StartScreenScene {
     this._onResize = this.onResize.bind(this);
     this._onMouseMove = this.onMouseMove.bind(this);
     window.addEventListener("resize", this._onResize);
+    window.visualViewport?.addEventListener("resize", this._onResize);
     window.addEventListener("mousemove", this._onMouseMove);
 
     this.animate();
@@ -428,9 +430,12 @@ export class StartScreenScene {
   onResize() {
     if (this.disposed) return;
 
-    this.camera.aspect = window.innerWidth / window.innerHeight;
+    const vp = window.visualViewport;
+    const w = vp ? Math.round(vp.width) : window.innerWidth;
+    const h = vp ? Math.round(vp.height) : window.innerHeight;
+    this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setSize(w, h);
   }
 
   dispose() {
@@ -441,6 +446,7 @@ export class StartScreenScene {
     }
 
     window.removeEventListener("resize", this._onResize);
+    window.visualViewport?.removeEventListener("resize", this._onResize);
     window.removeEventListener("mousemove", this._onMouseMove);
 
     if (this.starfield) {
