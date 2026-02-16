@@ -80,7 +80,7 @@ async function loadShipModels() {
   return loadPromise;
 }
 
-export { loadShipModels };
+export { loadShipModels, shipModels };
 
 function randomInBounds(center, size, margin = 0.7) {
   return new THREE.Vector3(
@@ -140,10 +140,12 @@ export class Enemy {
     this.mesh = new THREE.Group();
     this.mesh.position.copy(position);
 
-    const shipTemplate =
+    this.modelIndex =
       shipModels.length > 0
-        ? shipModels[Math.floor(Math.random() * shipModels.length)]
-        : null;
+        ? Math.floor(Math.random() * shipModels.length)
+        : -1;
+    const shipTemplate =
+      this.modelIndex >= 0 ? shipModels[this.modelIndex] : null;
 
     if (shipTemplate) {
       const clone = shipTemplate.clone();

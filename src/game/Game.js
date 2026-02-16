@@ -17,7 +17,13 @@ import {
   getKeyDisplayName,
 } from "./KeyBindings.js";
 import { Player } from "../entities/Player.js";
-import { Enemy, loadShipModels } from "../entities/Enemy.js";
+import { Enemy, loadShipModels, shipModels } from "../entities/Enemy.js";
+import {
+  prefractureModels,
+  spawnDestruction,
+  updateDestruction,
+  cleanupDestruction,
+} from "../vfx/ShipDestruction.js";
 import { Projectile } from "../entities/Projectile.js";
 import { Missile } from "../entities/Missile.js";
 import { Explosion } from "../entities/Explosion.js";
@@ -280,6 +286,7 @@ export class Game {
     this.level.generate({ skipVisuals: true, skipPhysics: true });
 
     await loadShipModels();
+    prefractureModels(shipModels);
     sfxManager.init(sfxSounds);
 
     const onResizeOrViewport = () => this.onResize();
@@ -1527,6 +1534,8 @@ export class Game {
       this.escMenu.style.display = "none";
     }
 
+    cleanupDestruction(this.scene);
+
     if (this.isMultiplayer) {
       NetworkManager.leaveRoom();
       this.cleanupMultiplayer();
@@ -1885,6 +1894,8 @@ export class Game {
         }
       }
 
+      updateDestruction(delta);
+
       // Always check collisions (handles lifetime expiry and wall hits)
       // In multiplayer, damage is handled by server
       this.checkCollisions();
@@ -1985,6 +1996,7 @@ export class Game {
 
               if (enemy.health <= 0) {
                 const deathPos = enemy.mesh.position.clone();
+                const deathQuat = enemy.mesh.quaternion.clone();
                 const explosion = new Explosion(
                   this.scene,
                   deathPos,
@@ -1997,6 +2009,7 @@ export class Game {
                 if (this.particles) {
                   this.explosionEffect.emitBigExplosion(deathPos);
                 }
+                spawnDestruction(this.scene, deathPos, deathQuat, enemy.modelIndex);
                 const respawnPos = enemy.spawnPoint;
                 enemy.dispose(this.scene);
                 this.enemies.splice(j, 1);
@@ -2119,6 +2132,7 @@ export class Game {
 
           if (enemy.health <= 0) {
             const deathPos = enemy.mesh.position.clone();
+            const deathQuat = enemy.mesh.quaternion.clone();
             const explosion = new Explosion(
               this.scene,
               deathPos,
@@ -2131,6 +2145,7 @@ export class Game {
             if (this.particles) {
               this.explosionEffect.emitBigExplosion(deathPos);
             }
+            spawnDestruction(this.scene, deathPos, deathQuat, enemy.modelIndex);
             const respawnPos = enemy.spawnPoint;
             enemy.dispose(this.scene);
             this.enemies.splice(j, 1);

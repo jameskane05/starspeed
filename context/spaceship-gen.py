@@ -361,7 +361,7 @@ def add_surface_antenna_to_face(bm, face, scale=1.0):
                 # Spire
                 num_segments = randint(3, 6)
                 result = bmesh.ops.create_cone(bm,
-                                               cap_ends=False,
+                                               cap_ends=True,
                                                cap_tris=False,
                                                segments=num_segments,
                                                radius1=0,
@@ -1134,6 +1134,8 @@ def generate_starfighter(random_seed='', export_path=None, extreme=False):
     for face in cylinder_faces:
         add_cylinders_to_face(bm, face)
 
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0001)
+
     me = bpy.data.meshes.new('Mesh')
     bm.to_mesh(me)
     bm.free()
@@ -1148,7 +1150,6 @@ def generate_starfighter(random_seed='', export_path=None, extreme=False):
     ob = bpy.context.object
     ob.location = (0, 0, 0)
 
-    # Rotate so forward is +Z instead of +X
     ob.rotation_euler = (0, radians(-90), 0)
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
 
@@ -1163,13 +1164,12 @@ def generate_starfighter(random_seed='', export_path=None, extreme=False):
     decimate.decimate_type = 'COLLAPSE'
     decimate.ratio = 0.12 if extreme else 0.35
 
-    # Apply modifiers so UV unwrap works on final geometry
     bpy.ops.object.modifier_apply(modifier='Bevel')
     bpy.ops.object.modifier_apply(modifier='Decimate')
 
-    # Smart UV project so textures export properly to GLB
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.mesh.normals_make_consistent(inside=False)
     bpy.ops.uv.smart_project(angle_limit=radians(66), island_margin=0.01)
     bpy.ops.object.mode_set(mode='OBJECT')
 

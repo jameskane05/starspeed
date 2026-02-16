@@ -13,7 +13,8 @@
     "build": "cd server && npm install && npm run build",
     "build:client": "vite build",
     "preview": "vite preview",
-    "deploy:gh": "npm run build:client && gh-pages -d dist"
+    "deploy:gh": "npm run build:client && gh-pages -d dist",
+    "deploy:server": "cd server && npx @colyseus/cloud deploy --env production"
   },
   "devDependencies": {
     "@vite-pwa/assets-generator": "^1.0.2",
@@ -29,6 +30,7 @@
   },
   "dependencies": {
     "@colyseus/sdk": "^0.17.25",
+    "@dgreenheck/three-pinata": "^2.0.1",
     "@dimforge/rapier3d": "^0.19.0",
     "@gltf-transform/core": "^4.3.0",
     "@gltf-transform/extensions": "^4.3.0",
