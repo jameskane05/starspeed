@@ -27,8 +27,7 @@ export const PERFORMANCE_PROFILES = {
   medium: {
     label: "Medium",
     splat: {
-      lodSplatScale: 1.0,
-      lodRenderScale: 1.0,
+      lodSplatScale: 0.8,
     },
     particles: {
       sparks: 400,
@@ -47,7 +46,7 @@ export const PERFORMANCE_PROFILES = {
       toneMapping: true,
       toneMappingExposure: 1.5,
     },
-    enemyCullDistance: 100,
+    enemyCullDistance: 150,
   },
   high: {
     label: "High",

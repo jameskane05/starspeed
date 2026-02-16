@@ -212,9 +212,11 @@ export class MobileControls {
   getLookDelta() {
     if (!this.active) return { x: 0, y: 0 };
     const scale = 8 * this.sensitivity;
+    const isPortrait = window.innerHeight > window.innerWidth;
+    const orientMult = isPortrait ? 0.72 : 1;
     return {
-      x: this.lookStick.x * scale,
-      y: this.lookStick.y * scale,
+      x: this.lookStick.x * scale * orientMult,
+      y: this.lookStick.y * scale * orientMult,
     };
   }
 
