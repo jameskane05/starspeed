@@ -77,6 +77,8 @@ export class GameRoom extends Room {
   }
 
   private levelSpawnPoints: { x: number; y: number; z: number }[] = [];
+  private levelPlayerSpawns: { x: number; y: number; z: number }[] = [];
+  private levelMissileSpawns: { x: number; y: number; z: number }[] = [];
 
   private registerMessageHandlers() {
     this.onMessage("input", (client, data) => this.handleInput(client, data));
@@ -92,15 +94,25 @@ export class GameRoom extends Room {
   private handleSetSpawnPoints(client: Client, data: any) {
     if (client.sessionId !== this.state.hostId) return;
     if (this.state.phase !== "playing") return;
-    const points = Array.isArray(data?.points) ? data.points : [];
-    const valid = points
-      .slice(0, 128)
-      .filter((p: any) => typeof p?.x === "number" && typeof p?.y === "number" && typeof p?.z === "number")
-      .map((p: any) => ({ x: p.x, y: p.y, z: p.z }));
-    if (valid.length > 0) {
-      this.levelSpawnPoints = valid;
-      console.log(`[GameRoom] Received ${valid.length} level spawn points from host`);
+
+    const parse = (arr: any) =>
+      (Array.isArray(arr) ? arr : [])
+        .slice(0, 128)
+        .filter((p: any) => typeof p?.x === "number" && typeof p?.y === "number" && typeof p?.z === "number")
+        .map((p: any) => ({ x: p.x, y: p.y, z: p.z }));
+
+    const enemySpawns = parse(data?.points);
+    const playerSpawns = parse(data?.playerSpawns);
+    const missileSpawns = parse(data?.missileSpawns);
+
+    if (enemySpawns.length > 0) this.levelSpawnPoints = enemySpawns;
+    if (playerSpawns.length > 0) this.levelPlayerSpawns = playerSpawns;
+    if (missileSpawns.length > 0) {
+      this.levelMissileSpawns = missileSpawns;
+      this.respawnCollectiblesAtLevelPoints();
     }
+
+    console.log(`[GameRoom] Spawn points from host: ${enemySpawns.length} enemy, ${playerSpawns.length} player, ${missileSpawns.length} missile`);
   }
 
   private handleChat(client: Client, data: any) {
@@ -142,9 +154,9 @@ export class GameRoom extends Room {
       this.state.hostId = client.sessionId;
     }
     
-    // If game is already in progress, spawn the player immediately
     if (this.state.phase === "playing") {
-      const spawnIndex = Math.floor(Math.random() * SPAWN_POINTS.length);
+      const pool = this.levelPlayerSpawns.length > 0 ? this.levelPlayerSpawns : SPAWN_POINTS;
+      const spawnIndex = Math.floor(Math.random() * pool.length);
       this.spawnPlayer(player, spawnIndex);
       console.log(`[GameRoom] ${player.name} joined mid-game and spawned`);
     } else {
@@ -349,26 +361,37 @@ export class GameRoom extends Room {
   }
 
   private spawnInitialCollectibles() {
-    // Clear any existing collectibles
     this.state.collectibles.clear();
     this.collectibleRespawnTimers.clear();
-    
-    // Spawn 2 missile pickups and 2 laser upgrades near different spawn points
-    const usedPositions: { x: number; z: number }[] = [];
-    
-    for (let i = 0; i < 2; i++) {
-      // Missile pickup
-      const missilePos = this.getRandomCollectiblePosition(usedPositions);
-      usedPositions.push(missilePos);
-      this.spawnCollectible("missile", missilePos.x, 0, missilePos.z);
-      
-      // Laser upgrade
-      const laserPos = this.getRandomCollectiblePosition(usedPositions);
-      usedPositions.push(laserPos);
-      this.spawnCollectible("laser_upgrade", laserPos.x, 0, laserPos.z);
+
+    if (this.levelMissileSpawns.length > 0) {
+      this.spawnCollectiblesAtLevelPoints();
+    } else {
+      const usedPositions: { x: number; z: number }[] = [];
+      for (let i = 0; i < 2; i++) {
+        const missilePos = this.getRandomCollectiblePosition(usedPositions);
+        usedPositions.push(missilePos);
+        this.spawnCollectible("missile", missilePos.x, 0, missilePos.z);
+
+        const laserPos = this.getRandomCollectiblePosition(usedPositions);
+        usedPositions.push(laserPos);
+        this.spawnCollectible("laser_upgrade", laserPos.x, 0, laserPos.z);
+      }
     }
-    
     console.log(`[GameRoom] Spawned ${this.state.collectibles.size} collectibles`);
+  }
+
+  private spawnCollectiblesAtLevelPoints() {
+    for (const pt of this.levelMissileSpawns) {
+      this.spawnCollectible("missile", pt.x, pt.y, pt.z);
+    }
+  }
+
+  private respawnCollectiblesAtLevelPoints() {
+    this.state.collectibles.clear();
+    this.collectibleRespawnTimers.clear();
+    this.spawnCollectiblesAtLevelPoints();
+    console.log(`[GameRoom] Re-spawned ${this.state.collectibles.size} collectibles at level points`);
   }
 
   private getRandomCollectiblePosition(usedPositions: { x: number; z: number }[]): { x: number; z: number } {
@@ -440,7 +463,17 @@ export class GameRoom extends Room {
     const classStats = SHIP_CLASSES[player.shipClass as keyof typeof SHIP_CLASSES];
     let x: number, y: number, z: number, qy: number, qw: number;
 
-    if (this.levelSpawnPoints.length > 0) {
+    if (this.levelPlayerSpawns.length > 0) {
+      const pt = this.levelPlayerSpawns[spawnIndex % this.levelPlayerSpawns.length];
+      x = pt.x;
+      y = pt.y;
+      z = pt.z;
+      const dx = -x;
+      const dz = -z;
+      const angle = Math.atan2(dx, dz);
+      qy = Math.sin(angle / 2);
+      qw = Math.cos(angle / 2);
+    } else if (this.levelSpawnPoints.length > 0) {
       const pt = this.levelSpawnPoints[spawnIndex % this.levelSpawnPoints.length];
       x = pt.x;
       y = pt.y;
@@ -615,11 +648,12 @@ export class GameRoom extends Room {
         const distSq = dx * dx + dy * dy + dz * dz;
         
         if (distSq < COLLECTIBLE_COLLECT_RADIUS * COLLECTIBLE_COLLECT_RADIUS) {
-          // Collect!
+          if (collectible.type === "missile") {
+            const classStats = SHIP_CLASSES[player.shipClass as keyof typeof SHIP_CLASSES];
+            if (player.missiles >= classStats.maxMissiles) return;
+          }
           this.handleCollectiblePickup(player, collectible);
           toRemove.push(id);
-          
-          // Schedule respawn
           this.collectibleRespawnTimers.set(id, COLLECTIBLE_RESPAWN_TIME);
         }
       });
@@ -639,13 +673,16 @@ export class GameRoom extends Room {
       }
     });
     
-    // Respawn collectibles
     toRespawn.forEach(id => {
       this.collectibleRespawnTimers.delete(id);
-      // Spawn new collectible at random position
-      const type = Math.random() > 0.5 ? "missile" : "laser_upgrade";
-      const pos = this.getRandomCollectiblePosition([]);
-      this.spawnCollectible(type, pos.x, 0, pos.z);
+      if (this.levelMissileSpawns.length > 0) {
+        const pt = this.levelMissileSpawns[Math.floor(Math.random() * this.levelMissileSpawns.length)];
+        this.spawnCollectible("missile", pt.x, pt.y, pt.z);
+      } else {
+        const type = Math.random() > 0.5 ? "missile" : "laser_upgrade";
+        const pos = this.getRandomCollectiblePosition([]);
+        this.spawnCollectible(type, pos.x, 0, pos.z);
+      }
     });
   }
 
@@ -722,7 +759,8 @@ export class GameRoom extends Room {
         player.respawnTime -= dt;
         
         if (player.respawnTime <= 0) {
-          const spawnIndex = Math.floor(Math.random() * SPAWN_POINTS.length);
+          const pool = this.levelPlayerSpawns.length > 0 ? this.levelPlayerSpawns : SPAWN_POINTS;
+          const spawnIndex = Math.floor(Math.random() * pool.length);
           this.spawnPlayer(player, spawnIndex);
           
           this.broadcast("respawn", { playerId: player.id });
@@ -786,6 +824,8 @@ export class GameRoom extends Room {
     setTimeout(() => {
       this.state.phase = "lobby";
       this.levelSpawnPoints = [];
+      this.levelPlayerSpawns = [];
+      this.levelMissileSpawns = [];
       this.state.players.forEach((p: Player) => {
         p.ready = false;
         p.kills = 0;

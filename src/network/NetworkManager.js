@@ -368,10 +368,13 @@ class NetworkManager {
     this.room.send("chat", { text });
   }
 
-  sendSpawnPoints(points) {
+  sendSpawnPoints({ enemySpawns, playerSpawns, missileSpawns }) {
     if (!this.room) return;
+    const mapPts = (arr) => (arr || []).map((p) => ({ x: p.x, y: p.y, z: p.z }));
     this.room.send("setSpawnPoints", {
-      points: points.map((p) => ({ x: p.x, y: p.y, z: p.z })),
+      points: mapPts(enemySpawns),
+      playerSpawns: mapPts(playerSpawns),
+      missileSpawns: mapPts(missileSpawns),
     });
   }
 

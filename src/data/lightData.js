@@ -15,7 +15,7 @@ export const lights = {
     id: "ambient",
     type: "AmbientLight",
     color: 0x667788,
-    intensity: 20,
+    intensity: 4,
   },
 };
 

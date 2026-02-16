@@ -104,7 +104,7 @@ export const sceneObjects = {
   newworldSpawns: {
     id: "newworldSpawns",
     type: "gltf",
-    path: "./scifi-enemies.glb",
+    path: "./scifi-level-spawns-enemies-missiles.glb",
     position: { x: 0, y: 0, z: 0 },
     rotation: { x: 0, y: 0, z: 0 },
     scale: 1,

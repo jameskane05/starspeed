@@ -13,6 +13,7 @@ export class Collectible {
     
     this.group = new THREE.Group();
     this.group.position.set(data.x, data.y, data.z);
+    this.baseY = data.y;
     
     if (this.type === "missile") {
       this.createMissilePickup();
@@ -65,11 +66,6 @@ export class Collectible {
     this.glow = new THREE.Mesh(glowGeo, glowMat);
     this.group.add(this.glow);
     
-    // Point light
-    this.light = new THREE.PointLight(MISSILE_COLOR, 3, 12);
-    this.group.add(this.light);
-    
-    // Floating effect
     this.floatOffset = Math.random() * Math.PI * 2;
   }
 
@@ -108,11 +104,6 @@ export class Collectible {
     this.glow = new THREE.Mesh(glowGeo, glowMat);
     this.group.add(this.glow);
     
-    // Point light
-    this.light = new THREE.PointLight(LASER_UPGRADE_COLOR, 4, 15);
-    this.group.add(this.light);
-    
-    // Floating effect
     this.floatOffset = Math.random() * Math.PI * 2;
   }
 
@@ -128,17 +119,12 @@ export class Collectible {
     
     // Floating bob effect
     const time = performance.now() * 0.001 + this.floatOffset;
-    this.group.position.y = Math.sin(time * 2) * 0.3;
+    this.group.position.y = this.baseY + Math.sin(time * 2) * 0.3;
     
     // Pulse the glow
     if (this.glow) {
       const pulse = 0.15 + Math.sin(time * 3) * 0.05;
       this.glow.material.opacity = pulse;
-    }
-    
-    // Pulse the light
-    if (this.light) {
-      this.light.intensity = 3 + Math.sin(time * 4) * 1;
     }
   }
 

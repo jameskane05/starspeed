@@ -10,23 +10,71 @@ const _newPos = new THREE.Vector3();
 const _wanderDir = new THREE.Vector3();
 const _toWaypoint = new THREE.Vector3();
 
-let exteriorModel = null;
+let shipModels = [];
 let loadPromise = null;
 const _deadLights = [];
 
 async function loadShipModels() {
   if (loadPromise) return loadPromise;
-  if (exteriorModel) return;
+  if (shipModels.length > 0) return;
 
   loadPromise = (async () => {
     const loader = new GLTFLoader();
-    try {
-      const gltf = await loader.loadAsync("./Heavy_EXT_01.glb");
-      exteriorModel = gltf.scene;
-      console.log("Loaded exterior ship model for enemies");
-    } catch (err) {
-      console.warn("Failed to load Heavy_EXT_01.glb for enemies:", err);
+    const MAX_INDEX = 99;
+
+    const promises = [];
+    for (let i = 0; i <= MAX_INDEX; i++) {
+      promises.push(
+        loader
+          .loadAsync(`./ships/starfighter-${i}.glb`)
+          .then((gltf) => ({ index: i, scene: gltf.scene }))
+          .catch(() => null),
+      );
     }
+
+    const results = (await Promise.all(promises)).filter(Boolean);
+
+    if (results.length === 0) {
+      try {
+        const gltf = await loader.loadAsync("./Heavy_EXT_01.glb");
+        shipModels = [gltf.scene];
+        console.log("Fallback: loaded Heavy_EXT_01.glb");
+      } catch (err) {
+        console.warn("No ship models available");
+      }
+      return;
+    }
+
+    results.sort((a, b) => a.index - b.index);
+    const models = results.map((r) => r.scene);
+
+    // Share textures: collect from first model, deduplicate across all others
+    const sharedTextures = new Map();
+    models[0].traverse((child) => {
+      if (!child.isMesh || !child.material) return;
+      const mat = child.material;
+      for (const key of ["normalMap", "emissiveMap", "map"]) {
+        if (mat[key] && !sharedTextures.has(key)) {
+          sharedTextures.set(key, mat[key]);
+        }
+      }
+    });
+
+    for (let i = 1; i < models.length; i++) {
+      models[i].traverse((child) => {
+        if (!child.isMesh || !child.material) return;
+        const mat = child.material;
+        for (const [key, shared] of sharedTextures) {
+          if (mat[key] && mat[key] !== shared) {
+            mat[key].dispose();
+            mat[key] = shared;
+          }
+        }
+      });
+    }
+
+    shipModels = models;
+    console.log(`Loaded ${shipModels.length} starfighter models`);
   })();
 
   return loadPromise;
@@ -60,7 +108,7 @@ export class Enemy {
     this.fireRate = 2;
     this.fireCooldown = 0;
     this.collisionRadius = 3;
-    this.hitExtents = { x: 4, y: 2, z: 4 }; // 3x wider (x,z), 2x taller (y) vs 1.5 base
+    this.hitExtents = { x: 8, y: 4, z: 8 };
     this.disposed = false;
 
     // Level bounds for wander
@@ -92,9 +140,14 @@ export class Enemy {
     this.mesh = new THREE.Group();
     this.mesh.position.copy(position);
 
-    if (exteriorModel) {
-      const clone = exteriorModel.clone();
-      clone.scale.setScalar(0.5);
+    const shipTemplate =
+      shipModels.length > 0
+        ? shipModels[Math.floor(Math.random() * shipModels.length)]
+        : null;
+
+    if (shipTemplate) {
+      const clone = shipTemplate.clone();
+      clone.scale.setScalar(2.0);
       clone.rotation.set(0, Math.PI, 0);
       clone.traverse((child) => {
         if (child.isMesh) {

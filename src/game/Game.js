@@ -359,12 +359,20 @@ export class Game {
     }
 
     this._extractSpawnPoints();
+
+    // Place player at a random spawn point
+    if (this.playerSpawnPoints.length > 0) {
+      const sp = this.playerSpawnPoints[Math.floor(Math.random() * this.playerSpawnPoints.length)];
+      this.camera.position.copy(sp);
+    }
+
     this.dynamicLights?.warmupShaders(
       this.renderer,
       this.camera,
       this.spawnPoints.length,
     );
     this.spawnEnemies();
+    this._spawnMissilePickups();
 
     if (!xrActive && !this.input.mobile.shouldSkipPointerLock()) {
       document.body.requestPointerLock?.()?.catch?.(() => {});
@@ -637,10 +645,13 @@ export class Game {
 
     this.dynamicLights?.warmupShaders(this.renderer, this.camera);
 
-    // Remove spawn cubes from level (no AI enemies in multiplayer)
     this._extractSpawnPoints();
-    if (NetworkManager.isHost() && this.spawnPoints.length > 0) {
-      NetworkManager.sendSpawnPoints(this.spawnPoints);
+    if (NetworkManager.isHost()) {
+      NetworkManager.sendSpawnPoints({
+        enemySpawns: this.spawnPoints,
+        playerSpawns: this.playerSpawnPoints,
+        missileSpawns: this.missileSpawnPoints,
+      });
     }
 
     this.camera.position.set(localPlayer.x, localPlayer.y, localPlayer.z);
@@ -1014,7 +1025,13 @@ export class Game {
     this.player.health = this.player.maxHealth;
     this.player.missiles = this.player.maxMissiles;
     this.player.lastDamageTime = 0;
-    this.camera.position.set(0, 0, 0);
+
+    if (this.playerSpawnPoints?.length > 0) {
+      const sp = this.playerSpawnPoints[Math.floor(Math.random() * this.playerSpawnPoints.length)];
+      this.camera.position.copy(sp);
+    } else {
+      this.camera.position.set(0, 0, 0);
+    }
     this.camera.quaternion.setFromAxisAngle(
       _audioUp.set(0, 1, 0),
       -Math.PI / 2,
@@ -1085,6 +1102,13 @@ export class Game {
 
     this.collectibles.forEach((collectible) => collectible.dispose());
     this.collectibles.clear();
+
+    if (this._missilePickups) {
+      for (const pickup of this._missilePickups) {
+        if (pickup.collectible) pickup.collectible.dispose();
+      }
+      this._missilePickups = null;
+    }
   }
 
   onStateChanged(newState, oldState) {}
@@ -1126,40 +1150,49 @@ export class Game {
 
     const spawnModel = spawnId ? this.sceneManager.getObject(spawnId) : null;
 
+    this.spawnPoints = [];
+    this.playerSpawnPoints = [];
+    this.missileSpawnPoints = [];
+
     if (spawnModel) {
       spawnModel.updateMatrixWorld(true);
 
-      const points = [];
       spawnModel.traverse((child) => {
         if (!child.isMesh) return;
         const pos = new THREE.Vector3();
         child.getWorldPosition(pos);
-        points.push(pos);
+        const name = child.name || "";
+
+        if (name.startsWith("Enemy")) {
+          this.spawnPoints.push(pos);
+        } else if (name.startsWith("Spawn")) {
+          this.playerSpawnPoints.push(pos);
+        } else if (name.startsWith("Missile")) {
+          this.missileSpawnPoints.push(pos);
+        }
       });
 
-      this.spawnPoints = points;
       this.sceneManager.removeObject(spawnId);
       console.log(
-        `[Game] Extracted ${points.length} spawn points from ${spawnId}`,
+        `[Game] Parsed ${spawnId}: ${this.spawnPoints.length} enemies, ${this.playerSpawnPoints.length} player spawns, ${this.missileSpawnPoints.length} missile pickups`,
       );
     } else {
       // Fallback: pull Cube* meshes from the occlusion mesh (legacy path)
-      const levelMesh = this._getLevelOcclusion();
-      if (!levelMesh) {
+      const fallbackMesh = this._getLevelOcclusion();
+      if (!fallbackMesh) {
         console.warn(
           "[Game] No spawn GLB and no occlusion mesh — cannot extract spawn points",
         );
         return;
       }
 
-      levelMesh.updateMatrixWorld(true);
+      fallbackMesh.updateMatrixWorld(true);
       const toRemove = [];
-      const points = [];
-      levelMesh.traverse((child) => {
+      fallbackMesh.traverse((child) => {
         if (!child.isMesh || !child.name?.startsWith("Cube")) return;
         const pos = new THREE.Vector3();
         child.getWorldPosition(pos);
-        points.push(pos);
+        this.spawnPoints.push(pos);
         toRemove.push(child);
       });
 
@@ -1168,9 +1201,8 @@ export class Game {
         obj.geometry?.dispose();
         obj.material?.dispose();
       }
-      this.spawnPoints = points;
       console.log(
-        `[Game] Extracted ${points.length} spawn points from occlusion mesh (fallback)`,
+        `[Game] Extracted ${this.spawnPoints.length} spawn points from occlusion mesh (fallback)`,
       );
     }
 
@@ -1215,6 +1247,55 @@ export class Game {
     );
     this.gameManager.setState({ enemiesRemaining: this.enemies.length });
     this.updateHUD();
+  }
+
+  _spawnMissilePickups() {
+    if (this.missileSpawnPoints.length === 0) return;
+
+    this._missilePickups = [];
+    for (let i = 0; i < this.missileSpawnPoints.length; i++) {
+      const pos = this.missileSpawnPoints[i];
+      const id = `missile_solo_${i}`;
+      const data = { id, type: "missile", x: pos.x, y: pos.y, z: pos.z };
+      const collectible = new Collectible(this.scene, data, this.dynamicLights);
+      this._missilePickups.push({ id, collectible, pos: pos.clone(), respawnTimer: 0, active: true });
+    }
+    console.log(`[Game] Spawned ${this._missilePickups.length} missile pickups`);
+  }
+
+  _checkMissilePickups(playerPos, delta) {
+    if (!this._missilePickups) return;
+    const pickupRadiusSq = 25; // 5 units
+
+    for (const pickup of this._missilePickups) {
+      if (!pickup.active) {
+        pickup.respawnTimer -= delta;
+        if (pickup.respawnTimer <= 0) {
+          pickup.collectible = new Collectible(this.scene, {
+            id: pickup.id, type: "missile",
+            x: pickup.pos.x, y: pickup.pos.y, z: pickup.pos.z,
+          }, this.dynamicLights);
+          pickup.active = true;
+        }
+        continue;
+      }
+
+      pickup.collectible.update(delta);
+
+      const dx = playerPos.x - pickup.pos.x;
+      const dy = playerPos.y - pickup.pos.y;
+      const dz = playerPos.z - pickup.pos.z;
+      if (dx * dx + dy * dy + dz * dz < pickupRadiusSq && this.player && this.player.missiles < this.player.maxMissiles) {
+        this.player.missiles = this.player.maxMissiles;
+        pickup.collectible.playPickupEffect();
+        pickup.collectible.dispose();
+        pickup.collectible = null;
+        pickup.active = false;
+        pickup.respawnTimer = 30;
+        this.showPickupMessage("MISSILES REFILLED");
+        this.updateHUD();
+      }
+    }
   }
 
   spawnAtPoint(pos) {
@@ -1701,6 +1782,14 @@ export class Game {
       this.collectibles.forEach((collectible) => {
         collectible.update(delta);
       });
+
+      // Solo missile pickups
+      if (!this.isMultiplayer) {
+        const playerPos = this.xrManager?.isPresenting
+          ? this.xrManager.rig.position
+          : this.camera.position;
+        this._checkMissilePickups(playerPos, delta);
+      }
 
       // Only update enemies in single player
       if (!this.isMultiplayer) {
