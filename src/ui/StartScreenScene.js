@@ -89,11 +89,8 @@ export class StartScreenScene {
     const initH = vp ? Math.round(vp.height) : window.innerHeight;
     this.renderer.setSize(initW, initH);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.domElement.id = "start-scene-canvas";
     container.appendChild(this.renderer.domElement);
-    this.renderer.domElement.style.position = "fixed";
-    this.renderer.domElement.style.top = "0";
-    this.renderer.domElement.style.left = "0";
-    this.renderer.domElement.style.zIndex = "-1";
 
     this.createStarfield();
     this.createAmbientLighting();

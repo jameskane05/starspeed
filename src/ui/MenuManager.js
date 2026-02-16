@@ -48,9 +48,15 @@ class MenuManager {
       document.body.appendChild(this.container);
     }
 
-    // Initialize start screen 3D scene
+    this.menuBg = document.createElement("div");
+    this.menuBg.id = "menu-background";
+    this.container.appendChild(this.menuBg);
+    this.menuContent = document.createElement("div");
+    this.menuContent.id = "menu-content";
+    this.container.appendChild(this.menuContent);
+
     this.startScene = new StartScreenScene();
-    await this.startScene.init(document.body);
+    await this.startScene.init(this.menuBg);
 
     // Initialize procedural audio on first user interaction
     const initAudio = () => {
@@ -161,7 +167,7 @@ class MenuManager {
 
   updateFocusableElements() {
     this.focusableElements = Array.from(
-      this.container.querySelectorAll('.menu-btn, .back-btn, .class-btn, .mode-btn:not(.disabled), .vis-btn, .limit-btn, .players-btn, .join-btn, .refresh-btn, .rebind-btn, .options-btn:not(:disabled), .options-tab, .sidebar-btn, .volume-slider, .ready-checkbox input, #chk-ready')
+      this.menuContent.querySelectorAll('.menu-btn, .back-btn, .class-btn, .mode-btn:not(.disabled), .vis-btn, .limit-btn, .players-btn, .join-btn, .refresh-btn, .rebind-btn, .options-btn:not(:disabled), .options-tab, .sidebar-btn, .volume-slider, .ready-checkbox input, #chk-ready')
     ).filter(el => !el.disabled && el.offsetParent !== null);
   }
 
@@ -373,7 +379,7 @@ class MenuManager {
       this.startScene.renderer.domElement.style.display = "block";
     }
     
-    this.container.innerHTML = `
+    this.menuContent.innerHTML = `
       <div class="menu-screen main-menu">
         <div class="main-menu-right">
           <div class="menu-title">
@@ -444,7 +450,7 @@ class MenuManager {
   }
 
   renderCreateGame() {
-    this.container.innerHTML = `
+    this.menuContent.innerHTML = `
       <div class="menu-screen create-game">
         <div class="menu-header">
           <button class="back-btn" id="btn-back">← BACK</button>
@@ -612,7 +618,7 @@ class MenuManager {
   }
 
   renderJoinGame() {
-    this.container.innerHTML = `
+    this.menuContent.innerHTML = `
       <div class="menu-screen join-game">
         <div class="menu-header">
           <button class="back-btn" id="btn-back">← BACK</button>
@@ -734,7 +740,7 @@ class MenuManager {
     const allReady = players.every(([, p]) => p.ready);
     const canStart = isHost && players.length >= 1 && (allReady || players.length === 1);
 
-    this.container.innerHTML = `
+    this.menuContent.innerHTML = `
       <div class="menu-screen lobby">
         <div class="menu-header">
           <button class="back-btn" id="btn-leave">← LEAVE</button>
@@ -906,7 +912,7 @@ class MenuManager {
 
   renderLoading() {
     this.container.classList.remove("hidden");
-    this.container.innerHTML = `
+    this.menuContent.innerHTML = `
       <div class="menu-screen loading-screen">
         <div class="loading-content">
           <div class="loading-title">
@@ -926,7 +932,7 @@ class MenuManager {
   }
 
   renderPlaying() {
-    this.container.innerHTML = "";
+    this.menuContent.innerHTML = "";
     this.container.classList.add("hidden");
   }
 
@@ -937,7 +943,7 @@ class MenuManager {
     const players = NetworkManager.getPlayers().sort((a, b) => b[1].kills - a[1].kills);
 
     this.container.classList.remove("hidden");
-    this.container.innerHTML = `
+    this.menuContent.innerHTML = `
       <div class="menu-screen results">
         <div class="results-header">
           <h1>MATCH COMPLETE</h1>
@@ -977,7 +983,7 @@ class MenuManager {
     this.optionsReturnScreen = returnScreen || this.lastScreen || SCREENS.MAIN_MENU;
     this.optionsSection = this.optionsSection || 'gameplay';
     
-    this.container.innerHTML = `
+    this.menuContent.innerHTML = `
       <div class="menu-screen options-menu">
         <div class="menu-header">
           <button class="back-btn" id="btn-back">← BACK</button>
@@ -1584,7 +1590,7 @@ class MenuManager {
   renderOptionsInGame() {
     this.optionsSection = this.optionsSection || 'gameplay';
     
-    this.container.innerHTML = `
+    this.menuContent.innerHTML = `
       <div class="menu-screen options-menu in-game">
         <div class="menu-header">
           <button class="back-btn" id="btn-back">← BACK TO GAME</button>
@@ -1868,7 +1874,7 @@ class MenuManager {
   closeOptionsInGame() {
     this.stopGamepadStatusPolling();
     this.container.classList.add("hidden");
-    this.container.innerHTML = "";
+    this.menuContent.innerHTML = "";
     this.onOptionsClose?.();
     this.onOptionsClose = null;
   }
@@ -1967,7 +1973,7 @@ class MenuManager {
 
   showLoading(message) {
     this.lastScreen = this.currentScreen;
-    this.container.innerHTML = `
+    this.menuContent.innerHTML = `
       <div class="menu-screen loading-screen">
         <div class="loading-spinner"></div>
         <p>${message}</p>
