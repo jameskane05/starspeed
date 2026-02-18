@@ -1228,7 +1228,7 @@ export class Game {
     const enableLights =
       this.gameManager.getPerformanceSetting("rendering", "enemyLights") ??
       true;
-    return { enableLights };
+    return { enableLights, trailsEffect: this.trailsEffect };
   }
 
   spawnEnemies() {

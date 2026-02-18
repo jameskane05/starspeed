@@ -9,6 +9,9 @@ const _upVec = new THREE.Vector3(0, 1, 0);
 const _newPos = new THREE.Vector3();
 const _wanderDir = new THREE.Vector3();
 const _toWaypoint = new THREE.Vector3();
+const _shipForward = new THREE.Vector3();
+const _muzzlePos = new THREE.Vector3();
+const _thrusterPos = new THREE.Vector3();
 
 let shipModels = [];
 let loadPromise = null;
@@ -26,7 +29,8 @@ async function loadShipModels() {
     for (let i = 0; i <= MAX_INDEX; i++) {
       promises.push(
         loader
-          .loadAsync(`./ships/starfighter-${i}.glb`)
+          .loadAsync(`./ships/varied/starfighter-${i}.glb`)
+          .catch(() => loader.loadAsync(`./ships/starfighter-${i}.glb`))
           .then((gltf) => ({ index: i, scene: gltf.scene }))
           .catch(() => null),
       );
@@ -102,7 +106,7 @@ export class Enemy {
   constructor(scene, position, level, bounds, options = {}) {
     this.level = level;
     this.health = 100;
-    this.speed = 3 + Math.random() * 3;
+    this.speed = (3 + Math.random() * 3) * 1.25;
     this.detectionRange = 50;
     this.detectionRangeSq = 2500;
     this.fireRate = 2;
@@ -139,6 +143,12 @@ export class Enemy {
 
     this.mesh = new THREE.Group();
     this.mesh.position.copy(position);
+    this.trailsEffect = options.trailsEffect || null;
+    this.engineTrailTimer = 0;
+    this.engineTrailRate = 0.025;
+    this.weaponMarkerIndex = 0;
+    this.engineMarkers = [];
+    this.weaponMarkers = [];
 
     this.modelIndex =
       shipModels.length > 0
@@ -154,6 +164,14 @@ export class Enemy {
       clone.traverse((child) => {
         if (child.isMesh) {
           child.material = child.material.clone();
+        }
+        const n = child.name?.toLowerCase?.() || "";
+        if (n.startsWith("thruster_")) {
+          child.visible = false;
+          this.engineMarkers.push(child);
+        } else if (n.startsWith("weapon_")) {
+          child.visible = false;
+          this.weaponMarkers.push(child);
         }
       });
       this.mesh.add(clone);
@@ -314,11 +332,37 @@ export class Enemy {
       }
 
       if (this.hasLOS && this.fireCooldown <= 0 && distToPlayerSq < 625) {
-        fireCallback(this.mesh.position, _direction);
+        let firePos = this.mesh.position;
+        if (this.weaponMarkers.length > 0) {
+          const marker =
+            this.weaponMarkers[
+              this.weaponMarkerIndex % this.weaponMarkers.length
+            ];
+          this.weaponMarkerIndex++;
+          marker.getWorldPosition(_muzzlePos);
+          firePos = _muzzlePos;
+        }
+        _direction.subVectors(playerPos, firePos).normalize();
+        fireCallback(firePos, _direction);
         this.fireCooldown = 1 / this.fireRate;
       }
     } else {
       this._updateWander(delta, frameCount);
+    }
+
+    if (this.trailsEffect && this.engineMarkers.length > 0) {
+      this.engineTrailTimer += delta;
+      while (this.engineTrailTimer >= this.engineTrailRate) {
+        this.engineTrailTimer -= this.engineTrailRate;
+        _shipForward
+          .set(0, 0, -1)
+          .applyQuaternion(this.mesh.quaternion)
+          .normalize();
+        for (const marker of this.engineMarkers) {
+          marker.getWorldPosition(_thrusterPos);
+          this.trailsEffect.emitEngineExhaust(_thrusterPos, _shipForward);
+        }
+      }
     }
   }
 

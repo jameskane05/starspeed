@@ -77,4 +77,54 @@ export class TrailsEffect {
       });
     }
   }
+
+  emitEngineExhaust(worldPos, forwardDir) {
+    _tmp.copy(forwardDir).negate();
+    _tmp2.copy(_tmp).multiplyScalar(0.9 + Math.random() * 1.5);
+    _tmp2.x += (Math.random() - 0.5) * 0.5;
+    _tmp2.y += (Math.random() - 0.5) * 0.5;
+    _tmp2.z += (Math.random() - 0.5) * 0.5;
+
+    this.particles.fire.emit({
+      x: worldPos.x + (Math.random() - 0.5) * 0.06,
+      y: worldPos.y + (Math.random() - 0.5) * 0.06,
+      z: worldPos.z + (Math.random() - 0.5) * 0.06,
+      vx: _tmp2.x,
+      vy: _tmp2.y,
+      vz: _tmp2.z,
+      r: 1.0,
+      g: 0.65 + Math.random() * 0.2,
+      b: 0.15,
+      alpha: 0.7,
+      size: 0.18 + Math.random() * 0.12,
+      life: 0.1 + Math.random() * 0.08,
+      drag: 0.92,
+      rise: 0,
+    });
+
+    if (Math.random() > 0.45) {
+      _tmp2.copy(_tmp).multiplyScalar(0.8 + Math.random() * 1.4);
+      _tmp2.x += (Math.random() - 0.5) * 0.4;
+      _tmp2.y += (Math.random() - 0.5) * 0.4;
+      _tmp2.z += (Math.random() - 0.5) * 0.4;
+      const grey = 0.38 + Math.random() * 0.18;
+      this.particles.smoke.emit({
+        x: worldPos.x + (Math.random() - 0.5) * 0.08,
+        y: worldPos.y + (Math.random() - 0.5) * 0.08,
+        z: worldPos.z + (Math.random() - 0.5) * 0.08,
+        vx: _tmp2.x,
+        vy: _tmp2.y,
+        vz: _tmp2.z,
+        r: grey,
+        g: grey,
+        b: grey,
+        alpha: 0.42,
+        size: 0.28 + Math.random() * 0.2,
+        sizeGrow: 1.6,
+        life: 0.45 + Math.random() * 0.3,
+        drag: 0.92,
+        rise: 0,
+      });
+    }
+  }
 }

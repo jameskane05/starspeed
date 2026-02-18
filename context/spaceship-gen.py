@@ -1,11 +1,17 @@
 #
 # spaceship_generator.py
 #
-# This is a Blender script that uses procedural generation to create
-# textured 3D spaceship models. Tested with Blender 2.77a.
-#
+# Blender script: procedural 3D starfighter generation.
 # michael@spaceduststudios.com
 # https://github.com/a1studmuffin/SpaceshipGenerator
+#
+# Run (Windows, from starspeed repo root):
+#   "C:\Program Files\Blender Foundation\Blender 4.3\blender.exe" --background --python context/spaceship-gen.py
+# Optionally add after --: --subdir <folder> (e.g. varied) to output to public/ships/<folder>/
+# Optionally add: --extreme for weirder high-variance ships
+#
+# Example:
+#   "C:\Program Files\Blender Foundation\Blender 4.3\blender.exe" --background --python context/spaceship-gen.py -- --subdir varied --extreme
 #
 
 import sys
@@ -125,6 +131,75 @@ def get_aspect_ratio(face):
 # Returns true if this face is pointing behind the ship
 def is_rear_face(face):
     return face.normal.x < -0.95
+
+def add_point_marker(parent, name, pos_final):
+    eps = 1e-6
+    verts = [Vector((0, 0, 0)), Vector((eps, 0, 0)), Vector((0, eps, 0))]
+    faces = [[0, 1, 2]]
+    me = bpy.data.meshes.new(name)
+    me.from_pydata(verts, [], faces)
+    marker = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(marker)
+    marker.parent = parent
+    marker.location = pos_final
+    return marker
+
+def create_engine_child(parent, name, pos_final, radius, length, scale, materials):
+    bm_e = bmesh.new()
+    result = bmesh.ops.create_cone(bm_e, cap_ends=True, cap_tris=False,
+        segments=6, radius1=radius, radius2=radius * 0.7, depth=length,
+        matrix=Matrix.Rotation(radians(90), 4, 'Y'))
+    for v in result['verts']:
+        for f in v.link_faces:
+            f.material_index = 0
+    result = bmesh.ops.create_cone(bm_e, cap_ends=True, cap_tris=False,
+        segments=6, radius1=radius * 0.6, radius2=radius * 0.3, depth=length * 0.25,
+        matrix=Matrix.Translation(Vector((-length * 0.55, 0, 0))) @ Matrix.Rotation(radians(90), 4, 'Y'))
+    for v in result['verts']:
+        for f in v.link_faces:
+            f.material_index = 1
+    rot = Matrix.Rotation(radians(-90), 4, 'Z')
+    for v in bm_e.verts:
+        v.co = rot @ v.co
+        v.co *= scale
+    me = bpy.data.meshes.new(name)
+    bm_e.to_mesh(me)
+    bm_e.free()
+    me.materials.append(materials[Material.hull_dark])
+    me.materials.append(materials[Material.exhaust_burn])
+    obj = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(obj)
+    obj.parent = parent
+    obj.location = pos_final
+    return obj
+
+def create_turret_child(parent, name, pos_final, t_size, b_len, scale, materials):
+    bm_t = bmesh.new()
+    result = bmesh.ops.create_cone(bm_t, cap_ends=True, cap_tris=False,
+        segments=6, radius1=t_size * 0.4, radius2=t_size * 0.5, depth=t_size * 1.2,
+        matrix=Matrix.Rotation(radians(90), 4, 'Y'))
+    for v in result['verts']:
+        for f in v.link_faces:
+            f.material_index = 0
+    result = bmesh.ops.create_cone(bm_t, cap_ends=True, cap_tris=False,
+        segments=6, radius1=t_size * 0.15, radius2=t_size * 0.15, depth=b_len,
+        matrix=Matrix.Translation(Vector((t_size * 0.6 + b_len * 0.5, 0, 0))) @ Matrix.Rotation(radians(90), 4, 'Y'))
+    for v in result['verts']:
+        for f in v.link_faces:
+            f.material_index = 0
+    rot = Matrix.Rotation(radians(-90), 4, 'Z')
+    for v in bm_t.verts:
+        v.co = rot @ v.co
+        v.co *= scale
+    me = bpy.data.meshes.new(name)
+    bm_t.to_mesh(me)
+    bm_t.free()
+    me.materials.append(materials[Material.hull_dark])
+    obj = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(obj)
+    obj.parent = parent
+    obj.location = pos_final
+    return obj
 
 # Given a face, splits it into a uniform grid and extrudes each grid face
 # out and back in again, making an exhaust shape.
@@ -881,13 +956,13 @@ def generate_starfighter(random_seed='', export_path=None, extreme=False):
                         s = 1 / uniform(1.1, 1.6)
                         scale_face(bm, face, s, s, s)
 
-    # Get fuselage bounds for wing attachment - overlap roots into hull
     raw_max_y = max(v.co.y for v in bm.verts)
-    max_y = raw_max_y * 0.75
+    max_y = raw_max_y * 0.62
     max_x = max(v.co.x for v in bm.verts)
     min_x = min(v.co.x for v in bm.verts)
     fuselage_len = max_x - min_x
     fuselage_half_h = max(v.co.z for v in bm.verts)
+    wing_base_z = fuselage_half_h * 0.12
 
     # Add triangular wings (only on +Y side, symmetrize later)
     wing_style = choice([
@@ -899,19 +974,62 @@ def generate_starfighter(random_seed='', export_path=None, extreme=False):
     ])
     wing_span = uniform(1.5, 3.5) if extreme else uniform(0.8, 1.8)
     wing_thickness = choice([
-        uniform(0.02, 0.06),   # thin
-        uniform(0.02, 0.06),   # thin
-        uniform(0.08, 0.18),   # medium
-        uniform(0.2, 0.4),     # chunky
+        uniform(0.04, 0.1),    # thin
+        uniform(0.04, 0.1),    # thin
+        uniform(0.12, 0.25),   # medium
+        uniform(0.25, 0.5),    # chunky
     ])
     wing_mat = Material.hull_lights if random() > 0.5 else Material.hull
 
-    def make_wing(verts_coords, thickness, mat_idx, dihedral=0.0):
+    def strong_dihedral():
+        if random() > 0.5:
+            return uniform(25, 55)
+        else:
+            return uniform(-55, -25)
+
+    def sweep_jitter():
+        return uniform(-0.15, 0.15)
+
+    def chord_jitter(scale=0.15):
+        return uniform(-scale, scale)
+
+    def insert_bend_verts(verts, root_y, span, bend_y_frac):
+        if bend_y_frac <= 0 or bend_y_frac >= 1 or span <= 0:
+            return verts
+        bend_y = root_y + span * bend_y_frac
+        out = []
+        for i in range(len(verts)):
+            a, b = verts[i], verts[(i + 1) % len(verts)]
+            out.append(a)
+            ay, by = a[1], b[1]
+            if (ay < bend_y < by) or (ay > bend_y > by):
+                t = (bend_y - ay) / (by - ay) if abs(by - ay) > 1e-6 else 0.5
+                mid = tuple(a[j] * (1 - t) + b[j] * t for j in range(3))
+                out.append(mid)
+        return out
+
+    def make_wing(verts_coords, thickness, mat_idx, dihedral=0.0, bend=None):
+        span = max(co[1] for co in verts_coords) - max_y if verts_coords else 0
+        bend_y_frac, dihedral_outer = None, None
+        if bend and span > 0.1 and len(verts_coords) >= 3:
+            bend_y_frac, dihedral_outer = bend
+            bend_y_frac = max(0.2, min(0.8, bend_y_frac))
+            verts_coords = insert_bend_verts(verts_coords, max_y, span, bend_y_frac)
+
         rotated = []
         for co in verts_coords:
             y_off = co[1] - max_y
-            z_adj = sin(radians(dihedral)) * y_off
+            if bend_y_frac is not None and span > 0.1:
+                bend_off = span * bend_y_frac
+                if y_off <= bend_off:
+                    z_adj = sin(radians(dihedral)) * y_off
+                else:
+                    z_bend = sin(radians(dihedral)) * bend_off
+                    z_adj = z_bend + sin(radians(dihedral_outer)) * (y_off - bend_off)
+            else:
+                z_adj = sin(radians(dihedral)) * y_off
             rotated.append(Vector((co[0], co[1], co[2] + z_adj)))
+
         top_verts = [bm.verts.new(co) for co in rotated]
         bot_verts = [bm.verts.new(co + Vector((0, 0, -thickness))) for co in rotated]
         n = len(top_verts)
@@ -924,11 +1042,13 @@ def generate_starfighter(random_seed='', export_path=None, extreme=False):
             side = bm.faces.new([top_verts[i], top_verts[j], bot_verts[j], bot_verts[i]])
             side.material_index = Material.hull_dark
 
-    def strong_dihedral():
-        if random() > 0.5:
-            return uniform(25, 55)
-        else:
-            return uniform(-55, -25)
+    def maybe_bend(dihedral, num_verts=3):
+        if random() > 0.5 or num_verts != 3:
+            return None
+        bend_y = uniform(0.35, 0.6)
+        delta = uniform(-18, 18)
+        outer = max(-60, min(60, dihedral + delta))
+        return (bend_y, outer)
 
     def make_vertical_fin(xz_coords, half_thick, mat_idx):
         front_verts = [bm.verts.new(Vector((xz[0], half_thick, xz[1]))) for xz in xz_coords]
@@ -941,142 +1061,171 @@ def generate_starfighter(random_seed='', export_path=None, extreme=False):
             bm.faces.new([front_verts[i], front_verts[j], back_verts[j], back_verts[i]]).material_index = Material.hull_dark
 
     dihedral = 0.0
+    engine_wing_dihedral = 0.0
+    engine_wing_bend = None
+
+    def wing_z_at_span(span_frac, d, bend):
+        y_off = wing_span * span_frac
+        if not bend or span_frac <= 0:
+            return sin(radians(d)) * y_off
+        by, outer = bend
+        by = max(0.2, min(0.8, by))
+        bend_off = wing_span * by
+        if y_off <= bend_off:
+            return sin(radians(d)) * y_off
+        z_bend = sin(radians(d)) * bend_off
+        return z_bend + sin(radians(outer)) * (y_off - bend_off)
 
     if wing_style == 'delta':
-        lead = uniform(0.1, 0.4) * fuselage_len
-        trail = uniform(0.2, 0.5) * fuselage_len
+        lead = (uniform(0.05, 0.5) + chord_jitter()) * fuselage_len
+        trail = (uniform(0.15, 0.55) + chord_jitter()) * fuselage_len
+        tip_trail = trail * uniform(0.2, 0.8)
         dihedral = strong_dihedral() if random() > 0.3 else uniform(-15, 15)
+        engine_wing_dihedral = dihedral
+        engine_wing_bend = maybe_bend(dihedral, 3)
         make_wing([
-            (lead, max_y, fuselage_half_h * 0.1),
-            (-trail, max_y, fuselage_half_h * 0.1),
-            (-trail * uniform(0.3, 0.7), max_y + wing_span, fuselage_half_h * 0.1),
-        ], wing_thickness, wing_mat, dihedral)
+            (lead, max_y, fuselage_half_h * uniform(0.05, 0.2)),
+            (-trail, max_y, fuselage_half_h * uniform(0.05, 0.2)),
+            (-tip_trail, max_y + wing_span, fuselage_half_h * uniform(0.05, 0.2)),
+        ], wing_thickness, wing_mat, dihedral, engine_wing_bend)
 
     elif wing_style == 'swept':
-        sweep = uniform(0.3, 0.7)
-        chord_root = uniform(0.3, 0.6) * fuselage_len
-        chord_tip = chord_root * uniform(0.2, 0.5)
+        sweep = uniform(0.2, 0.85) + sweep_jitter()
+        chord_root = (uniform(0.25, 0.65) + chord_jitter()) * fuselage_len
+        chord_tip = chord_root * uniform(0.15, 0.55)
         dihedral = strong_dihedral() if random() > 0.3 else uniform(-15, 15)
-        x_base = uniform(-0.1, 0.15) * fuselage_len
+        engine_wing_dihedral = dihedral
+        engine_wing_bend = maybe_bend(dihedral, 4)
+        x_base = (uniform(-0.15, 0.25) + chord_jitter(0.1)) * fuselage_len
+        tip_x = x_base - chord_root * 0.5 - sweep * wing_span
         make_wing([
-            (x_base + chord_root * 0.5, max_y, fuselage_half_h * 0.1),
-            (x_base - chord_root * 0.5, max_y, fuselage_half_h * 0.1),
-            (x_base - chord_root * 0.5 - sweep * wing_span, max_y + wing_span, fuselage_half_h * 0.1),
-            (x_base - chord_root * 0.5 - sweep * wing_span + chord_tip, max_y + wing_span, fuselage_half_h * 0.1),
-        ], wing_thickness, wing_mat, dihedral)
+            (x_base + chord_root * (0.45 + chord_jitter(0.15)), max_y, fuselage_half_h * uniform(0.05, 0.2)),
+            (x_base - chord_root * (0.45 + chord_jitter(0.15)), max_y, fuselage_half_h * uniform(0.05, 0.2)),
+            (tip_x, max_y + wing_span, fuselage_half_h * uniform(0.05, 0.2)),
+            (tip_x + chord_tip * (0.9 + chord_jitter(0.2)), max_y + wing_span, fuselage_half_h * uniform(0.05, 0.2)),
+        ], wing_thickness, wing_mat, dihedral, engine_wing_bend)
 
     elif wing_style == 'forward_swept':
-        sweep = uniform(0.2, 0.5)
-        chord = uniform(0.25, 0.5) * fuselage_len
+        sweep = uniform(0.15, 0.6) + sweep_jitter()
+        chord = (uniform(0.2, 0.55) + chord_jitter()) * fuselage_len
         dihedral = strong_dihedral() if random() > 0.3 else uniform(-10, 10)
+        engine_wing_dihedral = dihedral
+        engine_wing_bend = maybe_bend(dihedral, 4)
+        root_front = -chord * uniform(0.2, 0.45)
+        root_back = root_front - chord
+        tip_front = root_front + sweep * wing_span + chord * uniform(0.2, 0.4)
+        tip_back = tip_front - chord * uniform(0.2, 0.5)
         make_wing([
-            (-chord * 0.3, max_y, fuselage_half_h * 0.1),
-            (-chord * 0.3 - chord, max_y, fuselage_half_h * 0.1),
-            (-chord * 0.3 - chord + sweep * wing_span + chord * 0.3, max_y + wing_span, fuselage_half_h * 0.1),
-            (-chord * 0.3 + sweep * wing_span + chord * 0.3, max_y + wing_span, fuselage_half_h * 0.1),
-        ], wing_thickness, wing_mat, dihedral)
+            (root_front, max_y, fuselage_half_h * uniform(0.05, 0.2)),
+            (root_back, max_y, fuselage_half_h * uniform(0.05, 0.2)),
+            (tip_back, max_y + wing_span, fuselage_half_h * uniform(0.05, 0.2)),
+            (tip_front, max_y + wing_span, fuselage_half_h * uniform(0.05, 0.2)),
+        ], wing_thickness, wing_mat, dihedral, engine_wing_bend)
 
     elif wing_style == 'x_wing':
-        spread = uniform(25, 50)
-        chord = uniform(0.15, 0.35) * fuselage_len
+        spread = uniform(18, 55)
+        chord = (uniform(0.1, 0.4) + chord_jitter()) * fuselage_len
+        tip_chord_ratio = uniform(0.5, 0.9)
+        engine_wing_dihedral = spread
+        engine_wing_bend = maybe_bend(spread, 3)
         for angle in [spread, -spread]:
             make_wing([
-                (chord * 0.5, max_y, 0),
-                (-chord * 0.5, max_y, 0),
-                (-chord * 0.7, max_y + wing_span, 0),
-            ], wing_thickness, wing_mat, angle)
+                (chord * (0.5 + chord_jitter()), max_y, fuselage_half_h * uniform(-0.05, 0.15)),
+                (-chord * (0.5 + chord_jitter()), max_y, fuselage_half_h * uniform(-0.05, 0.15)),
+                (-chord * tip_chord_ratio, max_y + wing_span, fuselage_half_h * uniform(-0.05, 0.15)),
+            ], wing_thickness, wing_mat, angle, engine_wing_bend if angle == spread else maybe_bend(angle, 3))
 
     elif wing_style == 'double_delta':
         dihedral = strong_dihedral() if random() > 0.3 else uniform(-15, 15)
+        engine_wing_dihedral = dihedral
+        engine_wing_bend = maybe_bend(dihedral, 3)
+        root_lead = fuselage_len * (uniform(0.08, 0.25) + chord_jitter(0.08))
+        root_trail = -fuselage_len * (uniform(0.2, 0.4) + chord_jitter(0.08))
+        tip_trail = root_trail + wing_span * uniform(-0.15, 0.1)
         make_wing([
-            (fuselage_len * 0.15, max_y, fuselage_half_h * 0.1),
-            (-fuselage_len * 0.3, max_y, fuselage_half_h * 0.1),
-            (-fuselage_len * 0.2, max_y + wing_span, fuselage_half_h * 0.1),
-        ], wing_thickness, wing_mat, dihedral)
-        canard_span = wing_span * uniform(0.3, 0.5)
-        canard_x = uniform(0.1, 0.3) * fuselage_len
+            (root_lead, max_y, fuselage_half_h * uniform(0.05, 0.2)),
+            (root_trail, max_y, fuselage_half_h * uniform(0.05, 0.2)),
+            (tip_trail, max_y + wing_span, fuselage_half_h * uniform(0.05, 0.2)),
+        ], wing_thickness, wing_mat, dihedral, engine_wing_bend)
+        canard_span = wing_span * uniform(0.25, 0.55)
+        canard_x = (uniform(0.08, 0.35) + chord_jitter(0.08)) * fuselage_len
+        canard_chord = fuselage_len * uniform(0.06, 0.15)
         make_wing([
-            (canard_x + fuselage_len * 0.1, max_y, fuselage_half_h * 0.15),
-            (canard_x, max_y, fuselage_half_h * 0.15),
-            (canard_x - fuselage_len * 0.05, max_y + canard_span, fuselage_half_h * 0.15),
-        ], wing_thickness * 0.7, Material.hull_dark, -dihedral * uniform(0.3, 0.7))
+            (canard_x + canard_chord, max_y, fuselage_half_h * uniform(0.1, 0.25)),
+            (canard_x, max_y, fuselage_half_h * uniform(0.1, 0.25)),
+            (canard_x - fuselage_len * (uniform(0.02, 0.08) + chord_jitter(0.03)), max_y + canard_span, fuselage_half_h * uniform(0.1, 0.25)),
+        ], wing_thickness * 0.7, Material.hull_dark, -dihedral * uniform(0.25, 0.8))
 
     elif wing_style == 'arrow':
-        arrow_sweep = uniform(0.4, 0.8)
+        arrow_sweep = uniform(0.35, 0.9) + sweep_jitter()
         dihedral = strong_dihedral()
+        engine_wing_dihedral = dihedral
+        engine_wing_bend = maybe_bend(dihedral, 4)
+        root_lead = fuselage_len * (uniform(0.12, 0.3) + chord_jitter(0.06))
+        root_trail = -fuselage_len * (uniform(0.05, 0.2) + chord_jitter(0.04))
+        tip_sweep = arrow_sweep * wing_span * uniform(0.4, 0.6)
+        tip_lead_sweep = arrow_sweep * wing_span * uniform(0.2, 0.4)
         make_wing([
-            (fuselage_len * 0.2, max_y, fuselage_half_h * 0.05),
-            (-fuselage_len * 0.1, max_y, fuselage_half_h * 0.05),
-            (-fuselage_len * 0.1 - arrow_sweep * wing_span * 0.5, max_y + wing_span, fuselage_half_h * 0.05),
-            (fuselage_len * 0.2 - arrow_sweep * wing_span * 0.3, max_y + wing_span * 0.8, fuselage_half_h * 0.05),
-        ], wing_thickness, wing_mat, dihedral)
+            (root_lead, max_y, fuselage_half_h * uniform(0.02, 0.12)),
+            (root_trail, max_y, fuselage_half_h * uniform(0.02, 0.12)),
+            (root_trail - tip_sweep, max_y + wing_span, fuselage_half_h * uniform(0.02, 0.12)),
+            (root_lead - tip_lead_sweep, max_y + wing_span * uniform(0.7, 0.95), fuselage_half_h * uniform(0.02, 0.12)),
+        ], wing_thickness, wing_mat, dihedral, engine_wing_bend)
 
     elif wing_style == 'y_wing':
         dihedral = uniform(-55, -30)
-        chord = uniform(0.2, 0.45) * fuselage_len
+        engine_wing_dihedral = dihedral
+        engine_wing_bend = maybe_bend(dihedral, 4)
+        chord = (uniform(0.15, 0.5) + chord_jitter()) * fuselage_len
+        tip_te = -chord * uniform(0.5, 0.75)
+        tip_le = chord * uniform(0.2, 0.45)
         make_wing([
-            (chord * 0.5, max_y, 0),
-            (-chord * 0.5, max_y, 0),
-            (-chord * 0.6, max_y + wing_span, 0),
-            (chord * 0.3, max_y + wing_span * 0.9, 0),
-        ], wing_thickness, wing_mat, dihedral)
+            (chord * (0.45 + chord_jitter()), max_y, fuselage_half_h * uniform(-0.05, 0.1)),
+            (-chord * (0.45 + chord_jitter()), max_y, fuselage_half_h * uniform(-0.05, 0.1)),
+            (tip_te, max_y + wing_span, fuselage_half_h * uniform(-0.05, 0.1)),
+            (tip_le, max_y + wing_span * uniform(0.8, 0.95), fuselage_half_h * uniform(-0.05, 0.1)),
+        ], wing_thickness, wing_mat, dihedral, engine_wing_bend)
 
     elif wing_style == 'plus':
-        chord = uniform(0.2, 0.45) * fuselage_len
-        dihedral = 0.0
+        chord = (uniform(0.18, 0.5) + chord_jitter()) * fuselage_len
+        dihedral = uniform(-12, 12) if random() > 0.5 else 0.0
+        engine_wing_dihedral = dihedral
+        engine_wing_bend = maybe_bend(dihedral, 4) if dihedral != 0 else None
+        tip_te = -chord * uniform(0.5, 0.75)
+        tip_le = chord * uniform(0.2, 0.45)
         make_wing([
-            (chord * 0.5, max_y, 0),
-            (-chord * 0.5, max_y, 0),
-            (-chord * 0.6, max_y + wing_span, 0),
-            (chord * 0.3, max_y + wing_span * 0.9, 0),
-        ], wing_thickness, wing_mat, dihedral)
-        fin_h = wing_span * uniform(0.5, 0.9)
-        fin_chord = chord * uniform(0.6, 1.0)
-        fin_thick = wing_thickness * 0.5
+            (chord * (0.45 + chord_jitter()), max_y, fuselage_half_h * uniform(-0.05, 0.1)),
+            (-chord * (0.45 + chord_jitter()), max_y, fuselage_half_h * uniform(-0.05, 0.1)),
+            (tip_te, max_y + wing_span, fuselage_half_h * uniform(-0.05, 0.1)),
+            (tip_le, max_y + wing_span * uniform(0.8, 0.95), fuselage_half_h * uniform(-0.05, 0.1)),
+        ], wing_thickness, wing_mat, dihedral, engine_wing_bend)
+        fin_h = wing_span * uniform(0.45, 0.95)
+        fin_chord = chord * uniform(0.55, 1.1)
+        fin_thick = wing_thickness * uniform(0.4, 0.65)
+        fin_lead = fin_chord * (0.35 + chord_jitter(0.15))
+        fin_trail = -fin_chord * (0.45 + chord_jitter(0.15))
         make_vertical_fin([
-            (fin_chord * 0.4, fuselage_half_h),
-            (-fin_chord * 0.5, fuselage_half_h),
-            (-fin_chord * 0.6, fuselage_half_h + fin_h),
-            (fin_chord * 0.2, fuselage_half_h + fin_h * 0.8),
+            (fin_lead, fuselage_half_h),
+            (fin_trail, fuselage_half_h),
+            (fin_trail * (1 + chord_jitter(0.15)), fuselage_half_h + fin_h),
+            (fin_chord * (0.15 + chord_jitter(0.15)), fuselage_half_h + fin_h * uniform(0.75, 0.9)),
         ], fin_thick, wing_mat)
         make_vertical_fin([
-            (fin_chord * 0.4, -fuselage_half_h),
-            (-fin_chord * 0.5, -fuselage_half_h),
-            (-fin_chord * 0.6, -fuselage_half_h - fin_h),
-            (fin_chord * 0.2, -fuselage_half_h - fin_h * 0.8),
+            (fin_lead, -fuselage_half_h),
+            (fin_trail, -fuselage_half_h),
+            (fin_trail * (1 + chord_jitter(0.15)), -fuselage_half_h - fin_h),
+            (fin_chord * (0.15 + chord_jitter(0.15)), -fuselage_half_h - fin_h * uniform(0.75, 0.9)),
         ], fin_thick, wing_mat)
 
-    # Engine pods - placed to follow wing dihedral so they stay attached
-    def add_engine_pod(bm, x, y, z, radius, length):
-        result = bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False,
-            segments=6, radius1=radius, radius2=radius * 0.7, depth=length,
-            matrix=Matrix.Translation(Vector((x, y, z))) @ Matrix.Rotation(radians(90), 4, 'Y'))
-        for v in result['verts']:
-            for f in v.link_faces:
-                f.material_index = Material.hull_dark
-        result = bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False,
-            segments=6, radius1=radius * 0.6, radius2=radius * 0.3, depth=length * 0.25,
-            matrix=Matrix.Translation(Vector((x - length * 0.55, y, z))) @ Matrix.Rotation(radians(90), 4, 'Y'))
-        for v in result['verts']:
-            for f in v.link_faces:
-                f.material_index = Material.exhaust_burn
-
+    # Engine/turret parameters - geometry placed as child objects after all modifiers
     eng_r = uniform(0.04, 0.1)
     eng_len = uniform(0.15, 0.35)
     eng_placement = choice(['wing_tip', 'rear', 'both'])
-
-    if eng_placement in ('wing_tip', 'both'):
-        eng_t = uniform(0.7, 1.0)
-        eng_y = max_y + wing_span * eng_t
-        eng_x = min_x * uniform(0.2, 0.5)
-        eng_z = sin(radians(dihedral)) * wing_span * eng_t
-        add_engine_pod(bm, eng_x, eng_y, eng_z, eng_r, eng_len)
-
-    if eng_placement in ('rear', 'both'):
-        rear_eng_r = eng_r * (0.7 if eng_placement == 'both' else 1.2)
-        rear_eng_len = eng_len * 1.2
-        rear_y = max_y * uniform(0.3, 0.8)
-        add_engine_pod(bm, min_x - rear_eng_len * 0.3, rear_y, 0, rear_eng_r, rear_eng_len)
+    num_turrets = randint(1, 2)
+    turret_size = uniform(0.04, 0.08)
+    barrel_len = turret_size * 2.5
+    rear_eng_r = eng_r * (0.7 if eng_placement == 'both' else 1.2)
+    rear_eng_len = eng_len * 1.2
 
     bmesh.ops.symmetrize(bm, input=bm.verts[:] + bm.edges[:] + bm.faces[:], direction="Y")
 
@@ -1150,7 +1299,7 @@ def generate_starfighter(random_seed='', export_path=None, extreme=False):
     ob = bpy.context.object
     ob.location = (0, 0, 0)
 
-    ob.rotation_euler = (0, radians(-90), 0)
+    ob.rotation_euler = (0, 0, radians(-90))
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
 
     bevel_modifier = ob.modifiers.new('Bevel', 'BEVEL')
@@ -1182,22 +1331,204 @@ def generate_starfighter(random_seed='', export_path=None, extreme=False):
         max(v.z for v in bbox) - min(v.z for v in bbox),
     ))
     longest = max(dims)
+    s = TARGET_SIZE / longest if longest > 0.001 else 1.0
     if longest > 0.001:
-        s = TARGET_SIZE / longest
         ob.scale = (s, s, s)
         bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+
+    # Re-center final mesh on lateral axis so mirrored attachments stay visually centered.
+    fv = [v.co.copy() for v in ob.data.vertices]
+    pre_sx_max = max(v.x for v in fv)
+    pre_sx_min = min(v.x for v in fv)
+    centerline_x = (pre_sx_max + pre_sx_min) * 0.5
+    if abs(centerline_x) > 1e-4:
+        ob.data.transform(Matrix.Translation(Vector((-centerline_x, 0, 0))))
+        ob.data.update()
 
     materials = create_materials()
     for mat in materials:
         me.materials.append(mat)
 
+    # Snap attachment points to the actual final mesh (post-bevel/decimate/scale)
+    fv = [v.co.copy() for v in ob.data.vertices]
+    sx_max = max(v.x for v in fv)
+    sx_min = min(v.x for v in fv)
+    sy_max = max(v.y for v in fv)
+    sy_min = min(v.y for v in fv)
+    sz_max = max(v.z for v in fv)
+    centerline_x = (sx_max + sx_min) * 0.5
+    span_half = max(abs(sx_max - centerline_x), abs(sx_min - centerline_x))
+    er_s = eng_r * s
+    el_s = eng_len * s
+    ts_s = turret_size * s
+    bl_s = barrel_len * s
+
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    eval_ob = ob.evaluated_get(depsgraph)
+
+    def snap(point_local):
+        hit, loc, normal, _ = eval_ob.closest_point_on_mesh(point_local)
+        return (loc, normal) if hit else None
+
+    def pick_best(candidates, normal_min_z=0.0, min_abs_x=0.0):
+        best = None
+        best_z = -1e9
+        for p in candidates:
+            hit = snap(p)
+            if not hit:
+                continue
+            loc, normal = hit
+            if normal.z < normal_min_z:
+                continue
+            if abs(loc.x - centerline_x) < min_abs_x:
+                continue
+            if loc.z > best_z:
+                best_z = loc.z
+                best = (loc, normal)
+        return best
+
+    eng_idx = 0
+    thr_idx = 0
+
+    def place_engine_pair(y_samples, x_frac, radius_s, normal_min_z, min_abs_x):
+        best_pair = None
+        best_score = -1e9
+        for t in y_samples:
+            y = sy_min + (sy_max - sy_min) * t
+            x = span_half * x_frac
+            right_hit = snap(Vector((centerline_x + x, y, sz_max + radius_s * 8)))
+            left_hit = snap(Vector((centerline_x - x, y, sz_max + radius_s * 8)))
+            if not right_hit or not left_hit:
+                continue
+            (r_loc, r_normal) = right_hit
+            (l_loc, l_normal) = left_hit
+            if r_normal.z < normal_min_z or l_normal.z < normal_min_z:
+                continue
+            if abs(r_loc.x - centerline_x) < min_abs_x or abs(l_loc.x - centerline_x) < min_abs_x:
+                continue
+            score = r_loc.z + l_loc.z + (r_loc.y + l_loc.y) * 0.15
+            if score > best_score:
+                best_score = score
+                best_pair = ((r_loc, r_normal), (l_loc, l_normal))
+        if not best_pair:
+            return None
+
+        (r_loc, r_normal), (l_loc, l_normal) = best_pair
+        y_sym = (r_loc.y + l_loc.y) * 0.5
+        z_sym = (r_loc.z + l_loc.z) * 0.5
+        x_sym = max(abs(r_loc.x - centerline_x), abs(l_loc.x - centerline_x))
+        right_pos = Vector((centerline_x + x_sym, y_sym, z_sym)) + Vector((radius_s * 0.55, 0, radius_s * 0.45))
+        left_pos = Vector((centerline_x - x_sym, y_sym, z_sym)) + Vector((-radius_s * 0.55, 0, radius_s * 0.45))
+        return (right_pos, left_pos)
+
+    def fallback_engine_pair(y_min_frac, y_max_frac, x_min_frac, radius_s):
+        y0 = sy_min + (sy_max - sy_min) * y_min_frac
+        y1 = sy_min + (sy_max - sy_min) * y_max_frac
+        right_pool = [
+            v for v in fv
+            if (v.x - centerline_x) > span_half * x_min_frac and y0 <= v.y <= y1
+        ]
+        if not right_pool:
+            right_pool = [v for v in fv if (v.x - centerline_x) > span_half * x_min_frac]
+        if not right_pool:
+            right_pool = [max(fv, key=lambda v: v.x)]
+        anchor = max(right_pool, key=lambda v: v.z)
+        x_off = abs(anchor.x - centerline_x)
+        right_pos = Vector((centerline_x + x_off, anchor.y, anchor.z)) + Vector((radius_s * 0.55, 0, radius_s * 0.45))
+        left_pos = Vector((centerline_x - x_off, anchor.y, anchor.z)) + Vector((-radius_s * 0.55, 0, radius_s * 0.45))
+        return (right_pos, left_pos)
+
+    if eng_placement in ('wing_tip', 'both'):
+        pair = place_engine_pair(
+            y_samples=[0.22, 0.32, 0.42, 0.52, 0.62],
+            x_frac=0.88,
+            radius_s=er_s,
+            normal_min_z=0.1,
+            min_abs_x=span_half * 0.35,
+        )
+        if not pair:
+            pair = fallback_engine_pair(
+                y_min_frac=0.2,
+                y_max_frac=0.65,
+                x_min_frac=0.45,
+                radius_s=er_s,
+            )
+        if pair:
+            for pos in pair:
+                create_engine_child(ob, f'engine_{eng_idx}', pos, eng_r, eng_len, s, materials)
+                add_point_marker(ob, f'thruster_{thr_idx}', pos + Vector((0, el_s * 0.65, 0)))
+                eng_idx += 1
+                thr_idx += 1
+
+    if eng_placement in ('rear', 'both'):
+        rear_radius_s = rear_eng_r * s
+        rear_len_s = rear_eng_len * s
+        pair = place_engine_pair(
+            y_samples=[0.72, 0.80, 0.88, 0.94],
+            x_frac=0.28,
+            radius_s=rear_radius_s,
+            normal_min_z=-0.2,
+            min_abs_x=span_half * 0.08,
+        )
+        if not pair:
+            pair = fallback_engine_pair(
+                y_min_frac=0.68,
+                y_max_frac=0.98,
+                x_min_frac=0.08,
+                radius_s=rear_radius_s,
+            )
+        if pair:
+            for pos in pair:
+                create_engine_child(ob, f'engine_{eng_idx}', pos, rear_eng_r, rear_eng_len, s, materials)
+                add_point_marker(ob, f'thruster_{thr_idx}', pos + Vector((0, rear_len_s * 0.65, 0)))
+                eng_idx += 1
+                thr_idx += 1
+
+    if num_turrets == 1:
+        candidates = [
+            Vector((centerline_x, sy_min * 0.92, sz_max + ts_s * 5)),
+            Vector((centerline_x, sy_min * 0.75, sz_max + ts_s * 5)),
+        ]
+        best = pick_best(candidates, normal_min_z=0.1, min_abs_x=0.0)
+        if best:
+            loc, normal = best
+            pos = loc + normal * (ts_s * 0.5)
+        else:
+            pos = Vector((centerline_x, sy_min * 0.85, sz_max * 0.3 + ts_s * 0.5))
+        create_turret_child(ob, f'turret_0', pos, turret_size, barrel_len, s, materials)
+        add_point_marker(ob, f'weapon_0', pos + Vector((0, -(ts_s * 0.6 + bl_s), 0)))
+    else:
+        for i, side in enumerate([1, -1]):
+            x_target = centerline_x + side * span_half * 0.58
+            candidates = [
+                Vector((x_target, sy_min + (sy_max - sy_min) * 0.35, sz_max + ts_s * 5)),
+                Vector((x_target, sy_min + (sy_max - sy_min) * 0.5, sz_max + ts_s * 5)),
+            ]
+            best = pick_best(candidates, normal_min_z=0.12, min_abs_x=span_half * 0.25)
+            if best:
+                loc, normal = best
+                pos = loc + normal * (ts_s * 0.5)
+            else:
+                pos = Vector((x_target, sy_min + (sy_max - sy_min) * 0.45, sz_max * 0.25 + ts_s * 0.5))
+            create_turret_child(ob, f'turret_{i}', pos, turret_size, barrel_len, s, materials)
+            add_point_marker(ob, f'weapon_{i}', pos + Vector((0, -(ts_s * 0.6 + bl_s), 0)))
+
     return obj
 
-OUTPUT_DIR = os.path.join(DIR, '..', 'public', 'ships')
+def get_output_dir():
+    base = os.path.join(DIR, '..', 'public', 'ships')
+    for i, arg in enumerate(sys.argv):
+        if arg == '--subdir' and i + 1 < len(sys.argv):
+            return os.path.join(base, sys.argv[i + 1])
+    return base
+
+OUTPUT_DIR = get_output_dir()
 
 def export_glb(obj, filepath):
     bpy.ops.object.select_all(action='DESELECT')
     obj.select_set(True)
+    for child in obj.children_recursive:
+        child.select_set(True)
     bpy.context.view_layer.objects.active = obj
     bpy.ops.export_scene.gltf(
         filepath=filepath,
@@ -1222,8 +1553,9 @@ def next_available_index(directory, prefix='starfighter-', ext='.glb'):
                     pass
     return max(existing) + 1 if existing else 0
 
-# Parse --extreme flag from argv (after the -- separator blender uses)
+# Parse flags from argv (after the -- separator blender uses)
 EXTREME_MODE = '--extreme' in sys.argv
+OVERWRITE_MODE = '--overwrite' in sys.argv
 
 if __name__ == "__main__":
 
@@ -1231,7 +1563,7 @@ if __name__ == "__main__":
 
     if generate_single_spaceship:
         os.makedirs(OUTPUT_DIR, exist_ok=True)
-        start_idx = next_available_index(OUTPUT_DIR)
+        start_idx = 0 if OVERWRITE_MODE else next_available_index(OUTPUT_DIR)
         num_ships = 10
         if EXTREME_MODE:
             print(f'=== EXTREME MODE ===')
