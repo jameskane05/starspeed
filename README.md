@@ -144,7 +144,7 @@ npm run deploy:gh
 ```
 Builds and deploys to `gh-pages` branch. Configure GitHub Pages to serve from that branch.
 
-Live at: https://jameskane05.github.io/starspeed/
+Live at: https://starspeed.game
 
 ### Server (Colyseus Cloud)
 ```bash
@@ -175,7 +175,7 @@ Edit `src/network/NetworkManager.js`:
 
 ```javascript
 // Use cloud server
-const CLOUD_SERVER_URL = "https://us-ord-23ba76a6.colyseus.cloud";
+const CLOUD_SERVER_URL = "https://starspeed.game";
 
 // Use local server
 const CLOUD_SERVER_URL = null;

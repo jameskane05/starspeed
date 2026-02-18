@@ -1,7 +1,9 @@
 import * as Colyseus from "@colyseus/sdk";
 
-// Set to your Colyseus Cloud URL after deployment, or leave null for localhost
-const CLOUD_SERVER_URL = "https://us-ord-23ba76a6.colyseus.cloud";
+// Production multiplayer endpoint (override with VITE_SERVER_URL if needed)
+const CLOUD_SERVER_URL =
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_SERVER_URL) ||
+  "https://starspeed.game";
 const LOCAL_SERVER_URL = "ws://localhost:2567";
 
 const isLocalDev = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
