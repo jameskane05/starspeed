@@ -7,7 +7,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 const isDev = process.env.NODE_ENV !== 'production';
 
 export default defineConfig({
-  base: '/starspeed/',
+  base: '/',
   plugins: [
     wasm(),
     topLevelAwait(),
@@ -22,8 +22,8 @@ export default defineConfig({
         background_color: '#050510',
         display: 'standalone',
         orientation: 'any',
-        start_url: '/starspeed/',
-        scope: '/starspeed/',
+        start_url: '/',
+        scope: '/',
         icons: [
           { src: 'pwa-64x64.png', sizes: '64x64', type: 'image/png' },
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
