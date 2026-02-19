@@ -17,26 +17,42 @@ let shipModels = [];
 let loadPromise = null;
 const _deadLights = [];
 
+async function loadManifestPaths() {
+  try {
+    const res = await fetch("./ships/shipData.json", { cache: "no-cache" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : data?.ships;
+    if (!Array.isArray(list)) return [];
+    return list
+      .filter((p) => typeof p === "string" && p.trim().length > 0)
+      .map((p) => (p.startsWith("./") ? p : `./${p.replace(/^\/+/, "")}`));
+  } catch {
+    return [];
+  }
+}
+
 async function loadShipModels() {
   if (loadPromise) return loadPromise;
   if (shipModels.length > 0) return;
 
   loadPromise = (async () => {
     const loader = new GLTFLoader();
-    const MAX_INDEX = 99;
-
-    const promises = [];
-    for (let i = 0; i <= MAX_INDEX; i++) {
-      promises.push(
-        loader
-          .loadAsync(`./ships/varied/starfighter-${i}.glb`)
-          .catch(() => loader.loadAsync(`./ships/starfighter-${i}.glb`))
-          .then((gltf) => ({ index: i, scene: gltf.scene }))
-          .catch(() => null),
-      );
+    const manifestPaths = await loadManifestPaths();
+    const fallbackPaths = [];
+    for (let i = 0; i <= 9; i++) {
+      fallbackPaths.push(`./ships/varied/starfighter-${i}.glb`);
     }
+    const shipPaths = manifestPaths.length > 0 ? manifestPaths : fallbackPaths;
 
-    const results = (await Promise.all(promises)).filter(Boolean);
+    const settled = await Promise.allSettled(
+      shipPaths.map((path, index) =>
+        loader.loadAsync(path).then((gltf) => ({ index, scene: gltf.scene })),
+      ),
+    );
+    const results = settled
+      .filter((r) => r.status === "fulfilled")
+      .map((r) => r.value);
 
     if (results.length === 0) {
       try {

@@ -1,0 +1,14 @@
+{
+  "ships": [
+    "./ships/varied/starfighter-0.glb",
+    "./ships/varied/starfighter-1.glb",
+    "./ships/varied/starfighter-2.glb",
+    "./ships/varied/starfighter-3.glb",
+    "./ships/varied/starfighter-4.glb",
+    "./ships/varied/starfighter-5.glb",
+    "./ships/varied/starfighter-6.glb",
+    "./ships/varied/starfighter-7.glb",
+    "./ships/varied/starfighter-8.glb",
+    "./ships/varied/starfighter-9.glb"
+  ]
+}
