@@ -175,7 +175,7 @@ Edit `src/network/NetworkManager.js`:
 
 ```javascript
 // Use cloud server
-const CLOUD_SERVER_URL = "https://starspeed.game";
+const CLOUD_SERVER_URL = "https://us-ord-23ba76a6.colyseus.cloud";
 
 // Use local server
 const CLOUD_SERVER_URL = null;
