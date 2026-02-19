@@ -76,7 +76,7 @@ export class RemotePlayer {
     if (model) {
       const clone = model.clone();
       clone.scale.setScalar(0.5);
-      clone.rotation.set(Math.PI, Math.PI, 0);  // Flip Y to face -Z, flip X to correct roll
+      clone.rotation.set(0, Math.PI, 0);
       
       this.shipMesh = clone;
       this.mesh.add(clone);
