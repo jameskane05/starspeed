@@ -40,7 +40,21 @@ function prefractureModel(index, model) {
   model.updateMatrixWorld(true);
   model.traverse((child) => {
     if (!child.isMesh || !child.geometry) return;
-    const geo = child.geometry.clone();
+    const n = child.name?.toLowerCase?.() || "";
+    if (n.startsWith("thruster_") || n.startsWith("weapon_")) return;
+
+    const src = child.geometry.index ? child.geometry.toNonIndexed() : child.geometry;
+    const geo = src.clone();
+    if (!geo.attributes?.position || geo.attributes.position.count < 3) {
+      geo.dispose();
+      return;
+    }
+    for (const key of Object.keys(geo.attributes)) {
+      if (key !== "position" && key !== "normal") {
+        geo.deleteAttribute(key);
+      }
+    }
+    geo.computeVertexNormals();
     geo.applyMatrix4(child.matrixWorld);
     geometries.push(geo);
     if (!outerMat) {
@@ -58,9 +72,14 @@ function prefractureModel(index, model) {
       : mergeGeometries(geometries, false);
   if (!merged) return;
 
+  const fractureOuterMat =
+    outerMat && typeof outerMat.clone === "function"
+      ? outerMat.clone()
+      : new THREE.MeshStandardMaterial();
+
   const destructible = new DestructibleMesh(
     merged,
-    outerMat || new THREE.MeshStandardMaterial(),
+    fractureOuterMat,
     innerMaterial,
   );
 

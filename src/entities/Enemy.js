@@ -17,57 +17,203 @@ const _textureLoader = new THREE.TextureLoader();
 let shipModels = [];
 let loadPromise = null;
 const _deadLights = [];
-let sharedShipAssets = null;
-let sharedShipAssetsPromise = null;
+let sharedShipMaterials = null;
+let sharedShipMaterialsPromise = null;
 
-async function loadSharedShipAssets() {
-  if (sharedShipAssets) return sharedShipAssets;
-  if (sharedShipAssetsPromise) return sharedShipAssetsPromise;
+function hlsToRgb(h, l, s) {
+  let r;
+  let g;
+  let b;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const hue2rgb = (p, q, t) => {
+      let tt = t;
+      if (tt < 0) tt += 1;
+      if (tt > 1) tt -= 1;
+      if (tt < 1 / 6) return p + (q - p) * 6 * tt;
+      if (tt < 1 / 2) return q;
+      if (tt < 2 / 3) return p + (q - p) * (2 / 3 - tt) * 6;
+      return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1 / 3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1 / 3);
+  }
+  return new THREE.Color(r, g, b);
+}
 
-  sharedShipAssetsPromise = (async () => {
-    let hullNormal = null;
+function seededRng(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+async function loadSharedShipMaterials() {
+  if (sharedShipMaterials) return sharedShipMaterials;
+  if (sharedShipMaterialsPromise) return sharedShipMaterialsPromise;
+
+  sharedShipMaterialsPromise = (async () => {
+    const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "") || "";
+    const texUrl = (p) => (base ? `${base}/${p}` : `./${p}`).replace(/\/+/g, "/");
+    let normalMap = null;
+    let hullLightsDiffuse = null;
+    let hullLightsEmit = null;
     try {
-      hullNormal = await _textureLoader.loadAsync(
-        "./vfx/SmokePuffNormalSheet.png",
-      );
-      hullNormal.wrapS = hullNormal.wrapT = THREE.RepeatWrapping;
-      hullNormal.repeat.set(2, 2);
-      hullNormal.anisotropy = 4;
-    } catch {
-      hullNormal = null;
+      normalMap = await _textureLoader.loadAsync(texUrl("hull_normal.png"));
+      normalMap.colorSpace = THREE.NoColorSpace;
+      normalMap.wrapS = normalMap.wrapT = THREE.RepeatWrapping;
+      normalMap.repeat.set(3, 3);
+      normalMap.anisotropy = 4;
+    } catch (err) {
+      normalMap = null;
+      console.warn("[Enemy] Failed to load ./hull_normal.png", err);
     }
 
-    const hull = new THREE.MeshStandardMaterial({
-      color: 0x8f9aa8,
-      metalness: 0.82,
-      roughness: 0.34,
-      normalMap: hullNormal,
-      normalScale: new THREE.Vector2(0.28, 0.28),
-    });
+    try {
+      hullLightsDiffuse = await _textureLoader.loadAsync(texUrl("hull_lights_diffuse.png"));
+      hullLightsDiffuse.colorSpace = THREE.SRGBColorSpace;
+      hullLightsDiffuse.wrapS = hullLightsDiffuse.wrapT = THREE.RepeatWrapping;
+      hullLightsDiffuse.repeat.set(3, 3);
+      hullLightsDiffuse.anisotropy = 4;
+    } catch (err) {
+      hullLightsDiffuse = null;
+      console.warn("[Enemy] Failed to load ./hull_lights_diffuse.png", err);
+    }
 
-    const hullDark = new THREE.MeshStandardMaterial({
-      color: 0x2f3640,
-      metalness: 0.74,
-      roughness: 0.46,
-      normalMap: hullNormal,
-      normalScale: new THREE.Vector2(0.22, 0.22),
-    });
+    try {
+      hullLightsEmit = await _textureLoader.loadAsync(texUrl("hull_lights_emit.png"));
+      hullLightsEmit.colorSpace = THREE.SRGBColorSpace;
+      hullLightsEmit.wrapS = hullLightsEmit.wrapT = THREE.RepeatWrapping;
+      hullLightsEmit.repeat.set(3, 3);
+      hullLightsEmit.anisotropy = 4;
+    } catch (err) {
+      hullLightsEmit = null;
+      console.warn("[Enemy] Failed to load ./hull_lights_emit.png", err);
+    }
 
-    const engine = new THREE.MeshStandardMaterial({
-      color: 0x252a32,
-      emissive: 0xff8a2f,
-      emissiveIntensity: 0.9,
-      metalness: 0.72,
-      roughness: 0.42,
-      normalMap: hullNormal,
-      normalScale: new THREE.Vector2(0.16, 0.16),
-    });
-
-    sharedShipAssets = { hull, hullDark, engine };
-    return sharedShipAssets;
+    sharedShipMaterials = { normalMap, hullLightsDiffuse, hullLightsEmit };
+    return sharedShipMaterials;
   })();
 
-  return sharedShipAssetsPromise;
+  return sharedShipMaterialsPromise;
+}
+
+function createShipMaterialSet(index, sharedTex) {
+  const rng = seededRng((index + 1) * 7777 + 42);
+  const hullBase = hlsToRgb(rng(), 0.04 + rng() * 0.11, 0.05 + rng() * 0.25);
+  const darkColor = hullBase.clone().multiplyScalar(0.12);
+
+  let glowHue;
+  const pick = rng();
+  if (pick < 0.25) glowHue = rng() * 0.12;
+  else if (pick < 0.5) glowHue = 0.25 + rng() * 0.17;
+  else if (pick < 0.75) glowHue = 0.55 + rng() * 0.17;
+  else glowHue = 0.8 + rng() * 0.15;
+  const glowColor = hlsToRgb(glowHue, 0.55 + rng() * 0.25, 1.0);
+
+  const hull = new THREE.MeshStandardMaterial({
+    color: hullBase,
+    map: sharedTex.hullLightsDiffuse ?? null,
+    metalness: 0.3,
+    roughness: 0.65,
+    normalMap: sharedTex.normalMap,
+    normalScale: new THREE.Vector2(1, 1),
+    side: THREE.DoubleSide,
+  });
+
+  const hullLights = new THREE.MeshStandardMaterial({
+    color: hullBase,
+    map: sharedTex.hullLightsDiffuse,
+    emissive: new THREE.Color(0xffffff),
+    emissiveMap: sharedTex.hullLightsEmit,
+    emissiveIntensity: 2.5,
+    metalness: 0.25,
+    roughness: 0.6,
+    normalMap: sharedTex.normalMap,
+    normalScale: new THREE.Vector2(1, 1),
+    side: THREE.DoubleSide,
+  });
+
+  const hardSurface = new THREE.MeshStandardMaterial({
+    color: darkColor,
+    metalness: 0.4,
+    roughness: 0.55,
+    normalMap: sharedTex.normalMap,
+    normalScale: new THREE.Vector2(1, 1),
+    side: THREE.DoubleSide,
+  });
+
+  const engine = new THREE.MeshStandardMaterial({
+    color: glowColor,
+    emissive: glowColor,
+    emissiveIntensity: 8.0,
+    metalness: 0.15,
+    roughness: 0.35,
+    side: THREE.DoubleSide,
+  });
+
+  const laserColor = glowColor.clone();
+  const hasHullLightMaps = !!(sharedTex.hullLightsDiffuse && sharedTex.hullLightsEmit);
+  return {
+    hull,
+    hullLights,
+    hardSurface,
+    engine,
+    hasHullLightMaps,
+    laserColor,
+    laserIntensity: 8.0,
+  };
+}
+
+function applyRuntimeShipMaterials(root, mats, index) {
+  const ensureUv = (geometry) => {
+    if (!geometry || geometry.attributes?.uv || !geometry.attributes?.position) return;
+    const pos = geometry.attributes.position;
+    if (!pos || pos.count < 3) return;
+    geometry.computeBoundingBox();
+    const bb = geometry.boundingBox;
+    const sx = Math.max(1e-5, bb.max.x - bb.min.x);
+    const sy = Math.max(1e-5, bb.max.y - bb.min.y);
+    const sz = Math.max(1e-5, bb.max.z - bb.min.z);
+    const uAxis = sx >= sy && sx >= sz ? 0 : sy >= sz ? 1 : 2;
+    const vAxis = uAxis === 0 ? (sy >= sz ? 1 : 2) : uAxis === 1 ? (sx >= sz ? 0 : 2) : sx >= sy ? 0 : 1;
+    const get = (i, axis) => axis === 0 ? pos.getX(i) : axis === 1 ? pos.getY(i) : pos.getZ(i);
+    const uv = new Float32Array(pos.count * 2);
+    for (let i = 0; i < pos.count; i++) {
+      const su = Math.max(1e-5, [sx, sy, sz][uAxis]);
+      const sv = Math.max(1e-5, [sx, sy, sz][vAxis]);
+      const minU = [bb.min.x, bb.min.y, bb.min.z][uAxis];
+      const minV = [bb.min.x, bb.min.y, bb.min.z][vAxis];
+      uv[i * 2 + 0] = (get(i, uAxis) - minU) / su;
+      uv[i * 2 + 1] = (get(i, vAxis) - minV) / sv;
+    }
+    geometry.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+    geometry.attributes.uv.needsUpdate = true;
+  };
+
+  root.traverse((child) => {
+    if (!child.isMesh) return;
+    ensureUv(child.geometry);
+    const n = child.name?.toLowerCase?.() || "";
+    if (n.startsWith("engine_") && n.includes("_nozzle")) {
+      child.material = mats.engine;
+    } else if (n.startsWith("engine_")) {
+      // Fallback to non-emissive so we never bloom the whole engine body.
+      // If a model lacks explicit nozzle split/groups, this keeps it sane.
+      child.material = mats.hardSurface;
+    } else if (n.startsWith("turret_")) {
+      child.material = mats.hardSurface;
+    } else if (n.startsWith("thruster_") || n.startsWith("weapon_")) {
+      child.material = mats.hardSurface;
+    } else {
+      child.material = mats.hasHullLightMaps ? mats.hullLights : mats.hull;
+    }
+  });
 }
 
 async function loadManifestPaths() {
@@ -91,7 +237,7 @@ async function loadShipModels() {
 
   loadPromise = (async () => {
     const loader = new GLTFLoader();
-    const shared = await loadSharedShipAssets();
+    const sharedTex = await loadSharedShipMaterials();
     const manifestPaths = await loadManifestPaths();
     const fallbackPaths = [];
     for (let i = 0; i <= 9; i++) {
@@ -122,19 +268,25 @@ async function loadShipModels() {
     results.sort((a, b) => a.index - b.index);
     const models = results.map((r) => r.scene);
 
-    // All ships share one runtime material/texture set (no embedded texture payloads per GLB).
-    for (let i = 0; i < models.length; i++) {
-      models[i].traverse((child) => {
-        if (!child.isMesh) return;
-        const n = child.name?.toLowerCase?.() || "";
-        let nextMat = shared.hull;
-        if (n.startsWith("engine_")) nextMat = shared.engine;
-        else if (n.startsWith("turret_")) nextMat = shared.hullDark;
-        else if (n.startsWith("thruster_") || n.startsWith("weapon_")) {
-          nextMat = shared.hullDark;
+    const hasEmbeddedTextures = (scene) => {
+      let found = false;
+      scene.traverse((c) => {
+        if (c.isMesh && c.material) {
+          const m = Array.isArray(c.material) ? c.material[0] : c.material;
+          if (m?.map || m?.normalMap || m?.emissiveMap) found = true;
         }
-        child.material = nextMat;
       });
+      return found;
+    };
+    const useEmbedded = results.length > 0 && hasEmbeddedTextures(results[0].scene);
+
+    for (const result of results) {
+      const mats = createShipMaterialSet(result.index, sharedTex);
+      if (!useEmbedded) {
+        applyRuntimeShipMaterials(result.scene, mats, result.index);
+      }
+      result.scene.userData.enemyLaserColor = mats.laserColor.getHex();
+      result.scene.userData.enemyLaserIntensity = mats.laserIntensity;
     }
 
     shipModels = models;
@@ -144,7 +296,29 @@ async function loadShipModels() {
   return loadPromise;
 }
 
-export { loadShipModels, shipModels };
+async function reapplyShipMaterials(models) {
+  if (models.length === 0) return;
+  const hasTex = (s) => {
+    let v = false;
+    s.traverse((c) => {
+      if (c.isMesh && c.material) {
+        const m = Array.isArray(c.material) ? c.material[0] : c.material;
+        if (m?.map || m?.normalMap || m?.emissiveMap) v = true;
+      }
+    });
+    return v;
+  };
+  if (hasTex(models[0])) return;
+  const sharedTex = await loadSharedShipMaterials();
+  for (let i = 0; i < models.length; i++) {
+    const mats = createShipMaterialSet(i, sharedTex);
+    applyRuntimeShipMaterials(models[i], mats, i);
+    models[i].userData.enemyLaserColor = mats.laserColor.getHex();
+    models[i].userData.enemyLaserIntensity = mats.laserIntensity;
+  }
+}
+
+export { loadShipModels, shipModels, reapplyShipMaterials };
 
 function randomInBounds(center, size, margin = 0.7) {
   return new THREE.Vector3(
@@ -209,6 +383,9 @@ export class Enemy {
     this.weaponMarkerIndex = 0;
     this.engineMarkers = [];
     this.weaponMarkers = [];
+    this.laserColor = 0xff8800;
+    this.laserIntensity = 1.0;
+    this.usesSharedTemplateModel = false;
 
     this.modelIndex =
       shipModels.length > 0
@@ -219,8 +396,11 @@ export class Enemy {
 
     if (shipTemplate) {
       const clone = shipTemplate.clone();
+      this.usesSharedTemplateModel = true;
       clone.scale.setScalar(2.0);
       clone.rotation.set(0, Math.PI, 0);
+      this.laserColor = shipTemplate.userData?.enemyLaserColor ?? this.laserColor;
+      this.laserIntensity = shipTemplate.userData?.enemyLaserIntensity ?? this.laserIntensity;
       clone.traverse((child) => {
         if (!child.isMesh) return;
         const n = child.name?.toLowerCase?.() || "";
@@ -233,7 +413,6 @@ export class Enemy {
         }
       });
       this.mesh.add(clone);
-
       if (options.enableLights !== false) {
         this.shipLightIntensity = 7;
         if (_deadLights.length > 0) {
@@ -401,7 +580,10 @@ export class Enemy {
           firePos = _muzzlePos;
         }
         _direction.subVectors(playerPos, firePos).normalize();
-        fireCallback(firePos, _direction);
+        fireCallback(firePos, _direction, {
+          color: this.laserColor,
+          intensity: this.laserIntensity,
+        });
         this.fireCooldown = 1 / this.fireRate;
       }
     } else {
@@ -489,9 +671,17 @@ export class Enemy {
 
     scene.remove(this.mesh);
 
-    this.mesh.traverse((child) => {
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) child.material.dispose();
-    });
+    if (!this.usesSharedTemplateModel) {
+      this.mesh.traverse((child) => {
+        if (!child.isMesh) return;
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          const mats = Array.isArray(child.material)
+            ? child.material
+            : [child.material];
+          for (const m of mats) m?.dispose?.();
+        }
+      });
+    }
   }
 }
