@@ -1524,6 +1524,17 @@ def get_output_dir():
 
 OUTPUT_DIR = get_output_dir()
 
+def get_arg_value(flag, default, cast=int):
+    for i, arg in enumerate(sys.argv):
+        if arg == flag and i + 1 < len(sys.argv):
+            try:
+                return cast(sys.argv[i + 1])
+            except Exception:
+                return default
+    return default
+
+EXPORT_MATERIALS = 'EXPORT' if '--with-materials' in sys.argv else 'NONE'
+
 def export_glb(obj, filepath):
     bpy.ops.object.select_all(action='DESELECT')
     obj.select_set(True)
@@ -1535,7 +1546,7 @@ def export_glb(obj, filepath):
         export_format='GLB',
         use_selection=True,
         export_apply=True,
-        export_materials='EXPORT',
+        export_materials=EXPORT_MATERIALS,
         export_image_format='AUTO',
         export_texcoords=True,
         export_normals=True,
@@ -1556,6 +1567,7 @@ def next_available_index(directory, prefix='starfighter-', ext='.glb'):
 # Parse flags from argv (after the -- separator blender uses)
 EXTREME_MODE = '--extreme' in sys.argv
 OVERWRITE_MODE = '--overwrite' in sys.argv
+SHIP_COUNT = max(1, get_arg_value('--count', 10, int))
 
 if __name__ == "__main__":
 
@@ -1564,7 +1576,7 @@ if __name__ == "__main__":
     if generate_single_spaceship:
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         start_idx = 0 if OVERWRITE_MODE else next_available_index(OUTPUT_DIR)
-        num_ships = 10
+        num_ships = SHIP_COUNT
         if EXTREME_MODE:
             print(f'=== EXTREME MODE ===')
         print(f'Starting at index {start_idx}')
