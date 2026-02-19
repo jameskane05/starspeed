@@ -17,7 +17,7 @@ import {
   getKeyDisplayName,
 } from "./KeyBindings.js";
 import { Player } from "../entities/Player.js";
-import { Enemy, loadShipModels, shipModels } from "../entities/Enemy.js";
+import { Enemy, loadShipModels, shipModels, reapplyShipMaterials } from "../entities/Enemy.js";
 import {
   prefractureModels,
   spawnDestruction,
@@ -92,7 +92,8 @@ export class Game {
     this.lastLaserTime = 0;
     this.laserCooldown = 0.1;
     this.clock = new THREE.Clock();
-    this.boundFireEnemy = (pos, dir) => this.fireEnemyWeapon(pos, dir);
+    this.boundFireEnemy = (pos, dir, style) =>
+      this.fireEnemyWeapon(pos, dir, style);
 
     this.hud = null;
     this._hudLast = { health: null, kills: null, missiles: null, boost: null };
@@ -401,6 +402,7 @@ export class Game {
     this.enemyShipAssetsPromise = (async () => {
       await loadShipModels();
       prefractureModels(shipModels);
+      await reapplyShipMaterials(shipModels);
     })();
     await this.enemyShipAssetsPromise;
   }
@@ -1665,15 +1667,25 @@ export class Game {
     });
   }
 
-  fireEnemyWeapon(position, direction) {
+  fireEnemyWeapon(position, direction, style = null) {
     const projectile = new Projectile(
       this.scene,
       position.clone(),
       direction,
       false,
+      null,
+      style,
     );
     this.projectiles.push(projectile);
     sfxManager.play("laser", position);
+    if (style?.color) {
+      this.dynamicLights?.flash(position, style.color, {
+        intensity: 8,
+        distance: 12,
+        ttl: 0.05,
+        fade: 0.1,
+      });
+    }
   }
 
   updateHUD(delta) {
