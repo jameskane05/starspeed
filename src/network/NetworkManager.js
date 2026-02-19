@@ -3,7 +3,7 @@ import * as Colyseus from "@colyseus/sdk";
 // Production multiplayer endpoint (override with VITE_SERVER_URL if needed)
 const CLOUD_SERVER_URL =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_SERVER_URL) ||
-  "https://starspeed.game";
+  "https://us-ord-23ba76a6.colyseus.cloud";
 const LOCAL_SERVER_URL = "ws://localhost:2567";
 
 const isLocalDev = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
