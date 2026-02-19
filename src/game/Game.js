@@ -118,6 +118,7 @@ export class Game {
 
     this.xrManager = null;
     this._frameCount = 0;
+    this.enemyShipAssetsPromise = null;
   }
 
   async init() {
@@ -285,8 +286,6 @@ export class Game {
     this.level = new Level(this.scene);
     this.level.generate({ skipVisuals: true, skipPhysics: true });
 
-    await loadShipModels();
-    prefractureModels(shipModels);
     sfxManager.init(sfxSounds);
 
     const onResizeOrViewport = () => this.onResize();
@@ -345,6 +344,7 @@ export class Game {
 
     // Preload and wait for level
     await this.preloadLevel();
+    await this.ensureEnemyShipAssetsLoaded();
 
     // Show game canvas
     this.renderer.domElement.style.display = "block";
@@ -391,6 +391,18 @@ export class Game {
       isRunning: true,
       isMultiplayer: false,
     });
+  }
+
+  async ensureEnemyShipAssetsLoaded() {
+    if (this.enemyShipAssetsPromise) {
+      await this.enemyShipAssetsPromise;
+      return;
+    }
+    this.enemyShipAssetsPromise = (async () => {
+      await loadShipModels();
+      prefractureModels(shipModels);
+    })();
+    await this.enemyShipAssetsPromise;
   }
 
   setupNetworkListeners() {
