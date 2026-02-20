@@ -1,22 +1,29 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="./favicon.ico" sizes="48x48" />
     <link rel="icon" href="./logo.svg" sizes="any" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./apple-touch-icon-180x180.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <meta name="theme-color" content="#050510" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="description" content="Zero-G aerial combat multiplayer game. 6DOF space shooter." />
-    <title>STARSPEED</title>
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="description" content="Zero-G Aerial Combat" />
+    <title>STARSPEED by James C. Kane</title>
     <link rel="stylesheet" href="/src/ui/hud.css" />
   </head>
   <body>
     <div id="menu-container"></div>
     <div id="crosshair"></div>
     <div id="mobile-controls">
+      <button id="mobile-menu-btn" data-action="menu" type="button" aria-label="Menu">☰</button>
       <div class="joystick joystick-move">
         <div class="thumb"></div>
       </div>

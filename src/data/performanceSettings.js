@@ -41,7 +41,7 @@ export const PERFORMANCE_PROFILES = {
     rendering: {
       pixelRatio: Math.min(window.devicePixelRatio, 1.5),
       shadows: true,
-      bloom: false,
+      bloom: true,
       enemyLights: false,
       toneMapping: true,
       toneMappingExposure: 1.5,

@@ -153,6 +153,7 @@ export class MobileControls {
     const rollLeft = container.querySelector('[data-action="roll-left"]');
     const rollRight = container.querySelector('[data-action="roll-right"]');
     const boost = container.querySelector('[data-action="boost"]');
+    const menuBtn = container.querySelector('[data-action="menu"]');
 
     const handle = (el, fn) => {
       if (!el) return;
@@ -164,6 +165,8 @@ export class MobileControls {
 
     handle(fireMissile, () => this.game.firePlayerMissile());
     handle(fireWeapon, () => this.game.firePlayerWeapon());
+
+    handle(menuBtn, () => this.game.showEscMenu());
 
     handle(strafeUp, () => setKey('strafeUp', true));
     handle(strafeDown, () => setKey('strafeDown', true));

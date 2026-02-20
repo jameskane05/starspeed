@@ -5,6 +5,7 @@ import { GamepadInput, GAMEPAD_INPUT_LABELS, GAMEPAD_ACTION_LABELS } from "../ga
 import { AudioSettings } from "../game/AudioSettings.js";
 import { StartScreenScene } from "./StartScreenScene.js";
 import proceduralAudio from "../audio/ProceduralAudio.js";
+import { getPerformanceProfile } from "../data/performanceSettings.js";
 
 const SCREENS = {
   MAIN_MENU: "mainMenu",
@@ -982,7 +983,14 @@ class MenuManager {
   renderOptions(returnScreen = null) {
     this.optionsReturnScreen = returnScreen || this.lastScreen || SCREENS.MAIN_MENU;
     this.optionsSection = this.optionsSection || 'gameplay';
-    
+    const isMobile = window.gameManager?.state?.isMobile;
+    if (isMobile && this.optionsSection === 'controls') this.optionsSection = 'gameplay';
+
+    const controlsBtn = !isMobile ? `
+            <button class="sidebar-btn ${this.optionsSection === 'controls' ? 'active' : ''}" data-section="controls">
+              <span class="sidebar-icon">⌨</span> CONTROLS
+            </button>` : '';
+
     this.menuContent.innerHTML = `
       <div class="menu-screen options-menu">
         <div class="menu-header">
@@ -994,9 +1002,7 @@ class MenuManager {
             <button class="sidebar-btn ${this.optionsSection === 'gameplay' ? 'active' : ''}" data-section="gameplay">
               <span class="sidebar-icon">🎮</span> GAMEPLAY
             </button>
-            <button class="sidebar-btn ${this.optionsSection === 'controls' ? 'active' : ''}" data-section="controls">
-              <span class="sidebar-icon">⌨</span> CONTROLS
-            </button>
+            ${controlsBtn}
             <button class="sidebar-btn ${this.optionsSection === 'sound' ? 'active' : ''}" data-section="sound">
               <span class="sidebar-icon">🔊</span> SOUND
             </button>
@@ -1069,7 +1075,9 @@ class MenuManager {
     const gm = window.gameManager;
     const currentProfile = gm?.state?.performanceProfile || 'high';
     const profiles = ['low', 'medium', 'high', 'max'];
-    const bloomEnabled = gm?.getSetting('bloomEnabled') ?? true;
+    const bloomUserSetting = gm?.getSetting('bloomEnabled');
+    const profileBloom = gm ? getPerformanceProfile(currentProfile).rendering?.bloom : true;
+    const bloomEnabled = bloomUserSetting ?? profileBloom ?? true;
     const bloomStrength = gm?.getSetting('bloomStrength') ?? 0.15;
     const bloomRadius = gm?.getSetting('bloomRadius') ?? 0.4;
     const bloomThreshold = gm?.getSetting('bloomThreshold') ?? 0.8;
@@ -1338,8 +1346,14 @@ class MenuManager {
     const select = document.getElementById('perf-profile-select');
     if (select) {
       select.addEventListener('change', () => {
-        if (window.gameManager) {
-          window.gameManager.setPerformanceProfile(select.value);
+        const gm = window.gameManager;
+        if (gm) {
+          gm.setPerformanceProfile(select.value);
+          const bloomUser = gm.getSetting('bloomEnabled');
+          if (bloomUser === undefined) {
+            const profile = gm.getPerformanceProfile();
+            gm.emit('bloom:changed', profile.rendering?.bloom ?? true);
+          }
         }
       });
     }
@@ -1589,7 +1603,14 @@ class MenuManager {
 
   renderOptionsInGame() {
     this.optionsSection = this.optionsSection || 'gameplay';
-    
+    const isMobile = window.gameManager?.state?.isMobile;
+    if (isMobile && this.optionsSection === 'controls') this.optionsSection = 'gameplay';
+
+    const controlsBtn = !isMobile ? `
+            <button class="sidebar-btn ${this.optionsSection === 'controls' ? 'active' : ''}" data-section="controls">
+              <span class="sidebar-icon">⌨</span> CONTROLS
+            </button>` : '';
+
     this.menuContent.innerHTML = `
       <div class="menu-screen options-menu in-game">
         <div class="menu-header">
@@ -1601,9 +1622,7 @@ class MenuManager {
             <button class="sidebar-btn ${this.optionsSection === 'gameplay' ? 'active' : ''}" data-section="gameplay">
               <span class="sidebar-icon">🎮</span> GAMEPLAY
             </button>
-            <button class="sidebar-btn ${this.optionsSection === 'controls' ? 'active' : ''}" data-section="controls">
-              <span class="sidebar-icon">⌨</span> CONTROLS
-            </button>
+            ${controlsBtn}
             <button class="sidebar-btn ${this.optionsSection === 'sound' ? 'active' : ''}" data-section="sound">
               <span class="sidebar-icon">🔊</span> SOUND
             </button>
