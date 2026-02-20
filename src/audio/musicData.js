@@ -1,9 +1,13 @@
 export const musicTracks = [
   "./audio/music/STARSPEED OST - GUIDEBOOK - 24 HR Diner.mp3",
+  "./audio/music/STARSPEED OST - GUIDEBOOK - Biff's Auto Detailing..mp3",
+  "./audio/music/STARSPEED OST - GUIDEBOOK - Florissant Meadows.mp3",
   "./audio/music/STARSPEED OST - GUIDEBOOK - Hyperion.mp3",
   "./audio/music/STARSPEED OST - GUIDEBOOK - I Miss The Internet (Instrumental).mp3",
+  "./audio/music/STARSPEED OST - GUIDEBOOK - Jamestown Mall.mp3",
   "./audio/music/STARSPEED OST - GUIDEBOOK - Modern Problems.mp3",
   "./audio/music/STARSPEED OST - GUIDEBOOK - SLEEPERS.mp3",
+  "./audio/music/STARSPEED OST - GUIDEBOOK - Walking Underground.mp3",
 ];
 
 export function shuffled(arr) {
