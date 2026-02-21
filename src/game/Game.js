@@ -171,11 +171,16 @@ export class Game {
     detectPlatform(this.gameManager);
 
     const perfProfile = this.gameManager.getPerformanceProfile();
-    const splatSettings = perfProfile.splat ?? {};
+    const useLowSplatLOD =
+      this.gameManager.state.isIOS || this.gameManager.state.isVisionPro;
+    const splatSettings = useLowSplatLOD
+      ? { lodSplatScale: 0.5, lodRenderScale: 0.5 }
+      : perfProfile.splat ?? {};
 
-    const maxPagedSplats = this.gameManager.state.isIOS
-      ? 96 * 65536
-      : 256 * 65536;
+    const maxPagedSplats =
+      this.gameManager.state.isIOS || this.gameManager.state.isVisionPro
+        ? 96 * 65536
+        : 256 * 65536;
 
     const boostDoFFocalDistance = 100;
     const boostDoFApertureSize = 0.4;
@@ -293,6 +298,7 @@ export class Game {
     this.gameManager.on("game:victory", () => this.onVictory());
 
     this.xrManager = new XRManager(this.renderer);
+    this.xrManager.onRightHandQuickTap = () => this.firePlayerWeapon();
 
     this.input = new Input(this);
 

@@ -22,12 +22,6 @@ export const GAME_STATES = {
 };
 
 export const LEVELS = {
-  hangar: {
-    id: "hangar",
-    name: "Orbital Station",
-    description: "Abandoned space station with tight corridors",
-    thumbnail: null,
-  },
   newworld: {
     id: "newworld",
     name: "New World",

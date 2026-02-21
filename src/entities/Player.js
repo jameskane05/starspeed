@@ -61,7 +61,14 @@ export class Player {
     this.camera.position.set(0, 0, 0);
     this.camera.quaternion.identity();
 
-    this.headlight = new THREE.SpotLight(0xffffff, 40, 200, Math.PI / 4, 0.5, 1.5);
+    this.headlight = new THREE.SpotLight(
+      0xffffff,
+      40,
+      200,
+      Math.PI / 4,
+      0.5,
+      1.5,
+    );
     this.headlight.position.set(0, 0.5, -0.5);
     this.headlight.target.position.set(0, 0, -10);
     this.headlight.visible = true;
@@ -108,13 +115,9 @@ export class Player {
           }
         });
 
-        // Cockpit interior light
         const cockpitLight = new THREE.PointLight(0x88aaff, 1, 5);
         cockpitLight.position.set(0, 0.2, 0);
-        this.camera.add(cockpitLight);
-
-        // Splat cone headlight - disabled
-        // this.createSplatConeHeadlight();
+        this.cockpit.add(cockpitLight);
 
         this.camera.add(this.cockpit);
         console.log("Cockpit loaded");
@@ -267,9 +270,13 @@ export class Player {
   }
 
   _restoreCockpitFromXR() {
-    if (this.cockpit) {
+    if (!this.xrManager || !this.cockpit) return;
+    const rig = this.xrManager.rig;
+    if (this.cockpit.parent === rig) {
+      rig.remove(this.cockpit);
       this.cockpit.scale.setScalar(1.0);
       this.cockpit.position.set(0, 0, 5.35);
+      this.camera.add(this.cockpit);
     }
   }
 
@@ -278,8 +285,10 @@ export class Player {
     const rig = this.xrManager.rig;
 
     if (this.cockpit && this.cockpit.parent === this.camera) {
+      this.camera.remove(this.cockpit);
       this.cockpit.scale.setScalar(1.5);
-      this.cockpit.position.set(0, -0.4, 4.5);
+      this.cockpit.position.set(0, 0.8, 8.25);
+      rig.add(this.cockpit);
     }
     if (this.headlight && this.headlight.parent === this.camera) {
       this.camera.remove(this.headlight);
@@ -297,9 +306,8 @@ export class Player {
     _up.set(0, 1, 0).applyQuaternion(rig.quaternion);
     _forward.set(0, 0, -1).applyQuaternion(rig.quaternion);
 
-    const lookSens =
-      (window.gameManager?.getLookSensitivity?.() ?? 0.8) / 0.8;
-    const lookSpeed = 2.5 * lookSens;
+    const lookSens = (window.gameManager?.getLookSensitivity?.() ?? 0.8) / 0.8;
+    const lookSpeed = 1.2 * lookSens;
     if (Math.abs(xr.lookInput.x) > 0.02 || Math.abs(xr.lookInput.y) > 0.02) {
       _yawQuat.setFromAxisAngle(_up, xr.lookInput.x * lookSpeed * delta);
       _pitchQuat.setFromAxisAngle(_right, xr.lookInput.y * lookSpeed * delta);
@@ -470,8 +478,7 @@ export class Player {
     }
 
     const controlDelta = Math.min(delta, 0.05);
-    const lookSens =
-      (window.gameManager?.getLookSensitivity?.() ?? 0.8) / 0.8;
+    const lookSens = (window.gameManager?.getLookSensitivity?.() ?? 0.8) / 0.8;
 
     _right.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
     _up.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
