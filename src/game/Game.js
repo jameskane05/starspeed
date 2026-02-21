@@ -1844,6 +1844,8 @@ export class Game {
     if (this.isMultiplayer) {
       const localPlayer = NetworkManager.getLocalPlayer();
       kills = localPlayer?.kills || 0;
+    } else {
+      kills = this.gameManager.getState().enemiesKilled || 0;
     }
 
     if (healthPercent !== this._hudLast.health) {

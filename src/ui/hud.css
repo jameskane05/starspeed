@@ -32,9 +32,8 @@ canvas {
 
 #hud {
   position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  right: calc(12px + env(safe-area-inset-right, 0px));
   color: #0f0;
   font-family: "Rajdhani", "Courier New", monospace;
   font-size: 1rem;
@@ -102,9 +101,10 @@ canvas {
 }
 
 @media (max-width: 768px) {
-  #hud {
-    bottom: auto;
-    top: 60px;
+  #mobile-controls.active ~ #hud {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.5rem;
   }
 }
 
@@ -377,8 +377,8 @@ canvas {
   display: block;
 }
 #mobile-menu-btn img {
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
   display: block;
   object-fit: contain;
 }
@@ -523,16 +523,22 @@ canvas {
 }
 
 @media (orientation: portrait), (max-aspect-ratio: 1/1) {
+  #mobile-controls .joystick-move {
+    left: calc(12px + env(safe-area-inset-left, 0px));
+  }
+  #mobile-controls .joystick-look {
+    right: calc(12px + env(safe-area-inset-right, 0px));
+  }
   #mobile-controls .joystick {
     bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   }
   #mobile-controls .directional-left {
-    left: 24px;
+    left: 12px;
     bottom: calc(134px + env(safe-area-inset-bottom, 0px));
     align-items: flex-end;
   }
   #mobile-controls .directional-right {
-    right: 24px;
+    right: 12px;
     bottom: calc(134px + env(safe-area-inset-bottom, 0px));
     align-items: flex-end;
   }
