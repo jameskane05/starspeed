@@ -50,6 +50,57 @@ canvas {
   opacity: 1;
 }
 
+#hud .hud-icon {
+  width: 1.1em;
+  height: 1.1em;
+  vertical-align: middle;
+  object-fit: contain;
+}
+
+#mobile-controls.active ~ #hud .hud-missiles,
+#mobile-controls.active ~ #hud .hud-boost {
+  display: none;
+}
+
+#mobile-controls.active ~ #hud .hud-kills,
+#mobile-controls.active ~ #hud .hud-shields {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+#mobile-controls.active ~ #hud .hud-kills .hud-icon,
+#mobile-controls.active ~ #hud .hud-shields .hud-icon {
+  width: 28px;
+  height: 28px;
+}
+
+#mobile-controls.active ~ #hud .hud-kills span,
+#mobile-controls.active ~ #hud .hud-shields span {
+  line-height: 1;
+  display: flex;
+  align-items: flex-end;
+  height: 28px;
+  margin-bottom: 6px;
+}
+
+#mobile-controls.active ~ #hud .hud-shields span::after {
+  content: "%";
+}
+
+#mobile-controls .mobile-counter {
+  display: none;
+  font-family: "Rajdhani", "Courier New", monospace;
+  font-size: 0.95rem;
+  color: #0f0;
+  text-shadow: 0 0 5px #0f0;
+  margin-top: 6px;
+}
+
+#mobile-controls.active .mobile-counter {
+  display: block;
+}
+
 @media (max-width: 768px) {
   #hud {
     bottom: auto;
@@ -134,8 +185,14 @@ canvas {
 }
 
 @keyframes killFadeIn {
-  from { opacity: 0; transform: translateX(20px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 #respawn-overlay {
@@ -197,38 +254,48 @@ canvas {
 }
 
 .damage-indicator-top {
-  background: radial-gradient(ellipse 120% 50% at 50% -10%, 
-    rgba(255, 30, 30, 0.7) 0%, 
-    rgba(180, 0, 0, 0.4) 30%, 
-    transparent 70%);
+  background: radial-gradient(
+    ellipse 120% 50% at 50% -10%,
+    rgba(255, 30, 30, 0.7) 0%,
+    rgba(180, 0, 0, 0.4) 30%,
+    transparent 70%
+  );
 }
 
 .damage-indicator-bottom {
-  background: radial-gradient(ellipse 120% 50% at 50% 110%, 
-    rgba(255, 30, 30, 0.7) 0%, 
-    rgba(180, 0, 0, 0.4) 30%, 
-    transparent 70%);
+  background: radial-gradient(
+    ellipse 120% 50% at 50% 110%,
+    rgba(255, 30, 30, 0.7) 0%,
+    rgba(180, 0, 0, 0.4) 30%,
+    transparent 70%
+  );
 }
 
 .damage-indicator-left {
-  background: radial-gradient(ellipse 50% 120% at -10% 50%, 
-    rgba(255, 30, 30, 0.7) 0%, 
-    rgba(180, 0, 0, 0.4) 30%, 
-    transparent 70%);
+  background: radial-gradient(
+    ellipse 50% 120% at -10% 50%,
+    rgba(255, 30, 30, 0.7) 0%,
+    rgba(180, 0, 0, 0.4) 30%,
+    transparent 70%
+  );
 }
 
 .damage-indicator-right {
-  background: radial-gradient(ellipse 50% 120% at 110% 50%, 
-    rgba(255, 30, 30, 0.7) 0%, 
-    rgba(180, 0, 0, 0.4) 30%, 
-    transparent 70%);
+  background: radial-gradient(
+    ellipse 50% 120% at 110% 50%,
+    rgba(255, 30, 30, 0.7) 0%,
+    rgba(180, 0, 0, 0.4) 30%,
+    transparent 70%
+  );
 }
 
 .damage-indicator-center {
-  background: radial-gradient(ellipse 100% 100% at 50% 50%, 
+  background: radial-gradient(
+    ellipse 100% 100% at 50% 50%,
     transparent 40%,
     rgba(180, 0, 0, 0.3) 70%,
-    rgba(255, 30, 30, 0.5) 100%);
+    rgba(255, 30, 30, 0.5) 100%
+  );
 }
 
 #boost-hud {
@@ -267,10 +334,14 @@ canvas {
   font-family: "Orbitron", sans-serif;
   font-size: 1.5rem;
   color: #00ff88;
-  text-shadow: 0 0 20px #00ff88, 0 0 40px #00ff88;
+  text-shadow:
+    0 0 20px #00ff88,
+    0 0 40px #00ff88;
   z-index: 100;
   opacity: 0;
-  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+  transition:
+    opacity 0.3s ease-out,
+    transform 0.3s ease-out;
   pointer-events: none;
 }
 
@@ -298,18 +369,18 @@ canvas {
   top: calc(12px + env(safe-area-inset-top, 0px));
   left: calc(12px + env(safe-area-inset-left, 0px));
   z-index: 10;
-  width: 48px;
-  height: 48px;
-  font-size: 1.5rem;
-  border: 2px solid rgba(0, 255, 255, 0.5);
-  background: rgba(0, 40, 60, 0.7);
-  color: #fff;
-  border-radius: 50%;
+  padding: 0;
+  border: none;
+  background: none;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
+}
+#mobile-menu-btn img {
+  width: 48px;
+  height: 48px;
+  display: block;
+  object-fit: contain;
 }
 
 #mobile-controls * {
@@ -335,9 +406,9 @@ canvas {
   width: 120px;
   height: 120px;
   bottom: calc(8px + env(safe-area-inset-bottom, 0px));
-  border-radius: 50%;
-  background: rgba(0, 40, 60, 0.6);
-  border: 2px solid rgba(0, 255, 255, 0.4);
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  background: url(/images/ui/joystick-background.png) center / 120px auto
+    no-repeat;
   touch-action: none;
   display: flex;
   align-items: center;
@@ -347,8 +418,9 @@ canvas {
 #mobile-controls .joystick .thumb {
   width: 50px;
   height: 50px;
-  border-radius: 50%;
-  background: rgba(0, 255, 255, 0.5);
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  background: rgba(64, 205, 225, 1);
+  box-shadow: 0 0 12px rgba(0, 255, 255, 0.5);
   transition: transform 0.05s;
 }
 
@@ -366,20 +438,24 @@ canvas {
   display: flex;
   flex-direction: row;
   gap: 8px;
-  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(2px + env(safe-area-inset-bottom, 0px));
 }
 
 #mobile-controls .directional-left button,
 #mobile-controls .directional-right button {
-  width: 48px;
-  height: 48px;
-  font-size: 1.4rem;
-  border: 2px solid rgba(0, 255, 255, 0.5);
-  background: rgba(0, 40, 60, 0.7);
-  color: #fff;
-  border-radius: 50%;
+  padding: 0;
+  border: none;
+  background: none;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  display: block;
+}
+#mobile-controls .directional-left button img,
+#mobile-controls .directional-right button img {
+  width: 56px;
+  height: 56px;
+  display: block;
+  object-fit: contain;
 }
 
 #mobile-controls .combat-center {
@@ -396,20 +472,23 @@ canvas {
 #mobile-controls .combat-right {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 2px;
   align-items: center;
 }
 
 #mobile-controls .combat-center button {
-  width: 56px;
-  height: 56px;
-  font-size: 1.5rem;
-  border: 2px solid rgba(255, 200, 0, 0.6);
-  background: rgba(80, 30, 0, 0.7);
-  color: #fff;
-  border-radius: 50%;
+  padding: 0;
+  border: none;
+  background: none;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  display: block;
+}
+#mobile-controls .combat-center button img {
+  width: 56px;
+  height: 56px;
+  display: block;
+  object-fit: contain;
 }
 
 @media (orientation: landscape) {
@@ -421,12 +500,12 @@ canvas {
   }
   #mobile-controls .directional-left {
     left: calc(12px + env(safe-area-inset-left, 0px));
-    bottom: calc(8px + 120px + 12px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(2px + 120px + 12px + env(safe-area-inset-bottom, 0px));
     align-items: flex-end;
   }
   #mobile-controls .directional-right {
     right: calc(12px + env(safe-area-inset-right, 0px));
-    bottom: calc(8px + 120px + 12px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(2px + 120px + 12px + env(safe-area-inset-bottom, 0px));
     align-items: flex-end;
   }
   #mobile-controls .directional-left button,
@@ -449,12 +528,12 @@ canvas {
   }
   #mobile-controls .directional-left {
     left: 24px;
-    bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(134px + env(safe-area-inset-bottom, 0px));
     align-items: flex-end;
   }
   #mobile-controls .directional-right {
     right: 24px;
-    bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(134px + env(safe-area-inset-bottom, 0px));
     align-items: flex-end;
   }
   #mobile-controls .directional-left,
@@ -470,10 +549,13 @@ canvas {
   #mobile-controls .combat-left {
     flex-direction: column;
   }
-  #mobile-controls .directional-left button,
-  #mobile-controls .directional-right button,
-  #mobile-controls .combat-center button {
-    min-width: 52px;
-    min-height: 52px;
+  #mobile-controls .directional-left button img,
+  #mobile-controls .directional-right button img {
+    width: 56px;
+    height: 56px;
+  }
+  #mobile-controls .combat-center button img {
+    width: 56px;
+    height: 56px;
   }
 }

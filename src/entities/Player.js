@@ -28,8 +28,8 @@ export class Player {
     this.shieldRegenDelay = 5;
     this.shieldRegenRate = 15;
 
-    this.boostFuel = 100;
-    this.maxBoostFuel = 100;
+    this.boostFuel = 200;
+    this.maxBoostFuel = 200;
     this.boostDrainRate = 20;
     this.boostRegenRate = 33;
     this.boostRegenDelay = 3;

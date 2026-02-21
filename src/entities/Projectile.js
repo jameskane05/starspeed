@@ -32,7 +32,7 @@ const _forward = new THREE.Vector3(0, 0, 1);
 const _tempVec = new THREE.Vector3();
 
 export class Projectile {
-  constructor(scene, position, direction, isPlayerOwned, speed = null, visual = null) {
+  constructor(scene, position, direction, isPlayerOwned, speed = null, visual = null, splatLight = null) {
     this.scene = scene;
     this.direction = direction.clone();
     if (this.direction.lengthSq() > 0.0001) {
@@ -46,6 +46,7 @@ export class Projectile {
     this.disposed = false;
     this.spawnOrigin = position.clone();
     this.prevPosition = position.clone();
+    this.splatLight = splatLight;
 
     const geometry = isPlayerOwned ? playerGeometry : enemyGeometry;
     let material = isPlayerOwned ? playerMaterial : enemyMaterial;
@@ -61,9 +62,11 @@ export class Projectile {
     this.mesh = new THREE.Mesh(geometry, material);
     this.mesh.position.copy(position);
     this.mesh.quaternion.setFromUnitVectors(_forward, this.direction);
-    // Occlusion handled by physics mesh depth buffer
-
     scene.add(this.mesh);
+
+    if (this.splatLight) {
+      this.splatLight.position.copy(position);
+    }
   }
 
   update(delta) {
@@ -71,11 +74,17 @@ export class Projectile {
     this.prevPosition.copy(this.mesh.position);
     _tempVec.copy(this.direction).multiplyScalar(this.speed * delta);
     this.mesh.position.add(_tempVec);
+    if (this.splatLight) {
+      this.splatLight.position.copy(this.mesh.position);
+    }
   }
 
   dispose(scene) {
     if (this.disposed) return;
     this.disposed = true;
+    if (this.splatLight && this.splatLight.parent) {
+      this.splatLight.parent.remove(this.splatLight);
+    }
     scene.remove(this.mesh);
   }
 }

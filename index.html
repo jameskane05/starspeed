@@ -23,7 +23,14 @@
     <div id="menu-container"></div>
     <div id="crosshair"></div>
     <div id="mobile-controls">
-      <button id="mobile-menu-btn" data-action="menu" type="button" aria-label="Menu">☰</button>
+      <button
+        id="mobile-menu-btn"
+        data-action="menu"
+        type="button"
+        aria-label="Menu"
+      >
+        <img src="/images/ui/menu.png" alt="Menu" />
+      </button>
       <div class="joystick joystick-move">
         <div class="thumb"></div>
       </div>
@@ -31,20 +38,40 @@
         <div class="thumb"></div>
       </div>
       <div class="directional-left">
-        <button data-action="strafe-up" type="button">⬆️</button>
-        <button data-action="strafe-down" type="button">⬇️</button>
+        <button data-action="strafe-up" type="button">
+          <img src="/images/ui/strafe-up.png" alt="Strafe up" />
+        </button>
+        <button data-action="strafe-down" type="button">
+          <img src="/images/ui/strafe-down.png" alt="Strafe down" />
+        </button>
       </div>
       <div class="directional-right">
-        <button data-action="roll-left" type="button">↺</button>
-        <button data-action="roll-right" type="button">↻</button>
+        <button data-action="roll-left" type="button">
+          <img src="/images/ui/roll-left.png" alt="Roll left" />
+        </button>
+        <button data-action="roll-right" type="button">
+          <img src="/images/ui/roll-right.png" alt="Roll right" />
+        </button>
       </div>
       <div class="combat-center">
         <div class="combat-left">
-          <button data-action="boost" type="button">⏩</button>
-          <button data-action="fire-missile" type="button">🚀</button>
+          <div class="mobile-counter mobile-boost">
+            <span id="mobile-boost">100</span>%
+          </div>
+          <button data-action="boost" type="button">
+            <img src="/images/ui/booster-rockets.png" alt="Boost" />
+          </button>
+          <div class="mobile-counter mobile-missiles">
+            <span id="mobile-missiles">20</span>
+          </div>
+          <button data-action="fire-missile" type="button">
+            <img src="/images/ui/missiles.png" alt="Fire missile" />
+          </button>
         </div>
         <div class="combat-right">
-          <button data-action="fire-weapon" type="button">⚡</button>
+          <button data-action="fire-weapon" type="button">
+            <img src="/images/ui/lasers.png" alt="Fire weapon" />
+          </button>
         </div>
       </div>
     </div>
@@ -56,10 +83,32 @@
       <div class="damage-indicator damage-indicator-center"></div>
     </div>
     <div id="hud">
-      <div>🚀 <span id="missiles">20</span></div>
-      <div>☠️ <span id="kills">0</span></div>
-      <div>🛡️ <span id="health">100</span>%</div>
-      <div>⏩ <span id="boost">100</span>%</div>
+      <div class="hud-missiles">
+        <img
+          src="/images/ui/missiles.png"
+          alt="Missiles"
+          class="hud-icon"
+        /><span id="missiles">20</span>
+      </div>
+      <div class="hud-kills">
+        <img src="/images/ui/kills.png" alt="Kills" class="hud-icon" /><span
+          id="kills"
+          >0</span
+        >
+      </div>
+      <div class="hud-shields">
+        <img src="/images/ui/shields.png" alt="Shields" class="hud-icon" /><span
+          id="health"
+          >100</span
+        >
+      </div>
+      <div class="hud-boost">
+        <img
+          src="/images/ui/booster-rockets.png"
+          alt="Boost"
+          class="hud-icon"
+        /><span id="boost">100</span>%
+      </div>
     </div>
     <div id="controls-help">
       <div class="controls-help-content"></div>

@@ -68,6 +68,17 @@ export function createTrimeshCollider(vertices, indices, px, py, pz) {
   return world.createCollider(colliderDesc, body);
 }
 
+export function createKinematicTrimeshCollider(vertices, indices, px, py, pz) {
+  const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(px, py, pz);
+  const body = world.createRigidBody(bodyDesc);
+  const colliderDesc = RAPIER.ColliderDesc.trimesh(
+    new Float32Array(vertices),
+    new Uint32Array(indices),
+  );
+  world.createCollider(colliderDesc, body);
+  return body;
+}
+
 /**
  * Check if a point is inside an enclosed mesh by casting small spheres in 6 axis directions.
  * Uses castShape (double-sided on trimeshes) instead of castRay (single-sided).
@@ -78,14 +89,25 @@ export function isInsideMesh(x, y, z, maxDist = 200) {
 
   const probeRadius = 0.1;
   const dirs = [
-    [1, 0, 0], [-1, 0, 0],
-    [0, 1, 0], [0, -1, 0],
-    [0, 0, 1], [0, 0, -1],
+    [1, 0, 0],
+    [-1, 0, 0],
+    [0, 1, 0],
+    [0, -1, 0],
+    [0, 0, 1],
+    [0, 0, -1],
   ];
 
   let hits = 0;
   for (const [dx, dy, dz] of dirs) {
-    const hit = castSphere(x, y, z, x + dx * maxDist, y + dy * maxDist, z + dz * maxDist, probeRadius);
+    const hit = castSphere(
+      x,
+      y,
+      z,
+      x + dx * maxDist,
+      y + dy * maxDist,
+      z + dz * maxDist,
+      probeRadius,
+    );
     if (hit) hits++;
   }
   return hits >= 5;
