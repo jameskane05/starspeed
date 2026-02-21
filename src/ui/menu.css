@@ -1788,6 +1788,84 @@
   justify-content: center;
 }
 
+/* Level Select Modal */
+.level-select-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  box-sizing: border-box;
+}
+
+.level-select-content {
+  background: var(--bg-panel);
+  border: 2px solid var(--accent-cyan);
+  padding: 2rem 3rem;
+  box-shadow: 0 0 30px rgba(0, 240, 255, 0.3);
+  max-width: min(90vw, 420px);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.level-select-content h3 {
+  font-family: "Orbitron", sans-serif;
+  font-size: 1.4rem;
+  color: var(--accent-cyan);
+  margin: 0 0 1.5rem 0;
+  letter-spacing: 0.15em;
+}
+
+.level-select-content .form-group {
+  margin-bottom: 1.5rem;
+}
+
+.level-select-content .menu-select {
+  min-height: 48px;
+  font-size: 1rem;
+}
+
+.level-select-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.level-select-buttons .menu-btn {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0.9rem 1.5rem;
+  touch-action: manipulation;
+}
+
+@media (max-width: 768px) {
+  .level-select-content {
+    padding: 1.5rem 1.5rem;
+    margin: 1rem;
+  }
+
+  .level-select-content h3 {
+    font-size: 1.2rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .level-select-buttons {
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+  }
+
+  .level-select-buttons .menu-btn {
+    min-height: 52px;
+    padding: 1rem;
+  }
+}
+
 /* Rebind Modal */
 .rebind-modal {
   position: fixed;
