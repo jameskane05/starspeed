@@ -3,7 +3,13 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
-import { NewSparkRenderer } from "@sparkjsdev/spark";
+import {
+  NewSparkRenderer,
+  SplatEdit,
+  SplatEditSdf,
+  SplatEditSdfType,
+  SplatEditRgbaBlendMode,
+} from "@sparkjsdev/spark";
 import {
   initPhysics,
   stepWorld,
@@ -17,7 +23,12 @@ import {
   getKeyDisplayName,
 } from "./KeyBindings.js";
 import { Player } from "../entities/Player.js";
-import { Enemy, loadShipModels, shipModels, reapplyShipMaterials } from "../entities/Enemy.js";
+import {
+  Enemy,
+  loadShipModels,
+  shipModels,
+  reapplyShipMaterials,
+} from "../entities/Enemy.js";
 import {
   prefractureModels,
   spawnDestruction,
@@ -34,6 +45,7 @@ import { Level } from "../world/Level.js";
 import GameManager from "../managers/GameManager.js";
 import SceneManager from "../managers/SceneManager.js";
 import LightManager from "../managers/LightManager.js";
+import { DynamicSceneElementManager } from "../managers/DynamicSceneElementManager.js";
 import { GAME_STATES, SHIP_CLASSES } from "../data/gameData.js";
 import { getSceneObjectsForState } from "../data/sceneData.js";
 import { getPerformanceProfile } from "../data/performanceSettings.js";
@@ -120,6 +132,7 @@ export class Game {
     this.xrManager = null;
     this._frameCount = 0;
     this.enemyShipAssetsPromise = null;
+    this.projectileSplatLayer = null;
   }
 
   async init() {
@@ -261,6 +274,14 @@ export class Game {
       gameManager: this.gameManager,
     });
 
+    this.dynamicSceneElementManager = new DynamicSceneElementManager({
+      gameManager: this.gameManager,
+      getGameTime: () =>
+        this.isMultiplayer
+          ? (NetworkManager.getState()?.matchTime ?? 0)
+          : (this.clock?.elapsedTime ?? 0),
+    });
+
     this.musicManager = new MusicManager();
     this.musicManager.setGameManager(this.gameManager);
 
@@ -280,6 +301,8 @@ export class Game {
       kills: document.getElementById("kills"),
       missiles: document.getElementById("missiles"),
       boost: document.getElementById("boost"),
+      mobileMissiles: document.getElementById("mobile-missiles"),
+      mobileBoost: document.getElementById("mobile-boost"),
     };
 
     this.controlsHelpEl = document.getElementById("controls-help");
@@ -313,12 +336,21 @@ export class Game {
 
     this.gameManager.setState({ currentState: GAME_STATES.MENU });
 
+    this._initProjectileSplatLayer();
+
     // Debug: ?solo to skip menu and start singleplayer with AI enemies
-    // ?solo=newworld to start on a specific level
+    // ?solo=newworld or ?map=redarena - level can be set via solo value or map param
     const params = new URLSearchParams(window.location.search);
     if (params.has("solo")) {
-      const level = params.get("solo");
-      if (level && level !== "true" && level !== "") {
+      const mapLevel = params.get("map");
+      const soloLevel = params.get("solo");
+      const level =
+        mapLevel && mapLevel !== "true"
+          ? mapLevel
+          : soloLevel && soloLevel !== "true" && soloLevel !== ""
+            ? soloLevel
+            : null;
+      if (level) {
         this.gameManager.setState({ currentLevel: level });
       }
       console.log(
@@ -335,6 +367,9 @@ export class Game {
 
   async startSoloDebug() {
     this.isMultiplayer = false;
+
+    const level = this.gameManager.getState().currentLevel;
+    this.lightManager?.updateAmbientForLevel(level);
 
     engineAudio.init();
 
@@ -370,7 +405,10 @@ export class Game {
 
     // Place player at a random spawn point
     if (this.playerSpawnPoints.length > 0) {
-      const sp = this.playerSpawnPoints[Math.floor(Math.random() * this.playerSpawnPoints.length)];
+      const sp =
+        this.playerSpawnPoints[
+          Math.floor(Math.random() * this.playerSpawnPoints.length)
+        ];
       this.camera.position.copy(sp);
     }
 
@@ -634,6 +672,45 @@ export class Game {
     MenuManager.loadingComplete();
   }
 
+  _initProjectileSplatLayer() {
+    if (this.projectileSplatLayer) return;
+    if (
+      !this.gameManager.getPerformanceSetting(
+        "rendering",
+        "projectileSplatLights",
+      )
+    )
+      return;
+    const layer = new SplatEdit({
+      rgbaBlendMode: SplatEditRgbaBlendMode.ADD_RGBA,
+      sdfSmooth: 0.2,
+      softEdge: 2.5,
+    });
+    this.scene.add(layer);
+    this.projectileSplatLayer = layer;
+  }
+
+  _createProjectileSplatLight(isPlayerOwned, visual) {
+    if (!this.projectileSplatLayer) return null;
+    try {
+      const color = isPlayerOwned
+        ? new THREE.Color(0.5, 0.7, 0.85)
+        : visual?.color
+          ? new THREE.Color(visual.color)
+          : new THREE.Color(0.9, 0.5, 0.3);
+      const sdf = new SplatEditSdf({
+        type: SplatEditSdfType.SPHERE,
+        radius: 6,
+        color,
+        opacity: 0.06,
+      });
+      this.projectileSplatLayer.add(sdf);
+      return sdf;
+    } catch {
+      return null;
+    }
+  }
+
   startMultiplayerGame() {
     this.isMultiplayer = true;
 
@@ -646,6 +723,7 @@ export class Game {
     // Set the current level from the server room state
     if (state?.level) {
       this.gameManager.setState({ currentLevel: state.level });
+      this.lightManager?.updateAmbientForLevel(state.level);
     }
 
     if (!localPlayer) return;
@@ -814,13 +892,15 @@ export class Game {
       });
       this.networkProjectiles.set(id, { type: "missile", obj: missile });
     } else {
-      // Other player projectiles should be visible as player (cyan) projectiles, not enemy (orange)
+      const splatLight = this._createProjectileSplatLight(true, null);
       const projectile = new Projectile(
         this.scene,
         position,
         direction,
         true,
         data.speed,
+        null,
+        splatLight,
       );
       this.networkProjectiles.set(id, { type: "projectile", obj: projectile });
 
@@ -1048,7 +1128,10 @@ export class Game {
     this.player.lastDamageTime = 0;
 
     if (this.playerSpawnPoints?.length > 0) {
-      const sp = this.playerSpawnPoints[Math.floor(Math.random() * this.playerSpawnPoints.length)];
+      const sp =
+        this.playerSpawnPoints[
+          Math.floor(Math.random() * this.playerSpawnPoints.length)
+        ];
       this.camera.position.copy(sp);
     } else {
       this.camera.position.set(0, 0, 0);
@@ -1156,43 +1239,66 @@ export class Game {
   }
 
   _getLevelOcclusion() {
+    const level = this.gameManager.getState().currentLevel;
+    const levelDataId = level ? `${level}LevelData` : null;
     return (
+      (levelDataId && this.sceneManager.getObject(levelDataId)) ||
       this.sceneManager.getObject("levelOcclusion") ||
+      this.sceneManager.getObject("newworldLevelData") ||
       this.sceneManager.getObject("newworldOcclusion")
     );
   }
 
   _extractSpawnPoints() {
+    this.spawnPoints = [];
+    this.playerSpawnPoints = [];
+    this.missileSpawnPoints = [];
+    this.dynamicSceneElementManager?.setElements([]);
+
+    const level = this.gameManager.getState().currentLevel;
+    const levelDataId = level ? `${level}LevelData` : null;
+    const levelData = levelDataId
+      ? this.sceneManager.getObject(levelDataId)
+      : null;
+    if (levelData?.userData?.extractedSpawnPoints) {
+      const { enemy, player, missile } =
+        levelData.userData.extractedSpawnPoints;
+      this.spawnPoints = enemy;
+      this.playerSpawnPoints = player;
+      this.missileSpawnPoints = missile;
+      this.dynamicSceneElementManager?.setElements(levelData.userData.dynamicSceneElements || []);
+      console.log(
+        `[Game] Parsed ${levelDataId}: ${this.spawnPoints.length} enemies, ${this.playerSpawnPoints.length} player spawns, ${this.missileSpawnPoints.length} missile pickups`,
+      );
+      const levelMesh = this._getLevelOcclusion();
+      if (levelMesh) {
+        const box = new THREE.Box3().setFromObject(levelMesh);
+        this._levelBounds = {
+          center: box.getCenter(new THREE.Vector3()),
+          size: box.getSize(new THREE.Vector3()),
+        };
+      }
+      return;
+    }
+
     const spawnId = this.sceneManager.hasObject("newworldSpawns")
       ? "newworldSpawns"
       : this.sceneManager.hasObject("levelSpawns")
         ? "levelSpawns"
         : null;
-
     const spawnModel = spawnId ? this.sceneManager.getObject(spawnId) : null;
-
-    this.spawnPoints = [];
-    this.playerSpawnPoints = [];
-    this.missileSpawnPoints = [];
 
     if (spawnModel) {
       spawnModel.updateMatrixWorld(true);
-
       spawnModel.traverse((child) => {
         if (!child.isMesh) return;
         const pos = new THREE.Vector3();
         child.getWorldPosition(pos);
         const name = child.name || "";
-
-        if (name.startsWith("Enemy")) {
-          this.spawnPoints.push(pos);
-        } else if (name.startsWith("Spawn")) {
-          this.playerSpawnPoints.push(pos);
-        } else if (name.startsWith("Missile")) {
-          this.missileSpawnPoints.push(pos);
-        }
+        if (name.startsWith("Enemy")) this.spawnPoints.push(pos);
+        else if (name.startsWith("Spawn")) this.playerSpawnPoints.push(pos);
+        else if (name.startsWith("Missile")) this.missileSpawnPoints.push(pos);
       });
-
       this.sceneManager.removeObject(spawnId);
       console.log(
         `[Game] Parsed ${spawnId}: ${this.spawnPoints.length} enemies, ${this.playerSpawnPoints.length} player spawns, ${this.missileSpawnPoints.length} missile pickups`,
@@ -1279,9 +1385,17 @@ export class Game {
       const id = `missile_solo_${i}`;
       const data = { id, type: "missile", x: pos.x, y: pos.y, z: pos.z };
       const collectible = new Collectible(this.scene, data, this.dynamicLights);
-      this._missilePickups.push({ id, collectible, pos: pos.clone(), respawnTimer: 0, active: true });
+      this._missilePickups.push({
+        id,
+        collectible,
+        pos: pos.clone(),
+        respawnTimer: 0,
+        active: true,
+      });
     }
-    console.log(`[Game] Spawned ${this._missilePickups.length} missile pickups`);
+    console.log(
+      `[Game] Spawned ${this._missilePickups.length} missile pickups`,
+    );
   }
 
   _checkMissilePickups(playerPos, delta) {
@@ -1292,10 +1406,17 @@ export class Game {
       if (!pickup.active) {
         pickup.respawnTimer -= delta;
         if (pickup.respawnTimer <= 0) {
-          pickup.collectible = new Collectible(this.scene, {
-            id: pickup.id, type: "missile",
-            x: pickup.pos.x, y: pickup.pos.y, z: pickup.pos.z,
-          }, this.dynamicLights);
+          pickup.collectible = new Collectible(
+            this.scene,
+            {
+              id: pickup.id,
+              type: "missile",
+              x: pickup.pos.x,
+              y: pickup.pos.y,
+              z: pickup.pos.z,
+            },
+            this.dynamicLights,
+          );
           pickup.active = true;
         }
         continue;
@@ -1306,7 +1427,11 @@ export class Game {
       const dx = playerPos.x - pickup.pos.x;
       const dy = playerPos.y - pickup.pos.y;
       const dz = playerPos.z - pickup.pos.z;
-      if (dx * dx + dy * dy + dz * dz < pickupRadiusSq && this.player && this.player.missiles < this.player.maxMissiles) {
+      if (
+        dx * dx + dy * dy + dz * dz < pickupRadiusSq &&
+        this.player &&
+        this.player.missiles < this.player.maxMissiles
+      ) {
         this.player.missiles = this.player.maxMissiles;
         pickup.collectible.playPickupEffect();
         pickup.collectible.dispose();
@@ -1615,8 +1740,16 @@ export class Game {
       NetworkManager.sendFire("laser", spawnPos, _fireDir);
     }
 
-    // Local prediction - show projectile immediately
-    const projectile = new Projectile(this.scene, spawnPos, _fireDir, true);
+    const splatLight = this._createProjectileSplatLight(true, null);
+    const projectile = new Projectile(
+      this.scene,
+      spawnPos,
+      _fireDir,
+      true,
+      null,
+      null,
+      splatLight,
+    );
     this.projectiles.push(projectile);
 
     // Play spatial audio at spawn position
@@ -1668,6 +1801,7 @@ export class Game {
   }
 
   fireEnemyWeapon(position, direction, style = null) {
+    const splatLight = this._createProjectileSplatLight(false, style);
     const projectile = new Projectile(
       this.scene,
       position.clone(),
@@ -1675,6 +1809,7 @@ export class Game {
       false,
       null,
       style,
+      splatLight,
     );
     this.projectiles.push(projectile);
     sfxManager.play("laser", position);
@@ -1721,11 +1856,15 @@ export class Game {
     }
     if (missiles !== this._hudLast.missiles) {
       const maxMissiles = this.player.maxMissiles || missiles;
-      this.hud.missiles.textContent = `${missiles}/${maxMissiles}`;
+      const text = `${missiles}/${maxMissiles}`;
+      if (this.hud.missiles) this.hud.missiles.textContent = text;
+      if (this.hud.mobileMissiles) this.hud.mobileMissiles.textContent = text;
       this._hudLast.missiles = missiles;
     }
     if (boostPercent !== this._hudLast.boost) {
-      this.hud.boost.textContent = String(boostPercent);
+      const text = String(boostPercent);
+      if (this.hud.boost) this.hud.boost.textContent = text;
+      if (this.hud.mobileBoost) this.hud.mobileBoost.textContent = text;
       this._hudLast.boost = boostPercent;
     }
   }
@@ -1765,6 +1904,7 @@ export class Game {
     this.input.pollGamepad();
 
     if (isPlaying) {
+      this.dynamicSceneElementManager?.update();
       stepWorld();
 
       if (!this._soloRespawning) {
@@ -1827,7 +1967,7 @@ export class Game {
       // Only update enemies in single player
       if (!this.isMultiplayer) {
         const cullDist =
-          this.gameManager.getPerformanceProfile().enemyCullDistance ?? 100;
+          this.gameManager.getPerformanceProfile().enemyCullDistance ?? 200;
         for (let i = 0; i < this.enemies.length; i++) {
           this.enemies[i].update(
             delta,
@@ -1965,6 +2105,10 @@ export class Game {
     // Dust motes are a global environment effect - fixed in world space
     // Don't update the emission box, it's set once at initialization
 
+    if (this.projectileSplatLayer) {
+      this.projectileSplatLayer.updateMatrixWorld(true);
+    }
+
     if (this.xrManager?.isPresenting) {
       this.renderer.render(this.scene, this.camera);
     } else if (this._bloomActive) {
@@ -2033,7 +2177,12 @@ export class Game {
                 if (this.particles) {
                   this.explosionEffect.emitBigExplosion(deathPos);
                 }
-                spawnDestruction(this.scene, deathPos, deathQuat, enemy.modelIndex);
+                spawnDestruction(
+                  this.scene,
+                  deathPos,
+                  deathQuat,
+                  enemy.modelIndex,
+                );
                 const respawnPos = enemy.spawnPoint;
                 enemy.dispose(this.scene);
                 this.enemies.splice(j, 1);

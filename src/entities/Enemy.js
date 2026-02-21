@@ -53,7 +53,7 @@ function seededRng(seed) {
   };
 }
 
-async function loadSharedShipMaterials() {
+export async function loadSharedShipMaterials() {
   if (sharedShipMaterials) return sharedShipMaterials;
   if (sharedShipMaterialsPromise) return sharedShipMaterialsPromise;
 
@@ -493,7 +493,7 @@ export class Enemy {
     return !hit;
   }
 
-  update(delta, playerPos, fireCallback, frameCount = 0, cullDistance = 100) {
+  update(delta, playerPos, fireCallback, frameCount = 0, cullDistance = 200) {
     if (this.disposed) return;
 
     this.fireCooldown -= delta;

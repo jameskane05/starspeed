@@ -79,10 +79,10 @@ export const sceneObjects = {
     },
   },
 
-  newworldOcclusion: {
-    id: "newworldOcclusion",
+  newworldLevelData: {
+    id: "newworldLevelData",
     type: "gltf",
-    path: "./scifi-level.glb",
+    path: "./spaceship-data.glb",
     position: { x: 0, y: 0, z: 0 },
     rotation: { x: 0, y: 0, z: 0 },
     scale: 1,
@@ -93,6 +93,7 @@ export const sceneObjects = {
       occluder: true,
       debugWireframe: false,
       physicsCollider: true,
+      combinedLevel: { geometryName: "LevelGeometry" },
     },
     criteria: {
       currentLevel: "newworld",
@@ -100,21 +101,136 @@ export const sceneObjects = {
     },
   },
 
-  newworldSpawns: {
-    id: "newworldSpawns",
+  redarenaLevel: {
+    id: "redarenaLevel",
+    type: "splat",
+    path: "./splats/red-arena-1.ply",
+    description: "Red Arena environment gaussian splat",
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: 87.86,
+    priority: 100,
+    preload: false,
+    paged: false,
+    gizmo: false,
+    criteria: {
+      currentLevel: "redarena",
+      currentState: { $in: [GAME_STATES.PLAYING, GAME_STATES.PAUSED] },
+    },
+  },
+
+  redarenaLevelData: {
+    id: "redarenaLevelData",
     type: "gltf",
-    path: "./scifi-level-spawns-enemies-missiles.glb",
+    path: "./splats/arena-data.glb",
     position: { x: 0, y: 0, z: 0 },
     rotation: { x: 0, y: 0, z: 0 },
     scale: 1,
-    priority: 90,
+    priority: 95,
     preload: false,
     gizmo: false,
     options: {
-      visible: false,
+      occluder: true,
+      debugWireframe: false,
+      physicsCollider: true,
+      combinedLevel: {
+        geometryName: "LevelGeometry",
+        dynamicSceneElements: {
+          meshNamePrefix: "Pillar",
+          ambientTint: 0xff4444,
+          ambientTintStrength: 0.1,
+        },
+      },
     },
     criteria: {
-      currentLevel: "newworld",
+      currentLevel: "redarena",
+      currentState: { $in: [GAME_STATES.PLAYING, GAME_STATES.PAUSED] },
+    },
+  },
+
+  arenatechLevel: {
+    id: "arenatechLevel",
+    type: "splat",
+    path: "./splats/arena-tech.ply",
+    description: "Tech Arena environment gaussian splat",
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: 30.2362,
+    priority: 100,
+    preload: false,
+    paged: false,
+    gizmo: false,
+    criteria: {
+      currentLevel: "arenatech",
+      currentState: { $in: [GAME_STATES.PLAYING, GAME_STATES.PAUSED] },
+    },
+  },
+
+  arenatechLevelData: {
+    id: "arenatechLevelData",
+    type: "gltf",
+    path: "./splats/arena-data.glb",
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: 1,
+    priority: 95,
+    preload: false,
+    gizmo: false,
+    options: {
+      occluder: true,
+      debugWireframe: false,
+      physicsCollider: true,
+      combinedLevel: {
+        geometryName: "LevelGeometry",
+        dynamicSceneElements: {
+          meshNamePrefix: "Pillar",
+          ambientTint: 0xd0c0a8,
+          ambientTintStrength: 0.05,
+        },
+      },
+    },
+    criteria: {
+      currentLevel: "arenatech",
+      currentState: { $in: [GAME_STATES.PLAYING, GAME_STATES.PAUSED] },
+    },
+  },
+
+  icetestLevel: {
+    id: "icetestLevel",
+    type: "splat",
+    path: "./splats/Ice Crystal Mining Facility.ply",
+    description: "Ice Crystal Mining Facility gaussian splat",
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: 5,
+    priority: 100,
+    preload: false,
+    paged: false,
+    gizmo: false,
+    criteria: {
+      currentLevel: "icetest",
+      currentState: { $in: [GAME_STATES.PLAYING, GAME_STATES.PAUSED] },
+    },
+  },
+
+  icetestLevelData: {
+    id: "icetestLevelData",
+    type: "gltf",
+    path: "./splats/ice-mine-test-data.glb",
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: 1,
+    priority: 95,
+    preload: false,
+    gizmo: false,
+    options: {
+      occluder: true,
+      debugWireframe: false,
+      physicsCollider: true,
+      combinedLevel: { geometryName: "LevelGeometry" },
+    },
+    criteria: {
+      currentLevel: "icetest",
       currentState: { $in: [GAME_STATES.PLAYING, GAME_STATES.PAUSED] },
     },
   },

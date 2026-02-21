@@ -10,7 +10,10 @@
 import * as THREE from "three";
 import GUI from "lil-gui";
 import { lights } from "../data/lightData.js";
+import { LEVELS } from "../data/gameData.js";
 import { checkCriteria } from "../data/sceneData.js";
+
+const DEFAULT_AMBIENT = { color: 0x667788, intensity: 4 };
 
 class LightManager {
   constructor(scene, options = {}) {
@@ -23,6 +26,23 @@ class LightManager {
 
     const gameState = this.gameManager?.getState();
     this.loadLightsFromData(lights, gameState);
+
+    const level = gameState?.currentLevel;
+    if (level) this.updateAmbientForLevel(level);
+  }
+
+  updateAmbientForLevel(levelId) {
+    const ambient = this.lights.get("ambient");
+    if (!ambient) return;
+
+    const levelConfig = LEVELS[levelId];
+    const base = lights.ambient || {};
+    const fallback = { color: base.color ?? DEFAULT_AMBIENT.color, intensity: base.intensity ?? DEFAULT_AMBIENT.intensity };
+    const color = levelConfig?.ambientColor ?? fallback.color;
+    const intensity = levelConfig?.ambientIntensity ?? fallback.intensity;
+
+    ambient.color.setHex(color);
+    ambient.intensity = intensity;
   }
 
   loadLightsFromData(lightsData, gameState = null) {
