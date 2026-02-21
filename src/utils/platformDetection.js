@@ -15,6 +15,11 @@ export function detectPlatform(gameManager) {
     /iPad|iPhone|iPod/.test(navigator.userAgent) ||
     (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
+  const isVisionPro =
+    navigator.userAgent.includes("Macintosh") &&
+    navigator.maxTouchPoints === 5 &&
+    !/Chrome|Windows|Oculus|Quest/i.test(navigator.userAgent);
+
   const userAgent = navigator.userAgent.toLowerCase();
   const isSafari =
     (userAgent.includes("safari") &&
@@ -35,9 +40,10 @@ export function detectPlatform(gameManager) {
   gameManager.setState({
     isMobile,
     isIOS,
+    isVisionPro,
     isSafari,
     isFullscreenSupported,
   });
 
-  return { isMobile, isIOS, isSafari, isFullscreenSupported };
+  return { isMobile, isIOS, isVisionPro, isSafari, isFullscreenSupported };
 }

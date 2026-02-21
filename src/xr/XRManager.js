@@ -14,9 +14,9 @@ export class XRManager {
     this.rig = new THREE.Group();
     this.rig.name = "xr-rig";
 
-    // Active transient-pointer tracking state
-    this.rightHand = null; // { source, startDir: Vector3 | null }
-    this.leftHand = null; // { source, startPos: Vector3 | null }
+    this.rightHand = null;
+    this.leftHand = null;
+    this.onRightHandQuickTap = null;
 
     // Normalized output values [-1, 1] consumed by Player each frame
     this.lookInput = { x: 0, y: 0 }; // yaw, pitch from right hand
@@ -112,7 +112,12 @@ export class XRManager {
 
     const hand = source.handedness || "none";
     if (hand === "right" || (hand === "none" && !this.rightHand)) {
-      this.rightHand = { source, startDir: null };
+      this.rightHand = {
+        source,
+        startDir: null,
+        startTime: performance.now(),
+        hadSignificantRotation: false,
+      };
     } else if (hand === "left" || (hand === "none" && !this.leftHand)) {
       this.leftHand = { source, startPos: null };
     }
@@ -121,6 +126,15 @@ export class XRManager {
   _onSelectEnd(event) {
     const source = event.inputSource;
     if (this.rightHand?.source === source) {
+      const duration = performance.now() - this.rightHand.startTime;
+      const quickRelease = duration < 250;
+      if (
+        quickRelease &&
+        !this.rightHand.hadSignificantRotation &&
+        this.onRightHandQuickTap
+      ) {
+        this.onRightHandQuickTap();
+      }
       this.rightHand = null;
       this.lookInput.x = 0;
       this.lookInput.y = 0;
@@ -205,9 +219,11 @@ export class XRManager {
       Math.asin(THREE.MathUtils.clamp(_dir.y, -1, 1)) -
       Math.asin(THREE.MathUtils.clamp(sd.y, -1, 1));
 
-    const maxAngle = 0.5; // ~29 degrees for full deflection
-    this.lookInput.x = THREE.MathUtils.clamp(yaw / maxAngle, -1, 1);
+    const maxAngle = 0.5;
+    this.lookInput.x = -THREE.MathUtils.clamp(yaw / maxAngle, -1, 1);
     this.lookInput.y = THREE.MathUtils.clamp(pitch / maxAngle, -1, 1);
+    const rotMag = Math.abs(this.lookInput.x) + Math.abs(this.lookInput.y);
+    if (rotMag > 0.15) this.rightHand.hadSignificantRotation = true;
   }
 
   _updateLeftHand(frame, refSpace) {
