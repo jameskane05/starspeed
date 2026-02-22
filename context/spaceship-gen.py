@@ -20,7 +20,7 @@ if __name__ == "__main__":
 
     # When True: generate starfighters and export GLBs
     # When False: generate one ship and render buildout frames to video/gif
-    export_glbs = True
+    export_glbs = False
 
     if export_glbs:
         os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -62,7 +62,7 @@ if __name__ == "__main__":
         camera_distance = 4
         frames_per_step = 7
         completed_frames = 30
-        num_ships = 3
+        num_ships = 10
 
         orbit_radius = 5.5
         orbit_height = 2.5
@@ -113,7 +113,7 @@ if __name__ == "__main__":
 
             obj = generate_starfighter(
                 random_seed=str(ship_idx * 3333 + 7),
-                style='midrange',
+                style='extreme',
                 on_step=on_step)
 
             for _ in range(completed_frames):
@@ -131,4 +131,13 @@ if __name__ == "__main__":
 
             print(f'Ship {ship_idx}: rendered {frame[0]} frames to {out_dir}')
 
-        print(f'\nConvert each: cd "{buildout_base}/ship0" && ffmpeg -y -framerate {fps} -i %05d.png -c:v libx264 -pix_fmt yuv420p buildout.mp4')
+        import subprocess
+        for ship_idx in range(num_ships):
+            ship_dir = os.path.join(buildout_base, f'ship{ship_idx}')
+            output_mp4 = os.path.join(ship_dir, '000buildout.mp4')
+            subprocess.run([
+                'ffmpeg', '-y', '-framerate', str(fps), '-i',
+                os.path.join(ship_dir, '%05d.png'),
+                '-c:v', 'libx264', '-pix_fmt', 'yuv420p', output_mp4
+            ], check=True)
+            print(f'Ship {ship_idx}: {output_mp4}')
