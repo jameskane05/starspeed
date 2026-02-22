@@ -34,7 +34,7 @@
     "@dimforge/rapier3d": "^0.19.0",
     "@gltf-transform/core": "^4.3.0",
     "@gltf-transform/extensions": "^4.3.0",
-    "@sparkjsdev/spark": "github:sparkjsdev/spark#splat-quick-lod",
+    "@sparkjsdev/spark": "github:sparkjsdev/spark#v2.0.0-preview",
     "howler": "^2.2.4",
     "three": "^0.182.0"
   }
