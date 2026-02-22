@@ -23,14 +23,24 @@
     <div id="menu-container"></div>
     <div id="crosshair"></div>
     <div id="mobile-controls">
-      <button
-        id="mobile-menu-btn"
-        data-action="menu"
-        type="button"
-        aria-label="Menu"
-      >
-        <img src="/images/ui/menu.png" alt="Menu" />
-      </button>
+      <div class="mobile-top-left">
+        <button
+          id="mobile-menu-btn"
+          data-action="menu"
+          type="button"
+          aria-label="Menu"
+        >
+          <img src="/images/ui/menu.png" alt="Menu" />
+        </button>
+        <button
+          id="mobile-leaderboard-btn"
+          data-action="leaderboard"
+          type="button"
+          aria-label="Leaderboard"
+        >
+          <img src="/images/ui/leaderboard.png" alt="Leaderboard" />
+        </button>
+      </div>
       <div class="joystick joystick-move">
         <div class="thumb"></div>
       </div>
@@ -84,24 +94,24 @@
     </div>
     <div id="hud">
       <div class="hud-missiles">
-        <img
-          src="/images/ui/missiles.png"
-          alt="Missiles"
-          class="hud-icon"
-        /><span id="missiles">20</span>
+        <span id="missiles">20</span
+        ><img src="/images/ui/missiles.png" alt="Missiles" class="hud-icon" />
       </div>
       <div class="hud-kills">
-        <span id="kills">0</span><img src="/images/ui/kills.png" alt="Kills" class="hud-icon" />
+        <span id="kills">0</span
+        ><img src="/images/ui/kills.png" alt="Kills" class="hud-icon" />
       </div>
       <div class="hud-shields">
-        <span id="health">100</span><img src="/images/ui/shields.png" alt="Shields" class="hud-icon" />
+        <span id="health">100</span
+        ><img src="/images/ui/shields.png" alt="Shields" class="hud-icon" />
       </div>
       <div class="hud-boost">
-        <img
+        <span id="boost">100</span
+        ><img
           src="/images/ui/booster-rockets.png"
           alt="Boost"
           class="hud-icon"
-        /><span id="boost">100</span>%
+        />
       </div>
     </div>
     <div id="controls-help">

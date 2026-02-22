@@ -154,11 +154,16 @@ export class MobileControls {
     const rollRight = container.querySelector('[data-action="roll-right"]');
     const boost = container.querySelector('[data-action="boost"]');
     const menuBtn = container.querySelector('[data-action="menu"]');
+    const leaderboardBtn = container.querySelector('[data-action="leaderboard"]');
 
+    const haptic = () => {
+      if (navigator.vibrate) navigator.vibrate(30);
+    };
     const handle = (el, fn) => {
       if (!el) return;
       el.addEventListener('touchstart', (e) => {
         e.preventDefault();
+        haptic();
         fn();
       }, { passive: false });
     };
@@ -168,6 +173,13 @@ export class MobileControls {
 
     handle(menuBtn, () => this.game.showEscMenu());
 
+    handle(leaderboardBtn, () => {
+      if (!this.game.gameManager?.isPlaying()) return;
+      const isOpen = document.getElementById('tab-leaderboard')?.classList.contains('active');
+      if (isOpen) this.game.hideLeaderboard();
+      else this.game.showLeaderboard();
+    });
+
     handle(strafeUp, () => setKey('strafeUp', true));
     handle(strafeDown, () => setKey('strafeDown', true));
     handle(rollLeft, () => setKey('rollLeft', true));
@@ -176,6 +188,7 @@ export class MobileControls {
     if (boost) {
       boost.addEventListener('touchstart', (e) => {
         e.preventDefault();
+        haptic();
         this.boostHeld = true;
         setKey('boost', true);
       }, { passive: false });
