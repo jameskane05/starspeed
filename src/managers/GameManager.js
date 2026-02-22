@@ -9,7 +9,10 @@
  */
 
 import { GAME_STATES, initialState } from "../data/gameData.js";
-import { getSceneObjectsForState } from "../data/sceneData.js";
+import {
+  getSceneObjectsForState,
+  LEVEL_OBJECT_IDS,
+} from "../data/sceneData.js";
 import { DEFAULT_PROFILE, getPerformanceProfile } from "../data/performanceSettings.js";
 
 const SETTINGS_KEY = "starspeed-settings";
@@ -163,13 +166,19 @@ class GameManager {
     const objectsToLoad = getSceneObjectsForState(this.state, options);
     const objectIdsToLoad = new Set(objectsToLoad.map((obj) => obj.id));
 
-    // Find objects to unload (loaded but no longer match criteria)
-    const objectsToUnload = options.preloadOnly
-      ? []
-      : Array.from(this.loadedScenes).filter((id) => !objectIdsToLoad.has(id));
+    const toUnload = new Set(
+      options.preloadOnly
+        ? []
+        : Array.from(this.loadedScenes).filter((id) => !objectIdsToLoad.has(id)),
+    );
 
-    // Unload objects
-    for (const id of objectsToUnload) {
+    for (const id of LEVEL_OBJECT_IDS) {
+      if (this.sceneManager.hasObject(id) && !objectIdsToLoad.has(id)) {
+        toUnload.add(id);
+      }
+    }
+
+    for (const id of toUnload) {
       this.sceneManager.removeObject(id);
       this.loadedScenes.delete(id);
       console.log(`[GameManager] Unloaded: ${id}`);

@@ -273,6 +273,19 @@ export function checkCriteria(state, criteria) {
   return true;
 }
 
+export const LEVEL_OBJECT_IDS = [
+  "level",
+  "levelOcclusion",
+  "newworldLevel",
+  "newworldLevelData",
+  "redarenaLevel",
+  "redarenaLevelData",
+  "arenatechLevel",
+  "arenatechLevelData",
+  "icetestLevel",
+  "icetestLevelData",
+];
+
 /**
  * Get scene objects that should be loaded for the current game state
  * @param {Object} state - Current game state

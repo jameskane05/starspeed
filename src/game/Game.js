@@ -50,6 +50,7 @@ import { GAME_STATES, SHIP_CLASSES } from "../data/gameData.js";
 import {
   getSceneObjectsForState,
   getSceneObject,
+  LEVEL_OBJECT_IDS,
 } from "../data/sceneData.js";
 import { getPerformanceProfile } from "../data/performanceSettings.js";
 import { ParticleSystem } from "../vfx/ParticleSystem.js";
@@ -775,6 +776,17 @@ export class Game {
       currentState: GAME_STATES.PLAYING,
     });
     this.lightManager?.updateAmbientForLevel(level);
+
+    for (const id of LEVEL_OBJECT_IDS) {
+      const obj = getSceneObject(id);
+      if (
+        obj?.criteria?.currentLevel &&
+        obj.criteria.currentLevel !== level &&
+        this.sceneManager.hasObject(id)
+      ) {
+        this.sceneManager.removeObject(id);
+      }
+    }
 
     if (!localPlayer) return;
 
