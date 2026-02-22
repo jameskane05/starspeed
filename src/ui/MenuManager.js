@@ -168,7 +168,7 @@ class MenuManager {
 
   updateFocusableElements() {
     this.focusableElements = Array.from(
-      this.menuContent.querySelectorAll('.menu-btn, .back-btn, .class-btn, .mode-btn:not(.disabled), .vis-btn, .limit-btn, .players-btn, .join-btn, .refresh-btn, .rebind-btn, .options-btn:not(:disabled), .options-tab, .sidebar-btn, .volume-slider, .ready-checkbox input, #chk-ready')
+      this.menuContent.querySelectorAll('.menu-btn, .back-btn, .mode-btn:not(.disabled), .vis-btn, .limit-btn, .players-btn, .join-btn, .refresh-btn, .rebind-btn, .options-btn:not(:disabled), .options-tab, .sidebar-btn, .volume-slider, .ready-checkbox input, #chk-ready')
     ).filter(el => !el.disabled && el.offsetParent !== null);
   }
 
@@ -486,29 +486,25 @@ class MenuManager {
   renderCreateGame() {
     this.menuContent.innerHTML = `
       <div class="menu-screen create-game">
-        <div class="menu-header">
-          <button class="back-btn" id="btn-back">← BACK</button>
-          <h2>CREATE MATCH</h2>
-        </div>
-        <div class="menu-content">
-          <div class="form-group">
-            <label>ROOM NAME</label>
-            <input type="text" id="room-name" value="${this.playerName}'s Arena" maxlength="24" />
+        <div class="create-game-wrapper">
+          <div class="menu-header create-game-header">
+            <button class="back-btn" id="btn-back">← BACK</button>
+            <h2>CREATE MATCH</h2>
           </div>
-          <div class="form-group">
-            <label>ROOM CODE <span class="optional">(optional - leave blank for random)</span></label>
-            <div class="code-validation-wrapper">
-              <input type="text" id="room-code-custom" placeholder="e.g. MYCOOLROOM" maxlength="16" pattern="[A-Za-z0-9]+" />
-              <span class="code-status" id="code-status"></span>
+          <div class="menu-content">
+          <div class="form-row form-row-top">
+            <div class="form-group form-group-room-name">
+              <label>ROOM NAME</label>
+              <input type="text" id="room-name" value="${this.playerName}'s Arena" maxlength="24" />
             </div>
-          </div>
-          <div class="form-group">
-            <label>MAP</label>
-            <select id="level-select" class="menu-select">
-              ${Object.values(LEVELS).map(level => `
-                <option value="${level.id}" ${level.id === "newworld" ? "selected" : ""}>${level.name}</option>
-              `).join('')}
-            </select>
+            <div class="form-group form-group-map">
+              <label>MAP</label>
+              <select id="level-select" class="menu-select">
+                ${Object.values(LEVELS).map(level => `
+                  <option value="${level.id}" ${level.id === "newworld" ? "selected" : ""}>${level.name}</option>
+                `).join('')}
+              </select>
+            </div>
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -526,25 +522,28 @@ class MenuManager {
               </div>
             </div>
           </div>
-          <div class="form-group">
-            <label>KILL LIMIT</label>
-            <div class="limit-select">
-              <button class="limit-btn" data-limit="10">10</button>
-              <button class="limit-btn selected" data-limit="20">20</button>
-              <button class="limit-btn" data-limit="30">30</button>
-              <button class="limit-btn" data-limit="50">50</button>
+          <div class="form-row">
+            <div class="form-group">
+              <label>KILL LIMIT</label>
+              <div class="limit-select">
+                <button class="limit-btn" data-limit="10">10</button>
+                <button class="limit-btn selected" data-limit="20">20</button>
+                <button class="limit-btn" data-limit="30">30</button>
+                <button class="limit-btn" data-limit="50">50</button>
+              </div>
             </div>
-          </div>
-          <div class="form-group">
-            <label>MAX PLAYERS</label>
-            <div class="players-select">
-              <button class="players-btn" data-players="2">2</button>
-              <button class="players-btn" data-players="4">4</button>
-              <button class="players-btn" data-players="6">6</button>
-              <button class="players-btn selected" data-players="8">8</button>
+            <div class="form-group">
+              <label>MAX PLAYERS</label>
+              <div class="players-select">
+                <button class="players-btn" data-players="2">2</button>
+                <button class="players-btn" data-players="4">4</button>
+                <button class="players-btn" data-players="6">6</button>
+                <button class="players-btn selected" data-players="8">8</button>
+              </div>
             </div>
           </div>
           <button class="menu-btn primary large" id="btn-create-room">LAUNCH ARENA</button>
+        </div>
         </div>
       </div>
     `;
@@ -596,69 +595,24 @@ class MenuManager {
       selectedLevel = e.target.value;
     });
 
-    // Debounced room code validation
-    let codeCheckTimeout = null;
-    let codeIsValid = true;
-    const codeInput = document.getElementById("room-code-custom");
-    const codeStatus = document.getElementById("code-status");
-    const createBtn = document.getElementById("btn-create-room");
-    
-    const validateCode = async () => {
-      const code = codeInput.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-      
-      if (!code) {
-        codeStatus.textContent = "";
-        codeStatus.className = "code-status";
-        codeIsValid = true;
-        createBtn.disabled = false;
-        return;
-      }
-      
-      codeStatus.textContent = "checking...";
-      codeStatus.className = "code-status checking";
-      
-      await NetworkManager.connect();
-      const exists = await NetworkManager.checkRoomExists(code);
-      
-      if (exists) {
-        codeStatus.textContent = "✗ taken";
-        codeStatus.className = "code-status invalid";
-        codeIsValid = false;
-        createBtn.disabled = true;
-      } else {
-        codeStatus.textContent = "✓ available";
-        codeStatus.className = "code-status valid";
-        codeIsValid = true;
-        createBtn.disabled = false;
-      }
-    };
-    
-    codeInput.addEventListener("input", () => {
-      clearTimeout(codeCheckTimeout);
-      codeCheckTimeout = setTimeout(validateCode, 500);
-    });
-    
-    codeInput.addEventListener("blur", () => {
-      clearTimeout(codeCheckTimeout);
-      validateCode();
-    });
-
     document.getElementById("btn-create-room").addEventListener("click", async () => {
-      if (!codeIsValid) return;
-      const roomName = document.getElementById("room-name").value;
-      const customCode = document.getElementById("room-code-custom").value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-      await this.createGame(roomName, selectedMode, isPublic, killLimit, maxPlayers, selectedLevel, customCode || null);
+      const roomName = document.getElementById("room-name").value.trim();
+      const roomCode = roomName
+        ? roomName.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16) || null
+        : null;
+      await this.createGame(roomName, selectedMode, isPublic, killLimit, maxPlayers, selectedLevel, roomCode);
     });
   }
 
   renderJoinGame() {
     this.menuContent.innerHTML = `
       <div class="menu-screen join-game">
-        <div class="menu-header">
-          <button class="back-btn" id="btn-back">← BACK</button>
-          <h2>JOIN MATCH</h2>
-        </div>
-        <div class="menu-content">
+        <div class="join-game-wrapper">
+          <div class="menu-header join-game-header">
+            <button class="back-btn" id="btn-back">← BACK</button>
+            <h2>JOIN MATCH</h2>
+          </div>
+          <div class="menu-content">
           <div class="join-code-section">
             <label>JOIN BY CODE</label>
             <div class="code-input-group">
@@ -676,6 +630,7 @@ class MenuManager {
               <div class="loading">Searching for matches...</div>
             </div>
           </div>
+        </div>
         </div>
       </div>
     `;
@@ -776,11 +731,11 @@ class MenuManager {
 
     this.menuContent.innerHTML = `
       <div class="menu-screen lobby">
-        <div class="menu-header">
-          <button class="back-btn" id="btn-leave">← LEAVE</button>
-          <h2>${state.roomName || "GAME LOBBY"}</h2>
-          <div class="room-info">
-            <span class="mode-badge ${state.mode}">${state.mode === "ffa" ? "FFA" : "TEAM"}</span>
+        <div class="lobby-wrapper">
+          <div class="menu-header lobby-header">
+            <button class="back-btn" id="btn-leave">← LEAVE</button>
+            <h2>${state.roomName || "GAME LOBBY"}</h2>
+            <div class="room-info">
             <div class="room-code-wrapper">
               <span class="room-code" id="room-code-btn">CODE: ${NetworkManager.room?.roomId?.toUpperCase() || "..."}</span>
               <div class="share-tooltip" id="share-tooltip">
@@ -809,7 +764,6 @@ class MenuManager {
                 <div class="player-card ${player.ready ? "ready" : ""} ${sessionId === NetworkManager.sessionId ? "local" : ""} ${state.mode === "team" ? `team-${player.team}` : ""}">
                   <div class="player-info">
                     <span class="player-name">${player.name}${state.hostId === sessionId ? " ★" : ""}</span>
-                    <span class="player-class">${player.shipClass.toUpperCase()}</span>
                   </div>
                   <div class="player-actions">
                     ${sessionId !== NetworkManager.sessionId ? `
@@ -840,23 +794,16 @@ class MenuManager {
           </div>
           
           <div class="settings-section">
-            <h3>SELECT CLASS</h3>
-            <div class="class-select">
-              ${["fighter", "tank", "rogue"].map((cls) => `
-                <button class="class-btn ${localPlayer?.shipClass === cls ? "selected" : ""}" data-class="${cls}">
-                  <div class="class-name">${cls.toUpperCase()}</div>
-                  <div class="class-stats">
-                    ${cls === "fighter" ? "Balanced • 100 HP • 20 Missiles" : ""}
-                    ${cls === "tank" ? "Slow • 150 HP • Mega Missiles" : ""}
-                    ${cls === "rogue" ? "Fast • 70 HP • Quick Shots" : ""}
-                  </div>
-                </button>
-              `).join("")}
-            </div>
-
             <div class="lobby-map-info">
-              <h3>MAP</h3>
-              <div class="map-name">${LEVELS[state.level]?.name || state.level || "Unknown"}</div>
+              <img class="map-preview" src="${LEVELS[state.level]?.preview || "/hull_lights_emit.png"}" alt="" />
+              <div class="map-details">
+                <h3>MAP</h3>
+                <div class="map-name">${LEVELS[state.level]?.name || state.level || "Unknown"}</div>
+                <div class="lobby-map-meta">
+                  <span class="mode-badge ${state.mode}">${state.mode === "ffa" ? "FFA" : "TEAM"}</span>
+                  <span class="visibility-badge ${state.isPublic !== false ? "public" : "private"}">${state.isPublic !== false ? "PUBLIC" : "PRIVATE"}</span>
+                </div>
+              </div>
             </div>
             
             <div class="lobby-actions">
@@ -872,6 +819,7 @@ class MenuManager {
               ` : ""}
             </div>
           </div>
+        </div>
         </div>
       </div>
     `;
@@ -891,23 +839,26 @@ class MenuManager {
 
     document.getElementById("btn-copy").addEventListener("click", async (e) => {
       e.stopPropagation();
+      const btn = e.target;
       const url = document.getElementById("share-url").value;
       await navigator.clipboard.writeText(url);
-      e.target.textContent = "✓";
-      setTimeout(() => e.target.textContent = "📋", 1500);
-    });
-
-    document.addEventListener("click", (e) => {
-      if (!e.target.closest(".room-code-wrapper")) {
+      btn.textContent = "✓";
+      setTimeout(() => {
+        btn.textContent = "📋";
         shareTooltip.classList.remove("active");
-      }
-    }, { once: true });
-
-    document.querySelectorAll(".class-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        NetworkManager.selectClass(btn.dataset.class);
-      });
+      }, 500);
     });
+
+    if (this._shareTooltipOutsideClick) {
+      document.removeEventListener("click", this._shareTooltipOutsideClick);
+    }
+    this._shareTooltipOutsideClick = (e) => {
+      const tooltip = document.getElementById("share-tooltip");
+      if (tooltip?.classList.contains("active") && !e.target.closest(".room-code-wrapper")) {
+        tooltip.classList.remove("active");
+      }
+    };
+    document.addEventListener("click", this._shareTooltipOutsideClick);
 
     document.getElementById("chk-ready")?.addEventListener("change", () => {
       NetworkManager.toggleReady();
