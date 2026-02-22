@@ -370,6 +370,11 @@ class NetworkManager {
     this.room.send("setLevel", { level });
   }
 
+  kickPlayer(targetSessionId) {
+    if (!this.room) return;
+    this.room.send("kick", { targetSessionId });
+  }
+
   sendChat(text) {
     if (!this.room) return;
     this.room.send("chat", { text });

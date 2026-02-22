@@ -168,7 +168,7 @@ class MenuManager {
 
   updateFocusableElements() {
     this.focusableElements = Array.from(
-      this.menuContent.querySelectorAll('.menu-btn, .back-btn, .mode-btn:not(.disabled), .vis-btn, .limit-btn, .players-btn, .join-btn, .refresh-btn, .rebind-btn, .options-btn:not(:disabled), .options-tab, .sidebar-btn, .volume-slider, .ready-checkbox input, #chk-ready, #lobby-level-select')
+      this.menuContent.querySelectorAll('.menu-btn, .back-btn, .mode-btn:not(.disabled), .vis-btn, .limit-btn, .players-btn, .join-btn, .refresh-btn, .rebind-btn, .options-btn:not(:disabled), .options-tab, .sidebar-btn, .volume-slider, .ready-checkbox input, #chk-ready, #lobby-level-select, .kick-btn, .mute-btn')
     ).filter(el => !el.disabled && el.offsetParent !== null);
   }
 
@@ -255,9 +255,13 @@ class MenuManager {
       }
     });
 
-    NetworkManager.on("roomLeft", () => {
-      this.showScreen(SCREENS.MAIN_MENU);
-      this.chatMessages = []; // Clear chat on leave
+    NetworkManager.on("roomLeft", (data) => {
+      this.chatMessages = [];
+      if (data?.code === 4000) {
+        this.showKickedModal();
+      } else {
+        this.showScreen(SCREENS.MAIN_MENU);
+      }
     });
 
     NetworkManager.on("chat", (data) => {
@@ -770,6 +774,9 @@ class MenuManager {
                       <button class="mute-btn ${this.mutedPlayers.has(sessionId) ? "muted" : ""}" data-session="${sessionId}" title="${this.mutedPlayers.has(sessionId) ? "Unmute" : "Mute"}">
                         ${this.mutedPlayers.has(sessionId) ? "🔇" : "🔊"}
                       </button>
+                      ${isHost && !isCountdown ? `
+                        <button class="kick-btn" data-session="${sessionId}" title="Kick">×</button>
+                      ` : ""}
                     ` : ""}
                     <div class="player-status">${player.ready ? "READY" : "..."}</div>
                   </div>
@@ -898,6 +905,13 @@ class MenuManager {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         this.toggleMute(btn.dataset.session);
+      });
+    });
+
+    document.querySelectorAll(".kick-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        NetworkManager.kickPlayer(btn.dataset.session);
       });
     });
 
@@ -1995,6 +2009,35 @@ class MenuManager {
         <p>${message}</p>
       </div>
     `;
+  }
+
+  showKickedModal() {
+    this.showScreen(SCREENS.MAIN_MENU);
+
+    const overlay = document.createElement("div");
+    overlay.className = "kicked-modal";
+    overlay.innerHTML = `
+      <div class="kicked-modal-content">
+        <p>You were kicked out of a multiplayer lobby.</p>
+        <button class="menu-btn" id="kicked-modal-ok">OK</button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const dismiss = () => {
+      overlay.remove();
+      document.removeEventListener("keydown", onKey);
+    };
+
+    const onKey = (e) => {
+      if (e.code === "Enter" || e.code === "Escape") dismiss();
+    };
+    document.addEventListener("keydown", onKey);
+
+    overlay.querySelector("#kicked-modal-ok").addEventListener("click", dismiss);
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) dismiss();
+    });
   }
 
   showError(message) {
