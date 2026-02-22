@@ -88,7 +88,21 @@ export class GameRoom extends Room {
     this.onMessage("classSelect", (client, data) => this.handleClassSelect(client, data));
     this.onMessage("ready", (client) => this.handleReady(client));
     this.onMessage("startGame", (client) => this.handleStartGame(client));
+    this.onMessage("setLevel", (client, data) => this.handleSetLevel(client, data));
     this.onMessage("chat", (client, data) => this.handleChat(client, data));
+  }
+
+  private handleSetLevel(client: Client, data: any) {
+    if (client.sessionId !== this.state.hostId) return;
+    if (this.state.phase !== "lobby") return;
+
+    const level = String(data?.level || "").trim();
+    const validLevels = ["newworld", "redarena", "arenatech", "icetest"];
+    if (!validLevels.includes(level)) return;
+
+    this.state.level = level;
+    this.state.players.forEach(p => { p.ready = false; });
+    console.log(`[GameRoom] Host changed map to ${level}, cleared ready status`);
   }
 
   private handleSetSpawnPoints(client: Client, data: any) {
