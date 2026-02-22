@@ -597,6 +597,20 @@ export class Game {
       if (state.phase === "results") {
         this.onMatchEnd();
       }
+      if (state.phase === "countdown" && state.countdown === 3 && NetworkManager.isHost()) {
+        this.gameManager.setState({ currentLevel: state.level || this.gameManager.getState().currentLevel });
+        const levelDataId = this.gameManager.getState().currentLevel
+          ? `${this.gameManager.getState().currentLevel}LevelData`
+          : null;
+        if (levelDataId && this.sceneManager.hasObject(levelDataId)) {
+          this._extractSpawnPoints();
+          NetworkManager.sendSpawnPoints({
+            enemySpawns: this.spawnPoints,
+            playerSpawns: this.playerSpawnPoints,
+            missileSpawns: this.missileSpawnPoints,
+          });
+        }
+      }
       if (state.phase === "lobby" && state.level) {
         const current = this.gameManager.getState().currentLevel;
         if (current !== state.level) {
@@ -752,11 +766,12 @@ export class Game {
     const state = NetworkManager.getState();
     const localPlayer = NetworkManager.getLocalPlayer();
 
-    // Set the current level from the server room state
-    if (state?.level) {
-      this.gameManager.setState({ currentLevel: state.level });
-      this.lightManager?.updateAmbientForLevel(state.level);
-    }
+    const level = state?.level || "newworld";
+    this.gameManager.setState({
+      currentLevel: level,
+      currentState: GAME_STATES.PLAYING,
+    });
+    this.lightManager?.updateAmbientForLevel(level);
 
     if (!localPlayer) return;
 
@@ -776,14 +791,15 @@ export class Game {
 
     this.dynamicLights?.warmupShaders(this.renderer, this.camera);
 
-    const level = this.gameManager.getState().currentLevel;
-    const levelDataId = level ? `${level}LevelData` : null;
-    if (
-      levelDataId &&
-      !this.sceneManager.hasObject(levelDataId)
-    ) {
-      const obj = getSceneObject(levelDataId);
-      if (obj) await this.sceneManager.loadObject(obj);
+    const objectsToLoad = getSceneObjectsForState(this.gameManager.getState());
+    const loads = [];
+    for (const obj of objectsToLoad) {
+      if (!this.sceneManager.hasObject(obj.id)) {
+        loads.push(this.sceneManager.loadObject(obj));
+      }
+    }
+    if (loads.length > 0) {
+      await Promise.all(loads);
     }
 
     this._extractSpawnPoints();
@@ -820,7 +836,6 @@ export class Game {
     MenuManager.hide();
 
     this.gameManager.setState({
-      currentState: GAME_STATES.PLAYING,
       isRunning: true,
       isMultiplayer: true,
     });

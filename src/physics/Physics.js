@@ -65,7 +65,12 @@ export function createTrimeshCollider(vertices, indices, px, py, pz) {
     new Float32Array(vertices),
     new Uint32Array(indices),
   );
-  return world.createCollider(colliderDesc, body);
+  world.createCollider(colliderDesc, body);
+  return body;
+}
+
+export function removeRigidBody(body) {
+  if (world && body) world.removeRigidBody(body);
 }
 
 export function createKinematicTrimeshCollider(vertices, indices, px, py, pz) {

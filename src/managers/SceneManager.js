@@ -11,7 +11,11 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { SplatMesh } from "@sparkjsdev/spark";
-import { createTrimeshCollider, createKinematicTrimeshCollider } from "../physics/Physics.js";
+import {
+  createTrimeshCollider,
+  createKinematicTrimeshCollider,
+  removeRigidBody,
+} from "../physics/Physics.js";
 import { loadSharedShipMaterials } from "../entities/Enemy.js";
 
 class SceneManager {
@@ -25,6 +29,7 @@ class SceneManager {
     this.objectData = new Map(); // id -> config data
     this.gltfLoader = new GLTFLoader();
     this.loadingPromises = new Map();
+    this._physicsBodies = new Map(); // id -> RigidBody | RigidBody[] (for level + dynamic elements)
   }
 
   /**
@@ -206,7 +211,7 @@ class SceneManager {
             }
             if (options.physicsCollider) {
               const skipPrefixes = ["Cube", ...(dynConfig?.meshNamePrefix ? [dynConfig.meshNamePrefix] : [])];
-              this._createPhysicsCollider(id, geometryRoot, {
+              const bodies = this._createPhysicsCollider(id, geometryRoot, {
                 x: container.position.x,
                 y: container.position.y,
                 z: container.position.z,
@@ -218,6 +223,7 @@ class SceneManager {
                   el.mesh.getWorldPosition(el.basePos);
                   el.mesh.getWorldQuaternion(el.baseQuat);
                   el.body = this._createDynamicElementKinematicCollider(el, container);
+                  if (el.body) bodies.push(el.body);
                 }
               }
             }
@@ -514,16 +520,28 @@ class SceneManager {
     const px = position?.x || 0;
     const py = position?.y || 0;
     const pz = position?.z || 0;
-    createTrimeshCollider(vertices, indices, px, py, pz);
+    const body = createTrimeshCollider(vertices, indices, px, py, pz);
+    const bodies = this._physicsBodies.get(id) || [];
+    bodies.push(body);
+    this._physicsBodies.set(id, bodies);
     console.log(
       `[SceneManager] Created trimesh collider for "${id}" (${vertices.length / 3} verts, ${indices.length / 3} tris)`,
     );
+    return bodies;
   }
 
   /**
    * Remove an object from the scene
    */
   removeObject(id) {
+    const bodies = this._physicsBodies.get(id);
+    if (bodies) {
+      for (const body of bodies) {
+        removeRigidBody(body);
+      }
+      this._physicsBodies.delete(id);
+    }
+
     const object = this.objects.get(id);
     if (object) {
       // Dispose SplatMesh
