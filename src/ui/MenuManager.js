@@ -168,7 +168,7 @@ class MenuManager {
 
   updateFocusableElements() {
     this.focusableElements = Array.from(
-      this.menuContent.querySelectorAll('.menu-btn, .back-btn, .mode-btn:not(.disabled), .vis-btn, .limit-btn, .players-btn, .join-btn, .refresh-btn, .rebind-btn, .options-btn:not(:disabled), .options-tab, .sidebar-btn, .volume-slider, .ready-checkbox input, #chk-ready')
+      this.menuContent.querySelectorAll('.menu-btn, .back-btn, .mode-btn:not(.disabled), .vis-btn, .limit-btn, .players-btn, .join-btn, .refresh-btn, .rebind-btn, .options-btn:not(:disabled), .options-tab, .sidebar-btn, .volume-slider, .ready-checkbox input, #chk-ready, #lobby-level-select')
     ).filter(el => !el.disabled && el.offsetParent !== null);
   }
 
@@ -798,7 +798,15 @@ class MenuManager {
               <img class="map-preview" src="${LEVELS[state.level]?.preview || "/hull_lights_emit.png"}" alt="" />
               <div class="map-details">
                 <h3>MAP</h3>
-                <div class="map-name">${LEVELS[state.level]?.name || state.level || "Unknown"}</div>
+                ${isHost ? `
+                  <select id="lobby-level-select" class="menu-select">
+                    ${Object.values(LEVELS).map(level => `
+                      <option value="${level.id}" ${level.id === state.level ? "selected" : ""}>${level.name}</option>
+                    `).join("")}
+                  </select>
+                ` : `
+                  <div class="map-name">${LEVELS[state.level]?.name || state.level || "Unknown"}</div>
+                `}
                 <div class="lobby-map-meta">
                   <span class="mode-badge ${state.mode}">${state.mode === "ffa" ? "FFA" : "TEAM"}</span>
                   <span class="visibility-badge ${state.isPublic !== false ? "public" : "private"}">${state.isPublic !== false ? "PUBLIC" : "PRIVATE"}</span>
@@ -866,6 +874,11 @@ class MenuManager {
 
     document.getElementById("btn-start")?.addEventListener("click", () => {
       NetworkManager.startGame();
+    });
+
+    document.getElementById("lobby-level-select")?.addEventListener("change", (e) => {
+      const level = e.target.value;
+      NetworkManager.setLevel(level);
     });
 
     // Chat event listeners

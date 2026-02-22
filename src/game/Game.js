@@ -47,7 +47,10 @@ import SceneManager from "../managers/SceneManager.js";
 import LightManager from "../managers/LightManager.js";
 import { DynamicSceneElementManager } from "../managers/DynamicSceneElementManager.js";
 import { GAME_STATES, SHIP_CLASSES } from "../data/gameData.js";
-import { getSceneObjectsForState } from "../data/sceneData.js";
+import {
+  getSceneObjectsForState,
+  getSceneObject,
+} from "../data/sceneData.js";
 import { getPerformanceProfile } from "../data/performanceSettings.js";
 import { ParticleSystem } from "../vfx/ParticleSystem.js";
 import { ExplosionEffect } from "../vfx/effects/ExplosionEffect.js";
@@ -332,7 +335,7 @@ export class Game {
 
     // Initialize menu and network listeners
     await MenuManager.init();
-    MenuManager.on("gameStart", () => this.startMultiplayerGame());
+    MenuManager.on("gameStart", async () => await this.startMultiplayerGame());
     MenuManager.on("campaignStart", () => this.startSoloDebug());
     MenuManager.on("levelSelected", (level) => {
       this.gameManager.setState({ currentLevel: level });
@@ -452,8 +455,11 @@ export class Game {
   }
 
   setupNetworkListeners() {
-    // Preload level as soon as player joins a room (lobby)
     NetworkManager.on("roomJoined", () => {
+      const roomState = NetworkManager.getState();
+      if (roomState?.level) {
+        this.gameManager.setState({ currentLevel: roomState.level });
+      }
       this.preloadLevel();
     });
 
@@ -591,6 +597,26 @@ export class Game {
       if (state.phase === "results") {
         this.onMatchEnd();
       }
+      if (state.phase === "lobby" && state.level) {
+        const current = this.gameManager.getState().currentLevel;
+        if (current !== state.level) {
+          const oldState = {
+            ...this.gameManager.getState(),
+            currentLevel: current,
+            currentState: GAME_STATES.PLAYING,
+          };
+          const oldObjects = getSceneObjectsForState(oldState);
+          for (const obj of oldObjects) {
+            if (this.sceneManager.hasObject(obj.id)) {
+              this.sceneManager.removeObject(obj.id);
+            }
+          }
+          this.gameManager.setState({ currentLevel: state.level });
+          this.lightManager?.updateAmbientForLevel(state.level);
+          this.isLoadingLevel = false;
+          this.preloadLevel();
+        }
+      }
     });
 
     NetworkManager.on("collectiblePickup", (data) => {
@@ -717,7 +743,7 @@ export class Game {
     }
   }
 
-  startMultiplayerGame() {
+  async startMultiplayerGame() {
     this.isMultiplayer = true;
 
     // Show game canvas
@@ -749,6 +775,16 @@ export class Game {
     engineAudio.init();
 
     this.dynamicLights?.warmupShaders(this.renderer, this.camera);
+
+    const level = this.gameManager.getState().currentLevel;
+    const levelDataId = level ? `${level}LevelData` : null;
+    if (
+      levelDataId &&
+      !this.sceneManager.hasObject(levelDataId)
+    ) {
+      const obj = getSceneObject(levelDataId);
+      if (obj) await this.sceneManager.loadObject(obj);
+    }
 
     this._extractSpawnPoints();
     if (NetworkManager.isHost()) {

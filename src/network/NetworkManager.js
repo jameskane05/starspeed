@@ -365,6 +365,11 @@ class NetworkManager {
     this.room.send("startGame");
   }
 
+  setLevel(level) {
+    if (!this.room) return;
+    this.room.send("setLevel", { level });
+  }
+
   sendChat(text) {
     if (!this.room) return;
     this.room.send("chat", { text });

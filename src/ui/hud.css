@@ -30,6 +30,18 @@ canvas {
   min-height: calc(100dvh + env(safe-area-inset-bottom, 0px));
 }
 
+#hud,
+#crosshair,
+#kill-feed,
+.pickup-message,
+#controls-help,
+#respawn-overlay,
+#boost-hud,
+#damage-vignette,
+#mobile-controls {
+  user-select: none;
+}
+
 #hud {
   position: fixed;
   top: calc(12px + env(safe-area-inset-top, 0px));
