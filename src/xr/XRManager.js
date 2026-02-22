@@ -76,7 +76,10 @@ export class XRManager {
       console.log("[XR] Entered immersive-vr session");
       return true;
     } catch (err) {
-      if (err?.name === "NotSupportedError" || err?.message?.includes("not supported")) {
+      if (
+        err?.name === "NotSupportedError" ||
+        err?.message?.includes("not supported")
+      ) {
         return false;
       }
       console.error("[XR] Failed to enter VR:", err);
@@ -229,7 +232,8 @@ export class XRManager {
   _updateLeftHand(frame, refSpace) {
     if (!this.leftHand) return;
 
-    const space = this.leftHand.source.gripSpace || this.leftHand.source.targetRaySpace;
+    const space =
+      this.leftHand.source.gripSpace || this.leftHand.source.targetRaySpace;
     const pose = frame.getPose(space, refSpace);
     if (!pose) return;
 

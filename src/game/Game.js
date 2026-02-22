@@ -175,7 +175,7 @@ export class Game {
       this.gameManager.state.isIOS || this.gameManager.state.isVisionPro;
     const splatSettings = useLowSplatLOD
       ? { lodSplatScale: 0.5, lodRenderScale: 0.5 }
-      : perfProfile.splat ?? {};
+      : (perfProfile.splat ?? {});
 
     const maxPagedSplats =
       this.gameManager.state.isIOS || this.gameManager.state.isVisionPro
@@ -1272,7 +1272,9 @@ export class Game {
       this.spawnPoints = enemy;
       this.playerSpawnPoints = player;
       this.missileSpawnPoints = missile;
-      this.dynamicSceneElementManager?.setElements(levelData.userData.dynamicSceneElements || []);
+      this.dynamicSceneElementManager?.setElements(
+        levelData.userData.dynamicSceneElements || [],
+      );
       console.log(
         `[Game] Parsed ${levelDataId}: ${this.spawnPoints.length} enemies, ${this.playerSpawnPoints.length} player spawns, ${this.missileSpawnPoints.length} missile pickups`,
       );

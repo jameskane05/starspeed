@@ -390,11 +390,11 @@ class MenuManager {
           </div>
           <div class="menu-panel">
             <div class="menu-content">
-              <div class="name-input-group">
-                <label>CALLSIGN</label>
-                <input type="text" id="player-name" value="${this.playerName}" maxlength="16" />
-              </div>
               <div class="menu-buttons">
+                <label>CALLSIGN</label>
+                <div class="name-input-group">
+                  <input type="text" id="player-name" value="${this.playerName}" maxlength="16" />
+                </div>
                 <label>SINGLE-PLAYER</label>
                 <button class="menu-btn" id="btn-testing">TESTING GROUNDS</button>
                 <button class="menu-btn" id="btn-campaign" disabled>CAMPAIGN</button>
