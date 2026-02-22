@@ -130,7 +130,7 @@ export class RemotePlayer {
     const spriteMat = new THREE.SpriteMaterial({
       map: texture,
       transparent: true,
-      depthTest: false,
+      depthTest: true,
     });
     
     this.nameSprite = new THREE.Sprite(spriteMat);

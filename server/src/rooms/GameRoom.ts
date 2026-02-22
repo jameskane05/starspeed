@@ -135,7 +135,7 @@ export class GameRoom extends Room {
     const player = new Player();
     player.id = client.sessionId;
     player.name = this.getUniqueName(options.name || `Player ${this.state.players.size + 1}`);
-    player.shipClass = options.shipClass || "fighter";
+    player.shipClass = "fighter";
     player.ready = false;
     player.alive = false;
     
@@ -291,16 +291,7 @@ export class GameRoom extends Room {
     console.log(`[GameRoom] Projectile spawned: ${proj.id} type=${type} pos=(${proj.x.toFixed(1)},${proj.y.toFixed(1)},${proj.z.toFixed(1)}) dir=(${proj.dx.toFixed(2)},${proj.dy.toFixed(2)},${proj.dz.toFixed(2)})`);
   }
 
-  private handleClassSelect(client: Client, data: any) {
-    if (this.state.phase !== "lobby") return;
-    
-    const player = this.state.players.get(client.sessionId);
-    if (!player) return;
-    
-    if (["fighter", "tank", "rogue"].includes(data.shipClass)) {
-      player.shipClass = data.shipClass;
-      player.ready = false; // Reset ready when changing class
-    }
+  private handleClassSelect(_client: Client, _data: any) {
   }
 
   private handleReady(client: Client) {

@@ -26,13 +26,13 @@ export const LEVELS = {
     id: "newworld",
     name: "New World",
     description: "Open planetary environment",
-    thumbnail: null,
+    preview: "/hull_lights_emit.png",
   },
   redarena: {
     id: "redarena",
     name: "Red Arena",
     description: "Sci-fi arena environment",
-    thumbnail: null,
+    preview: "/hull_lights_emit.png",
     ambientColor: 0xff4444,
     ambientIntensity: 4,
   },
@@ -40,7 +40,7 @@ export const LEVELS = {
     id: "arenatech",
     name: "Tech Arena",
     description: "Same arena, warm industrial lighting",
-    thumbnail: null,
+    preview: "/hull_lights_emit.png",
     ambientColor: 0xc8b8a8,
     ambientIntensity: 3,
   },
@@ -48,7 +48,7 @@ export const LEVELS = {
     id: "icetest",
     name: "Ice Test",
     description: "Ice Crystal Mining Facility",
-    thumbnail: null,
+    preview: "/hull_lights_emit.png",
   },
 };
 
