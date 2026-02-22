@@ -330,6 +330,8 @@ export class Game {
       if (document.visibilityState === "visible") {
         proceduralAudio.resume();
         engineAudio.resume();
+      } else {
+        proceduralAudio.shieldRechargeStop();
       }
     });
 
@@ -648,10 +650,8 @@ export class Game {
     this.isLoadingLevel = true;
 
     try {
-      // Use the criteria system to determine which objects to load for the current level
-      const state = this.gameManager.getState();
-      // Temporarily set state to PLAYING so criteria matches level objects
-      const objectsToLoad = getSceneObjectsForState({
+      let state = this.gameManager.getState();
+      let objectsToLoad = getSceneObjectsForState({
         ...state,
         currentState: GAME_STATES.PLAYING,
       });
@@ -660,22 +660,25 @@ export class Game {
       for (const obj of objectsToLoad) {
         if (this.sceneManager.hasObject(obj.id)) continue;
         loads.push(
-          this.sceneManager.loadObject(
-            obj,
-            obj.type === "splat"
-              ? (progress) => {
-                  console.log(
-                    `[Game] Preload progress (${obj.id}): ${Math.round(progress * 100)}%`,
-                  );
-                }
-              : null,
-          ),
+          this.sceneManager
+            .loadObject(obj, obj.type === "splat" ? (p) => {} : null)
+            .catch((err) => {
+              console.warn(`[Game] Failed to load ${obj.id}:`, err.message);
+              throw err;
+            }),
         );
       }
       await Promise.all(loads);
       console.log("[Game] Level preloaded successfully");
     } catch (err) {
-      console.error("[Game] Level preload failed:", err);
+      console.warn("[Game] Level preload failed, falling back to newworld:", err?.message);
+      const current = this.gameManager.getState().currentLevel;
+      if (current && current !== "newworld") {
+        this.gameManager.setState({ currentLevel: "newworld" });
+        if (this.isMultiplayer && NetworkManager.isHost()) {
+          NetworkManager.setLevel("newworld");
+        }
+      }
     }
 
     this.isLoadingLevel = false;
@@ -1783,6 +1786,12 @@ export class Game {
 
   firePlayerWeapon() {
     if (!this.gameManager.isPlaying()) return;
+    if (
+      this.isMultiplayer &&
+      NetworkManager.getLocalPlayer() &&
+      !NetworkManager.getLocalPlayer().alive
+    )
+      return;
 
     const now = this.clock.elapsedTime;
     if (now - this.lastLaserTime < this.laserCooldown) return;
@@ -1825,6 +1834,12 @@ export class Game {
   firePlayerMissile() {
     if (!this.gameManager.isPlaying()) return;
     if (this.player.missiles <= 0) return;
+    if (
+      this.isMultiplayer &&
+      NetworkManager.getLocalPlayer() &&
+      !NetworkManager.getLocalPlayer().alive
+    )
+      return;
 
     const now = this.clock.elapsedTime;
     if (now - this.lastMissileTime < this.missileCooldown) return;
@@ -1936,6 +1951,9 @@ export class Game {
     const state = NetworkManager.getState();
     if (!state || state.phase !== "playing") return;
 
+    const localPlayer = NetworkManager.getLocalPlayer();
+    if (localPlayer && !localPlayer.alive) return;
+
     this.lastInputSeq = NetworkManager.sendInput({
       x: this.camera.position.x,
       y: this.camera.position.y,
@@ -1956,6 +1974,10 @@ export class Game {
     const delta = this.clock.getDelta();
     const isPlaying = this.gameManager.isPlaying();
 
+    if (!isPlaying) {
+      proceduralAudio.shieldRechargeStop();
+    }
+
     // Update XR input each frame
     if (this.xrManager) {
       this.xrManager.update(timestamp, frame);
@@ -1968,7 +1990,16 @@ export class Game {
       this.dynamicSceneElementManager?.update();
       stepWorld();
 
-      if (!this._soloRespawning) {
+      const multiplayerDead =
+        this.isMultiplayer &&
+        NetworkManager.getLocalPlayer() &&
+        !NetworkManager.getLocalPlayer().alive;
+
+      if (multiplayerDead) {
+        proceduralAudio.shieldRechargeStop();
+      }
+
+      if (!this._soloRespawning && !multiplayerDead) {
         this.input.update(delta);
         this.handleGamepadFire();
 

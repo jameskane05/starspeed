@@ -1,11 +1,13 @@
 /**
  * ProceduralAudio.js - Web Audio API procedural sound synthesis
- * 
+ *
  * Generates sounds programmatically without audio files:
  * - UI sounds (beeps, clicks, hover)
  * - Combat sounds (laser fire, shield hit, explosions)
  * - Ambient/feedback (boost, low health warning)
  */
+
+import { AudioSettings } from "../game/AudioSettings.js";
 
 class ProceduralAudio {
   constructor() {
@@ -30,8 +32,11 @@ class ProceduralAudio {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
       this.masterGain = this.ctx.createGain();
       this.masterGain.connect(this.ctx.destination);
-      this.masterGain.gain.value = this.sfxVolume;
+      this.setVolume(AudioSettings.getSfxVolume());
       this.initialized = true;
+      this._volumeUnsub = AudioSettings.onChange(() =>
+        this.setVolume(AudioSettings.getSfxVolume()),
+      );
       console.log("[ProceduralAudio] Initialized");
     } catch (e) {
       console.error("[ProceduralAudio] Failed to initialize:", e);
@@ -540,7 +545,11 @@ class ProceduralAudio {
    * Shield recharge tone – pitch rises 3 octaves (C2 to C5) as shield refills
    */
   shieldRechargeUpdate(rechargePct) {
-    if (!this.ctx || this.ctx.state === "suspended") return;
+    if (!this.ctx) return;
+    if (this.ctx.state === "suspended") {
+      this.shieldRechargeStop();
+      return;
+    }
     if (rechargePct >= 1) {
       this.shieldRechargeStop();
       return;
@@ -571,11 +580,11 @@ class ProceduralAudio {
   shieldRechargeStop() {
     if (!this._shieldRechargeOsc) return;
     try {
-      this._shieldRechargeGain.gain.exponentialRampToValueAtTime(
-        0.001,
-        this.ctx.currentTime + 0.1,
-      );
-      this._shieldRechargeOsc.stop(this.ctx.currentTime + 0.1);
+      if (this.ctx && this._shieldRechargeGain) {
+        const t = this.ctx.currentTime + 0.1;
+        this._shieldRechargeGain.gain.exponentialRampToValueAtTime(0.001, t);
+        this._shieldRechargeOsc.stop(t);
+      }
     } catch (e) {}
     this._shieldRechargeOsc = null;
     this._shieldRechargeGain = null;

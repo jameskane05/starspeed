@@ -90,6 +90,25 @@ export class GameRoom extends Room {
     this.onMessage("startGame", (client) => this.handleStartGame(client));
     this.onMessage("setLevel", (client, data) => this.handleSetLevel(client, data));
     this.onMessage("chat", (client, data) => this.handleChat(client, data));
+    this.onMessage("kick", (client, data) => this.handleKick(client, data));
+  }
+
+  private handleKick(client: Client, data: any) {
+    if (client.sessionId !== this.state.hostId) return;
+    if (this.state.phase !== "lobby") return;
+
+    const targetSessionId = String(data?.targetSessionId || "").trim();
+    if (!targetSessionId || targetSessionId === client.sessionId) return;
+    if (!this.state.players.has(targetSessionId)) return;
+
+    const targetClient = Array.from(this.clients).find(
+      (c) => c.sessionId === targetSessionId,
+    );
+    if (targetClient) {
+      const kicked = this.state.players.get(targetSessionId);
+      targetClient.leave(4000);
+      console.log(`[GameRoom] Host kicked ${kicked?.name || targetSessionId}`);
+    }
   }
 
   private handleSetLevel(client: Client, data: any) {

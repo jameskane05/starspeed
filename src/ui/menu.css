@@ -1105,6 +1105,27 @@
   color: var(--accent-pink);
 }
 
+.kick-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kick-btn:hover {
+  border-color: var(--accent-pink);
+  color: var(--accent-pink);
+}
+
 /* Chat Section */
 .chat-section {
   margin-top: 1rem;
@@ -2102,6 +2123,34 @@
     min-height: 52px;
     padding: 1rem;
   }
+}
+
+/* Kicked Modal */
+.kicked-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.kicked-modal-content {
+  background: var(--bg-panel);
+  border: 2px solid var(--accent-pink);
+  padding: 3rem 4rem;
+  text-align: center;
+  box-shadow: 0 0 30px rgba(255, 51, 102, 0.2);
+}
+
+.kicked-modal-content p {
+  font-size: 1.1rem;
+  color: var(--text-primary);
+  margin: 0 0 1.5rem 0;
 }
 
 /* Rebind Modal */
