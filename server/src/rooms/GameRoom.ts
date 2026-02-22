@@ -102,6 +102,9 @@ export class GameRoom extends Room {
 
     this.state.level = level;
     this.state.players.forEach(p => { p.ready = false; });
+    this.levelSpawnPoints = [];
+    this.levelPlayerSpawns = [];
+    this.levelMissileSpawns = [];
     console.log(`[GameRoom] Host changed map to ${level}, cleared ready status`);
   }
 
