@@ -60,7 +60,7 @@ export class GameRoom extends Room {
     this.state.roomName = options.roomName || "Game Room";
     this.state.level = options.level || "newworld";
     this.state.killLimit = options.killLimit || 20;
-    this.state.maxMatchTime = options.maxMatchTime || 300;
+    this.state.maxMatchTime = options.maxMatchTime || 480;
     this.state.maxPlayers = this.maxClients;
 
     // Set room metadata for listing

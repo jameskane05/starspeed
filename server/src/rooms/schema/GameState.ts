@@ -89,7 +89,7 @@ export class GameState extends Schema {
   @type("string") hostId: string = "";
   @type("number") countdown: number = 0;
   @type("number") matchTime: number = 0;
-  @type("number") maxMatchTime: number = 300; // 5 minutes
+  @type("number") maxMatchTime: number = 480; // 8 minutes
   @type("number") killLimit: number = 20;
   @type("number") maxPlayers: number = 8;
   

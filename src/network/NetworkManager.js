@@ -50,7 +50,7 @@ class NetworkManager {
         name: options.playerName || "Player",
         level: options.level || "newworld",
         killLimit: options.killLimit || 20,
-        maxMatchTime: options.maxMatchTime || 300,
+        maxMatchTime: options.maxMatchTime || 480,
         maxPlayers: options.maxPlayers || 8,
       };
       
