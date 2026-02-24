@@ -317,6 +317,20 @@ export class Game {
 
     this.controlsHelpEl = document.getElementById("controls-help");
 
+    const gameMenuBtn = document.getElementById("game-menu-btn");
+    const gameLeaderboardBtn = document.getElementById("game-leaderboard-btn");
+    if (gameMenuBtn) {
+      gameMenuBtn.addEventListener("click", () => this.showEscMenu());
+    }
+    if (gameLeaderboardBtn) {
+      gameLeaderboardBtn.addEventListener("click", () => {
+        if (!this.gameManager?.isPlaying()) return;
+        const isOpen = document.getElementById("tab-leaderboard")?.classList.contains("active");
+        if (isOpen) this.hideLeaderboard();
+        else this.showLeaderboard();
+      });
+    }
+
     this.level = new Level(this.scene);
     this.level.generate({ skipVisuals: true, skipPhysics: true });
 
@@ -1644,6 +1658,14 @@ export class Game {
       ];
     }
 
+    let timerHtml = "";
+    if (this.isMultiplayer) {
+      const state = NetworkManager.getState();
+      const elapsed = state?.matchTime ?? 0;
+      const max = state?.maxMatchTime ?? 480;
+      timerHtml = `<div class="leaderboard-timer" id="leaderboard-timer">${this._formatMatchTime(elapsed)} / ${this._formatMatchTime(max)}</div>`;
+    }
+
     this.leaderboardEl.innerHTML = `
       <div class="leaderboard">
         <h2>LEADERBOARD</h2>
@@ -1665,6 +1687,7 @@ export class Game {
         `,
           )
           .join("")}
+        ${timerHtml}
       </div>
     `;
 
@@ -1675,6 +1698,26 @@ export class Game {
     if (this.leaderboardEl) {
       this.leaderboardEl.classList.remove("active");
     }
+  }
+
+  _formatMatchTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+
+  _updateLeaderboardTimer() {
+    if (
+      !this.isMultiplayer ||
+      !this.leaderboardEl?.classList.contains("active")
+    )
+      return;
+    const el = document.getElementById("leaderboard-timer");
+    if (!el) return;
+    const state = NetworkManager.getState();
+    const elapsed = state?.matchTime ?? 0;
+    const max = state?.maxMatchTime ?? 480;
+    el.textContent = `${this._formatMatchTime(elapsed)} / ${this._formatMatchTime(max)}`;
   }
 
   showControlsHelp(visible) {
@@ -2169,6 +2212,7 @@ export class Game {
       this.checkCollisions();
 
       this.updateHUD(delta);
+      this._updateLeaderboardTimer();
       this.sendInputToServer(delta);
 
       // Apply prediction correction

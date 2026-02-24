@@ -1681,6 +1681,15 @@
   margin-bottom: 1rem;
 }
 
+.leaderboard-timer {
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.9rem;
+  color: var(--accent-cyan);
+  text-align: center;
+  margin-top: 1rem;
+  letter-spacing: 0.15em;
+}
+
 .leaderboard-header {
   display: grid;
   grid-template-columns: 2rem 1fr 3rem 3rem;
