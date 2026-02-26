@@ -156,16 +156,16 @@ Requires Colyseus Cloud account and deploy key configured in GitHub repo.
 
 **iOS memory:** `maxPagedSplats` is set to 96×65536 (vs default 256×65536) to avoid memory allocation crashes on iOS.
 
-Pre-build LoD scenes for better performance: run `npm run build-lod -- <basename>` (e.g. `npm run build-lod -- scifi` for `scifi.ply`), then tune `lodSplatScale` in Options → Graphics to trade off performance, latency, and detail.
+Pre-build LoD scenes for better performance: run `npm run build-lod -- <basename>` (e.g. `npm run build-lod -- spaceship/spaceship` for `spaceship.spz`), then tune `lodSplatScale` in Options → Graphics to trade off performance, latency, and detail.
 
-Convert PLY splat files to paged LOD-enabled SPZ format:
+Convert PLY or SPZ splat files to paged LOD-enabled .RAD format (Spark LOD 2.0):
 
 ```bash
-npm run build-lod -- scifi
+npm run build-lod -- spaceship/spaceship
 # Uses BUILD_LOD_PATH env or c:/Users/James/work/spark-lod/rust/target/release/build-lod.exe
 ```
 
-Generates chunked files `your-file-lod-0.spz`, `your-file-lod-1.spz`, etc. Update `src/data/sceneData.js` with the base path (without extension) and `paged: true`.
+Generates a single `.RAD` file that supports paging/streaming via an index at the file start (JSON, inspect with `less my-file.rad`). Spark loads it directly; HTTP Range queries fetch chunks on demand. Prefer .RAD over chunked SPZs—faster load/stream, simpler to manage. Update `src/data/sceneData.js` with the .rad path and `paged: true`.
 
 ## Configuration
 

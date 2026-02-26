@@ -21,9 +21,9 @@ if (!inputPath) {
   process.exit(1);
 }
 
-console.log(`Running: ${buildLod} --chunked ${inputPath}`);
+console.log(`Running: ${buildLod} ${inputPath}`);
 try {
-  execSync(`"${buildLod}" --chunked "${inputPath}"`, { stdio: "inherit" });
+  execSync(`"${buildLod}" "${inputPath}"`, { stdio: "inherit" });
 } catch (e) {
   process.exit(1);
 }

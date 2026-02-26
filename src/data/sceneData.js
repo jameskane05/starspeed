@@ -22,7 +22,7 @@ export const sceneObjects = {
   level: {
     id: "level",
     type: "splat",
-    path: "./splats/spaceship/spaceship-lod-0.spz",
+    path: "./splats/spaceship/spaceship-lod.spz",
     description: "Level environment gaussian splat with LOD",
     //position: { x: 0, y: 0, z: 0 },
     position: { x: 0, y: -90, z: 0 },
@@ -64,7 +64,7 @@ export const sceneObjects = {
   newworldLevel: {
     id: "newworldLevel",
     type: "splat",
-    path: "./splats/spaceship/spaceship-lod-0.spz",
+    path: "./splats/spaceship/spaceship-lod.spz",
     description: "New World environment gaussian splat with LOD",
     position: { x: -56.68, y: 0.0, z: 29.79 },
     rotation: { x: 0, y: 0, z: 0 },
