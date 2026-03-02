@@ -112,8 +112,8 @@ canvas {
 
 @media (min-width: 769px) {
   #game-top-buttons img {
-    width: 1.1em;
-    height: 1.1em;
+    width: 2.2rem;
+    height: 2.2rem;
     object-fit: contain;
   }
   #game-top-buttons button {
@@ -122,6 +122,7 @@ canvas {
     background: none;
     cursor: pointer;
     display: block;
+    font-size: 2rem;
   }
   #game-top-buttons button:hover img {
     filter: brightness(1.2);

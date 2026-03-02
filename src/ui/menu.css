@@ -2111,6 +2111,165 @@
   touch-action: manipulation;
 }
 
+/* Feedback Modal */
+.feedback-modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 2500;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  box-sizing: border-box;
+}
+
+.feedback-modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.feedback-modal-content {
+  position: relative;
+  background: var(--bg-panel);
+  border: 2px solid var(--accent-cyan);
+  padding: 2rem 2.5rem;
+  box-shadow: 0 0 30px rgba(0, 240, 255, 0.3);
+  max-width: min(90vw, 480px);
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+  font-family: "Rajdhani", sans-serif;
+}
+
+.feedback-modal-content h3 {
+  font-family: "Orbitron", sans-serif;
+  font-size: 1.4rem;
+  color: var(--accent-cyan);
+  margin: 0 0 1.25rem 0;
+  letter-spacing: 0.15em;
+}
+
+.feedback-form .form-group {
+  margin-bottom: 1rem;
+}
+
+.feedback-form .form-group label {
+  display: block;
+  font-family: "Rajdhani", sans-serif;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.2em;
+  margin-bottom: 0.4rem;
+}
+
+.feedback-form input,
+.feedback-form .menu-select,
+.feedback-form textarea {
+  width: 100%;
+  padding: 0.6rem 1rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  color: var(--accent-cyan);
+  font-family: "Rajdhani", sans-serif;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+
+.feedback-form textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.feedback-form input:focus,
+.feedback-form .menu-select:focus,
+.feedback-form textarea:focus {
+  outline: none;
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+}
+
+.feedback-type-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.feedback-type-group > label {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.feedback-type-radios {
+  display: flex;
+  flex: 1;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.feedback-type-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-family: "Rajdhani", sans-serif;
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+.feedback-type-option input[type="radio"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--accent-cyan);
+  cursor: pointer;
+}
+
+.feedback-type-option:has(input:checked) {
+  color: var(--accent-cyan);
+}
+
+.feedback-ratings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.feedback-rating-row .menu-select {
+  min-height: 40px;
+}
+
+.feedback-disclaimer {
+  font-family: "Rajdhani", sans-serif;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin: 0 0 1rem 0;
+  line-height: 1.4;
+}
+
+.feedback-error {
+  font-family: "Rajdhani", sans-serif;
+  color: var(--accent-pink);
+  font-size: 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+.feedback-modal-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.feedback-modal-buttons .menu-btn {
+  flex: 1;
+  min-width: 0;
+}
+
 @media (max-width: 768px) {
   .level-select-content {
     padding: 1.5rem 1.5rem;

@@ -4,7 +4,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import {
-  NewSparkRenderer,
+  SparkRenderer,
   SplatEdit,
   SplatEditSdf,
   SplatEditSdfType,
@@ -177,25 +177,27 @@ export class Game {
     const perfProfile = this.gameManager.getPerformanceProfile();
     const useLowSplatLOD =
       this.gameManager.state.isIOS || this.gameManager.state.isVisionPro;
-    const splatSettings = useLowSplatLOD
-      ? { lodSplatScale: 0.5, lodRenderScale: 0.5 }
-      : (perfProfile.splat ?? {});
-
-    const maxPagedSplats =
-      this.gameManager.state.isIOS || this.gameManager.state.isVisionPro
-        ? 96 * 65536
-        : 256 * 65536;
+    const splatProfile = useLowSplatLOD
+      ? getPerformanceProfile("low")
+      : perfProfile;
+    const splatSettings = splatProfile.splat ?? {};
+    const maxPagedSplats = splatSettings.maxPagedSplats ?? 256 * 65536;
 
     const boostDoFFocalDistance = 100;
     const boostDoFApertureSize = 0.4;
     const boostDoFApertureAngle =
       2 * Math.atan((0.5 * boostDoFApertureSize) / boostDoFFocalDistance);
-    this.sparkRenderer = new NewSparkRenderer({
+    this.sparkRenderer = new SparkRenderer({
       renderer: this.renderer,
       maxStdDev: Math.sqrt(5),
       maxPagedSplats,
+      pagedExtSplats: true,
       lodSplatScale: splatSettings.lodSplatScale ?? 1.0,
       lodRenderScale: splatSettings.lodRenderScale ?? 1.0,
+      coneFov0: splatSettings.coneFov0 ?? 70.0,
+      coneFov: splatSettings.coneFov ?? 120.0,
+      behindFoveate: splatSettings.behindFoveate ?? 0.2,
+      coneFoveate: splatSettings.coneFoveate ?? 0.4,
       focalDistance: boostDoFFocalDistance,
       apertureAngle: 0,
     });
@@ -758,15 +760,15 @@ export class Game {
     if (!this.projectileSplatLayer) return null;
     try {
       const color = isPlayerOwned
-        ? new THREE.Color(0.5, 0.7, 0.85)
+        ? new THREE.Color(0.04, 0.06, 0.08)
         : visual?.color
-          ? new THREE.Color(visual.color)
-          : new THREE.Color(0.9, 0.5, 0.3);
+          ? new THREE.Color(visual.color).multiplyScalar(0.08)
+          : new THREE.Color(0.07, 0.04, 0.03);
       const sdf = new SplatEditSdf({
         type: SplatEditSdfType.SPHERE,
-        radius: 6,
+        radius: 10,
         color,
-        opacity: 0.06,
+        opacity: 0.1,
       });
       this.projectileSplatLayer.add(sdf);
       return sdf;
@@ -1594,6 +1596,7 @@ export class Game {
         <div class="esc-buttons">
           <button id="esc-resume" class="esc-btn">RESUME</button>
           <button id="esc-options" class="esc-btn">OPTIONS</button>
+          <button id="esc-feedback" class="esc-btn">FEEDBACK</button>
           <button id="esc-leave" class="esc-btn esc-btn-danger">LEAVE MATCH</button>
         </div>
       </div>
@@ -1605,6 +1608,18 @@ export class Game {
     document
       .getElementById("esc-options")
       .addEventListener("click", () => this.showOptionsMenu());
+    document
+      .getElementById("esc-feedback")
+      .addEventListener("click", () => {
+        this.escMenu.style.display = "none";
+        MenuManager.showFeedbackModal({
+          onClose: () => {
+            if (this.isEscMenuOpen && this.escMenu) {
+              this.escMenu.style.display = "flex";
+            }
+          },
+        });
+      });
     document
       .getElementById("esc-leave")
       .addEventListener("click", () => this.leaveMatch());

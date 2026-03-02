@@ -1,0 +1,27 @@
+[
+  {
+    "id": "e10a08d6-9ef5-40f6-a9a1-f320f156ecfc",
+    "createdAt": "2026-03-02T19:58:56.212Z",
+    "type": "feedback",
+    "name": "test",
+    "email": "test@test.com",
+    "message": "good",
+    "ratings": {
+      "gameplay": 1,
+      "performance": 0,
+      "graphics": 0,
+      "overall": 0
+    },
+    "systemInfo": {
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+      "platform": "macOS",
+      "language": "en-US",
+      "screenWidth": 1470,
+      "screenHeight": 956,
+      "deviceMemory": 8,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+      "gpuVendor": "Google Inc. (Apple)",
+      "vram": "unknown"
+    }
+  }
+]

@@ -50,6 +50,12 @@ export const LEVELS = {
     description: "Ice Crystal Mining Facility",
     preview: "/hull_lights_emit.png",
   },
+  charon: {
+    id: "charon",
+    name: "Charon",
+    description: "Charon environment",
+    preview: "/hull_lights_emit.png",
+  },
 };
 
 export const SHIP_CLASSES = {

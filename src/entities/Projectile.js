@@ -76,6 +76,7 @@ export class Projectile {
     this.mesh.position.add(_tempVec);
     if (this.splatLight) {
       this.splatLight.position.copy(this.mesh.position);
+      this.splatLight.updateMatrixWorld(false);
     }
   }
 

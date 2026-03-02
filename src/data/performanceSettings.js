@@ -4,6 +4,11 @@ export const PERFORMANCE_PROFILES = {
     splat: {
       lodSplatScale: 0.5,
       lodRenderScale: 0.5,
+      maxPagedSplats: 96 * 65536,
+      coneFov0: 50.0,
+      coneFov: 100.0,
+      behindFoveate: 0.35,
+      coneFoveate: 0.55,
     },
     particles: {
       sparks: 200,
@@ -19,7 +24,7 @@ export const PERFORMANCE_PROFILES = {
       shadows: false,
       bloom: false,
       enemyLights: false,
-      projectileSplatLights: false,
+      projectileSplatLights: true,
       toneMapping: true,
       toneMappingExposure: 1.5,
     },
@@ -28,7 +33,12 @@ export const PERFORMANCE_PROFILES = {
   medium: {
     label: "Medium",
     splat: {
-      lodSplatScale: 0.8,
+      lodSplatScale: 0.2,
+      maxPagedSplats: 256 * 65536,
+      coneFov0: 70.0,
+      coneFov: 120.0,
+      behindFoveate: 0.2,
+      coneFoveate: 0.4,
     },
     particles: {
       sparks: 400,
@@ -44,7 +54,7 @@ export const PERFORMANCE_PROFILES = {
       shadows: true,
       bloom: true,
       enemyLights: false,
-      projectileSplatLights: false,
+      projectileSplatLights: true,
       toneMapping: true,
       toneMappingExposure: 1.5,
     },
@@ -55,6 +65,11 @@ export const PERFORMANCE_PROFILES = {
     splat: {
       lodSplatScale: 1.0,
       lodRenderScale: 1.0,
+      maxPagedSplats: 256 * 65536,
+      coneFov0: 70.0,
+      coneFov: 120.0,
+      behindFoveate: 0.2,
+      coneFoveate: 0.4,
     },
     particles: {
       sparks: 500,
@@ -70,7 +85,7 @@ export const PERFORMANCE_PROFILES = {
       shadows: true,
       bloom: true,
       enemyLights: true,
-      projectileSplatLights: false,
+      projectileSplatLights: true,
       toneMapping: true,
       toneMappingExposure: 1.5,
     },
@@ -81,6 +96,11 @@ export const PERFORMANCE_PROFILES = {
     splat: {
       lodSplatScale: 2.0,
       lodRenderScale: 1.0,
+      maxPagedSplats: 256 * 65536,
+      coneFov0: 70.0,
+      coneFov: 120.0,
+      behindFoveate: 0.2,
+      coneFoveate: 0.4,
     },
     particles: {
       sparks: 800,
@@ -96,7 +116,7 @@ export const PERFORMANCE_PROFILES = {
       shadows: true,
       bloom: true,
       enemyLights: true,
-      projectileSplatLights: false,
+      projectileSplatLights: true,
       toneMapping: true,
       toneMappingExposure: 1.5,
     },

@@ -19,52 +19,31 @@
 import { GAME_STATES } from "./gameData.js";
 
 export const sceneObjects = {
-  level: {
-    id: "level",
+
+  charonLevel: {
+    id: "charonLevel",
     type: "splat",
-    path: "./splats/spaceship/spaceship-lod.spz",
-    description: "Level environment gaussian splat with LOD",
-    //position: { x: 0, y: 0, z: 0 },
-    position: { x: 0, y: -90, z: 0 },
+    path: "./charon-final-lod.rad",
+    description: "Charon environment gaussian splat with LOD",
+    position: { x: 0, y: 0, z: 0 },
     rotation: { x: 0, y: 0, z: 0 },
     scale: 1,
     priority: 100,
     preload: false,
     paged: true,
+    lod: true,
+    extSplats: true,
     gizmo: false,
     criteria: {
-      currentLevel: "hangar",
+      currentLevel: "charon",
       currentState: { $in: [GAME_STATES.PLAYING, GAME_STATES.PAUSED] },
     },
   },
-
-  levelOcclusion: {
-    id: "levelOcclusion",
-    type: "gltf",
-    path: "./starstrafe-level1-phys.glb",
-    position: { x: 4.51, y: 2.23, z: -3.37 },
-    rotation: { x: 0, y: 0, z: 0 },
-    scale: 1,
-    priority: 95,
-    preload: false,
-    gizmo: false,
-    options: {
-      occluder: true,
-      debugWireframe: false,
-      physicsCollider: true,
-    },
-    criteria: {
-      currentLevel: "hangar",
-      currentState: { $in: [GAME_STATES.PLAYING, GAME_STATES.PAUSED] },
-    },
-  },
-
-  // === New World level ===
 
   newworldLevel: {
     id: "newworldLevel",
     type: "splat",
-    path: "./splats/spaceship/spaceship-lod.spz",
+    path: "./splats/spaceship/spaceship-lod.rad",
     description: "New World environment gaussian splat with LOD",
     position: { x: -56.68, y: 0.0, z: 29.79 },
     rotation: { x: 0, y: 0, z: 0 },
@@ -72,6 +51,8 @@ export const sceneObjects = {
     priority: 100,
     preload: false,
     paged: true,
+    lod: true,
+    extSplats: true,
     gizmo: false,
     criteria: {
       currentLevel: "newworld",
@@ -194,46 +175,6 @@ export const sceneObjects = {
       currentState: { $in: [GAME_STATES.PLAYING, GAME_STATES.PAUSED] },
     },
   },
-
-  icetestLevel: {
-    id: "icetestLevel",
-    type: "splat",
-    path: "./splats/Ice Crystal Mining Facility.ply",
-    description: "Ice Crystal Mining Facility gaussian splat",
-    position: { x: 0, y: 0, z: 0 },
-    rotation: { x: 0, y: 0, z: 0 },
-    scale: 5,
-    priority: 100,
-    preload: false,
-    paged: false,
-    gizmo: false,
-    criteria: {
-      currentLevel: "icetest",
-      currentState: { $in: [GAME_STATES.PLAYING, GAME_STATES.PAUSED] },
-    },
-  },
-
-  icetestLevelData: {
-    id: "icetestLevelData",
-    type: "gltf",
-    path: "./splats/ice-mine-test-data.glb",
-    position: { x: 0, y: 0, z: 0 },
-    rotation: { x: 0, y: 0, z: 0 },
-    scale: 1,
-    priority: 95,
-    preload: false,
-    gizmo: false,
-    options: {
-      occluder: true,
-      debugWireframe: false,
-      physicsCollider: true,
-      combinedLevel: { geometryName: "LevelGeometry" },
-    },
-    criteria: {
-      currentLevel: "icetest",
-      currentState: { $in: [GAME_STATES.PLAYING, GAME_STATES.PAUSED] },
-    },
-  },
 };
 
 /**
@@ -276,6 +217,7 @@ export function checkCriteria(state, criteria) {
 export const LEVEL_OBJECT_IDS = [
   "level",
   "levelOcclusion",
+  "charonLevel",
   "newworldLevel",
   "newworldLevelData",
   "redarenaLevel",

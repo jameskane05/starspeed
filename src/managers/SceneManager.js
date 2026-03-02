@@ -91,8 +91,18 @@ class SceneManager {
    * Load a gaussian splat
    */
   async _loadSplat(objectData, onProgress = null) {
-    const { id, path, position, rotation, scale, quaternion, paged } =
-      objectData;
+    const {
+      id,
+      path,
+      position,
+      rotation,
+      scale,
+      quaternion,
+      paged,
+      lod,
+      extSplats,
+      lodScale,
+    } = objectData;
 
     console.log(
       `[SceneManager] Loading splat: ${path}${paged ? " (paged/LOD)" : ""}`,
@@ -100,8 +110,11 @@ class SceneManager {
 
     const splatMesh = new SplatMesh({
       url: path,
-      editable: true, // Allow SplatEdit layers to affect this splat (for headlight effects)
-      paged: paged || false, // Enable streaming for LOD files
+      editable: true,
+      paged: paged || false,
+      lod: lod,
+      extSplats: extSplats,
+      lodScale: lodScale,
       onProgress: (progress) => {
         if (onProgress) onProgress(progress);
       },
