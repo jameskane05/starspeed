@@ -31,6 +31,8 @@ jobs:
 
       - run: npm ci
 
+      - run: npm install @rollup/rollup-linux-x64-gnu --no-save
+
       - run: npx vite build
 
       - uses: actions/configure-pages@v4
