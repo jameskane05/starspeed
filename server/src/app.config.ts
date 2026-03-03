@@ -14,6 +14,8 @@ const ALLOWED_ORIGINS = new Set([
     "https://localhost:5173",
     "http://127.0.0.1:5173",
     "https://127.0.0.1:5173",
+    "https://starspeed.game",
+    "http://starspeed.game",
 ]);
 const origGetCorsHeaders = matchMaker.controller.getCorsHeaders.bind(matchMaker.controller);
 matchMaker.controller.getCorsHeaders = function (headers: Headers) {
@@ -28,7 +30,6 @@ import path from "path";
 
 import { MyRoom } from "./rooms/MyRoom.js";
 import { GameRoom } from "./rooms/GameRoom.js";
-import { FEEDBACK_DASHBOARD_HTML } from "./feedback-dashboard-html.js";
 
 const FEEDBACK_FILE = path.join(process.cwd(), "data", "feedback.json");
 
@@ -150,10 +151,6 @@ const server = defineServer({
             }
             const list = readFeedback();
             res.json(list);
-        });
-
-        app.get("/feedback-dashboard", (_req, res) => {
-            res.type("html").send(FEEDBACK_DASHBOARD_HTML);
         });
 
         /**

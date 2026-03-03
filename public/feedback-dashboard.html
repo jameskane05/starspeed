@@ -1,4 +1,4 @@
-export const FEEDBACK_DASHBOARD_HTML = `<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -38,20 +38,22 @@ export const FEEDBACK_DASHBOARD_HTML = `<!DOCTYPE html>
   <div id="table-wrap"></div>
 
   <script>
-    const base = window.location.origin;
-    let data = [];
+    var API_BASE = location.hostname === "localhost" || location.hostname === "127.0.0.1"
+      ? "http://localhost:2567"
+      : "https://us-ord-23ba76a6.colyseus.cloud";
+    var data = [];
 
     function showError(msg) {
-      const el = document.getElementById("error");
+      var el = document.getElementById("error");
       el.textContent = msg;
       el.style.display = msg ? "block" : "none";
     }
 
     async function load() {
-      const key = document.getElementById("key").value.trim();
-      const url = key ? base + "/api/feedback?key=" + encodeURIComponent(key) : base + "/api/feedback";
+      var key = document.getElementById("key").value.trim();
+      var url = key ? API_BASE + "/api/feedback?key=" + encodeURIComponent(key) : API_BASE + "/api/feedback";
       try {
-        const res = await fetch(url);
+        var res = await fetch(url);
         if (!res.ok) {
           if (res.status === 401) throw new Error("Invalid or missing key");
           throw new Error(res.statusText || "Load failed");
@@ -67,13 +69,13 @@ export const FEEDBACK_DASHBOARD_HTML = `<!DOCTYPE html>
     }
 
     function getFiltered() {
-      const typeFilter = document.getElementById("filter-type").value;
+      var typeFilter = document.getElementById("filter-type").value;
       if (!typeFilter) return data;
       return data.filter(function(r) { return r.type === typeFilter; });
     }
 
     function escapeHtml(s) {
-      const div = document.createElement("div");
+      var div = document.createElement("div");
       div.textContent = s;
       return div.innerHTML;
     }
@@ -82,7 +84,7 @@ export const FEEDBACK_DASHBOARD_HTML = `<!DOCTYPE html>
     }
     function formatRatings(r) {
       if (!r || typeof r !== "object") return "—";
-      const parts = [];
+      var parts = [];
       if (typeof r.gameplay === "number") parts.push("G:" + r.gameplay);
       if (typeof r.performance === "number") parts.push("P:" + r.performance);
       if (typeof r.graphics === "number") parts.push("Gr:" + r.graphics);
@@ -91,16 +93,16 @@ export const FEEDBACK_DASHBOARD_HTML = `<!DOCTYPE html>
     }
 
     function render() {
-      const list = getFiltered();
-      const wrap = document.getElementById("table-wrap");
+      var list = getFiltered();
+      var wrap = document.getElementById("table-wrap");
       if (list.length === 0) {
-        wrap.innerHTML = '<p class="empty">No feedback entries.</p>';
+        wrap.innerHTML = "<p class=\"empty\">No feedback entries.</p>";
         return;
       }
       wrap.innerHTML = "<table><thead><tr><th>Date</th><th>Type</th><th>Name</th><th>Email</th><th>Message</th><th>Ratings</th><th></th></tr></thead><tbody>" +
         list.map(function(row, i) {
           var msg = row.message || "";
-          return "<tr data-i=\"" + i + "\"><td>" + new Date(row.createdAt).toLocaleString() + "</td><td>" + (row.type || "") + "</td><td>" + escapeHtml(row.name || "") + "</td><td>" + escapeHtml(row.email || "") + "</td><td class=\\"msg\\" title=\"" + escapeAttr(msg) + "\">" + escapeHtml(msg.slice(0, 60)) + (msg.length > 60 ? "…" : "") + "</td><td>" + formatRatings(row.ratings) + "</td><td><span class=\\"expand\\" data-i=\"" + i + "\">Details</span></td></tr><tr data-detail=\"" + i + "\" style=\"display:none;\"><td colspan=\"7\"><div class=\\"system-info\\">" + escapeHtml(JSON.stringify(row.systemInfo || {}, null, 2)) + "</div><div class=\\"system-info\\" style=\"margin-top:0.5rem;\"><strong>Full message:</strong><br/>" + escapeHtml(msg) + "</div></td></tr>";
+          return "<tr data-i=\"" + i + "\"><td>" + new Date(row.createdAt).toLocaleString() + "</td><td>" + (row.type || "") + "</td><td>" + escapeHtml(row.name || "") + "</td><td>" + escapeHtml(row.email || "") + "</td><td class=\"msg\" title=\"" + escapeAttr(msg) + "\">" + escapeHtml(msg.slice(0, 60)) + (msg.length > 60 ? "…" : "") + "</td><td>" + formatRatings(row.ratings) + "</td><td><span class=\"expand\" data-i=\"" + i + "\">Details</span></td></tr><tr data-detail=\"" + i + "\" style=\"display:none;\"><td colspan=\"7\"><div class=\"system-info\">" + escapeHtml(JSON.stringify(row.systemInfo || {}, null, 2)) + "</div><div class=\"system-info\" style=\"margin-top:0.5rem;\"><strong>Full message:</strong><br/>" + escapeHtml(msg) + "</div></td></tr>";
         }).join("") +
         "</tbody></table>";
       wrap.querySelectorAll(".expand").forEach(function(el) {
@@ -113,15 +115,15 @@ export const FEEDBACK_DASHBOARD_HTML = `<!DOCTYPE html>
     }
 
     function exportCsv() {
-      const list = getFiltered();
+      var list = getFiltered();
       if (list.length === 0) return;
-      const headers = ["createdAt", "type", "name", "email", "message", "gameplay", "performance", "graphics", "overall"];
-      const rows = list.map(function(r) {
-        const ratings = r.ratings || {};
-        return [r.createdAt, r.type, r.name || "", r.email || "", (r.message || "").replace(/"/g, '""'), ratings.gameplay ?? "", ratings.performance ?? "", ratings.graphics ?? "", ratings.overall ?? ""].map(function(c) { return "\\"" + String(c).replace(/"/g, '""') + "\\""; }).join(",");
+      var headers = ["createdAt", "type", "name", "email", "message", "gameplay", "performance", "graphics", "overall"];
+      var rows = list.map(function(r) {
+        var ratings = r.ratings || {};
+        return [r.createdAt, r.type, r.name || "", r.email || "", (r.message || "").replace(/"/g, '""'), ratings.gameplay ?? "", ratings.performance ?? "", ratings.graphics ?? "", ratings.overall ?? ""].map(function(c) { return "\"" + String(c).replace(/"/g, '""') + "\""; }).join(",");
       });
-      const csv = [headers.join(",")].concat(rows).join("\\n");
-      const a = document.createElement("a");
+      var csv = [headers.join(",")].concat(rows).join("\n");
+      var a = document.createElement("a");
       a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
       a.download = "feedback-" + new Date().toISOString().slice(0, 10) + ".csv";
       a.click();
@@ -133,4 +135,4 @@ export const FEEDBACK_DASHBOARD_HTML = `<!DOCTYPE html>
     load();
   </script>
 </body>
-</html>`;
+</html>
