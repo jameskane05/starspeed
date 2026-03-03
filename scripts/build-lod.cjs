@@ -28,7 +28,7 @@ if (!fs.existsSync(buildLodPath)) {
 
 const outDir = path.dirname(inputPath);
 const outBase = path.basename(basename);
-const outputPath = path.join(outDir, outBase + ".rad");
+const outputPath = path.join(outDir, outBase + "-lod.rad");
 
 console.log("[build-lod] input:", inputPath);
 console.log("[build-lod] output:", outputPath);
