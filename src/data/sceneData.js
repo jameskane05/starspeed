@@ -63,7 +63,7 @@ export const sceneObjects = {
   newworldLevelData: {
     id: "newworldLevelData",
     type: "gltf",
-    path: "./spaceship-data.glb",
+    path: "./splats/spaceship-data.glb",
     position: { x: 0, y: 0, z: 0 },
     rotation: { x: 0, y: 0, z: 0 },
     scale: 1,
