@@ -25,15 +25,10 @@ matchMaker.controller.getCorsHeaders = function (headers: Headers) {
 };
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-/**
- * Import your Room files
- */
 import { MyRoom } from "./rooms/MyRoom.js";
 import { GameRoom } from "./rooms/GameRoom.js";
+import { FEEDBACK_DASHBOARD_HTML } from "./feedback-dashboard-html.js";
 
 const FEEDBACK_FILE = path.join(process.cwd(), "data", "feedback.json");
 
@@ -157,19 +152,8 @@ const server = defineServer({
             res.json(list);
         });
 
-        const dashboardPath =
-            path.join(__dirname, "public", "feedback-dashboard.html");
-        const dashboardPathFallback =
-            path.join(__dirname, "..", "public", "feedback-dashboard.html");
-        const dashboardFile = fs.existsSync(dashboardPath)
-            ? dashboardPath
-            : dashboardPathFallback;
-        app.get("/feedback-dashboard", (req, res) => {
-            if (!fs.existsSync(dashboardFile)) {
-                res.status(404).send("Dashboard not found");
-                return;
-            }
-            res.sendFile(dashboardFile);
+        app.get("/feedback-dashboard", (_req, res) => {
+            res.type("html").send(FEEDBACK_DASHBOARD_HTML);
         });
 
         /**
