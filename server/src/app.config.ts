@@ -8,6 +8,21 @@ import {
     matchMaker,
 } from "colyseus";
 import express from "express";
+
+const ALLOWED_ORIGINS = new Set([
+    "http://localhost:5173",
+    "https://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://127.0.0.1:5173",
+]);
+const origGetCorsHeaders = matchMaker.controller.getCorsHeaders.bind(matchMaker.controller);
+matchMaker.controller.getCorsHeaders = function (headers: Headers) {
+    const origin = headers.get("origin") ?? "";
+    if (ALLOWED_ORIGINS.has(origin)) {
+        return { "Access-Control-Allow-Origin": origin };
+    }
+    return origGetCorsHeaders(headers);
+};
 import fs from "fs";
 import path from "path";
 
@@ -90,8 +105,14 @@ const server = defineServer({
      */
     express: (app) => {
         app.use(express.json());
-        app.use((_req, res, next) => {
-            res.setHeader("Access-Control-Allow-Origin", "*");
+        app.use((req, res, next) => {
+            const origin = req.headers.origin;
+            if (origin && ALLOWED_ORIGINS.has(origin)) {
+                res.setHeader("Access-Control-Allow-Origin", origin);
+                res.setHeader("Access-Control-Allow-Credentials", "true");
+            } else {
+                res.setHeader("Access-Control-Allow-Origin", "*");
+            }
             res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
             res.setHeader("Access-Control-Allow-Headers", "Content-Type");
             next();

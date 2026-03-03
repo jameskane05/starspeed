@@ -23,7 +23,7 @@ export const sceneObjects = {
   charonLevel: {
     id: "charonLevel",
     type: "splat",
-    path: "./charon-final-lod.rad",
+    path: "./splats/charon-final-lod.rad",
     description: "Charon environment gaussian splat with LOD",
     position: { x: 0, y: 0, z: 0 },
     rotation: { x: 0, y: 0, z: 0 },
