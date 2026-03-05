@@ -256,9 +256,9 @@ async function loadShipModels() {
 
     if (results.length === 0) {
       try {
-        const gltf = await loader.loadAsync("./Heavy_EXT_01.glb");
+        const gltf = await loader.loadAsync("./Heavy_EXT_02.glb");
         shipModels = [gltf.scene];
-        console.log("Fallback: loaded Heavy_EXT_01.glb");
+        console.log("Fallback: loaded Heavy_EXT_02.glb");
       } catch (err) {
         console.warn("No ship models available");
       }

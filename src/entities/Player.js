@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { checkSphereCollision, castSphere } from "../physics/Physics.js";
+import { prefracturePlayerShip } from "../vfx/ShipDestruction.js";
 
 const _right = new THREE.Vector3();
 const _up = new THREE.Vector3();
@@ -9,6 +10,11 @@ const _accel = new THREE.Vector3();
 const _pitchQuat = new THREE.Quaternion();
 const _yawQuat = new THREE.Quaternion();
 const _rollQuat = new THREE.Quaternion();
+const _engineColorBlack = new THREE.Color(0x000000);
+const _engineColorGlow = new THREE.Color(0xbbddff);
+const _engineColorBoost = new THREE.Color(0xddffff);
+const GUN_RETRACT_AMOUNT = 0.06;
+const GUN_RETRACT_RECOVERY = 6;
 
 export class Player {
   constructor(camera, input, level, scene, options = {}) {
@@ -58,6 +64,18 @@ export class Player {
     this.fireFromLeft = true;
     this.missileFromLeft = true;
 
+    this.gunL = null;
+    this.gunR = null;
+    this.missileL = null;
+    this.missileR = null;
+    this.gunRetractionL = 0;
+    this.gunRetractionR = 0;
+    this.engineMarkers = [];
+    this.engineMaterials = [];
+    this.exteriorRef = null;
+    this.engineGlowT = 0;
+    this.engineGlowTarget = 0;
+
     this.camera.position.set(0, 0, 0);
     this.camera.quaternion.identity();
 
@@ -77,6 +95,57 @@ export class Player {
     this.camera.add(this.headlight.target);
 
     this.loadCockpit(scene);
+    this.loadExteriorRef();
+  }
+
+  loadExteriorRef() {
+    const loader = new GLTFLoader();
+    loader.load(
+      "./Heavy_EXT_02.glb",
+      (gltf) => {
+        this.exteriorRef = gltf.scene;
+        this.exteriorRef.visible = false;
+        this.exteriorRef.position.set(0, 0, 0);
+        this.exteriorRef.rotation.set(0, Math.PI, 0);
+        this.exteriorRef.scale.setScalar(1);
+
+        this.exteriorRef.traverse((child) => {
+          const n = child.name;
+          if (n === "Gun_L") {
+            this.gunL = child;
+            child.userData.restPosition = child.position.clone();
+          } else if (n === "Gun_R") {
+            this.gunR = child;
+            child.userData.restPosition = child.position.clone();
+          } else if (n === "Missile_L") this.missileL = child;
+          else if (n === "Missile_R") this.missileR = child;
+          if (n === "Engine_L" || n === "Engine_R") this.engineMarkers.push(child);
+          if (n === "Engine_Center" || n === "Engine_L" || n === "Engine_R") {
+            if (child.isMesh && child.material) this.engineMaterials.push(child.material);
+            else if (child.children) {
+              child.traverse((c) => {
+                if (c.isMesh && c.material) this.engineMaterials.push(c.material);
+              });
+            }
+          }
+        });
+        if (!this.gunL || !this.gunR) {
+          console.warn("[Player] Ship model missing Gun_L and/or Gun_R; laser spawn using fallback offsets.");
+        }
+        if (this.engineMarkers.length < 2) {
+          console.warn("[Player] Ship model missing Engine_L and/or Engine_R; boost trail VFX disabled.");
+        }
+        if (this.engineMaterials.length === 0) {
+          console.warn("[Player] Ship model missing Engine_ meshes; engine glow disabled.");
+        }
+
+        this.camera.add(this.exteriorRef);
+        prefracturePlayerShip(this.exteriorRef);
+        if (this.xrManager) this._reparentToRig();
+      },
+      undefined,
+      (err) => console.error("Exterior ref load error:", err),
+    );
   }
 
   loadCockpit(scene) {
@@ -143,13 +212,18 @@ export class Player {
   }
 
   _restoreCockpitFromXR() {
-    if (!this.xrManager || !this.cockpit) return;
+    if (!this.xrManager) return;
     const rig = this.xrManager.rig;
-    if (this.cockpit.parent === rig) {
+    if (this.cockpit && this.cockpit.parent === rig) {
       rig.remove(this.cockpit);
       this.cockpit.scale.setScalar(1.0);
       this.cockpit.position.set(0, 0, 5.35);
       this.camera.add(this.cockpit);
+    }
+    if (this.exteriorRef && this.exteriorRef.parent === rig) {
+      rig.remove(this.exteriorRef);
+      this.exteriorRef.position.set(0, 0, 0);
+      this.camera.add(this.exteriorRef);
     }
   }
 
@@ -162,6 +236,10 @@ export class Player {
       this.cockpit.scale.setScalar(1.5);
       this.cockpit.position.set(0, 0.8, 8.25);
       rig.add(this.cockpit);
+    }
+    if (this.exteriorRef && this.exteriorRef.parent === this.camera) {
+      this.camera.remove(this.exteriorRef);
+      rig.add(this.exteriorRef);
     }
     if (this.headlight && this.headlight.parent === this.camera) {
       this.camera.remove(this.headlight);
@@ -261,23 +339,56 @@ export class Player {
       if (!hitZ) rig.position.z += vel.z;
       else this.velocity.z = 0;
     }
+
+    if (this.engineMaterials.length > 0) {
+      this.engineGlowTarget = this.isBoosting ? 1 : Math.min(1, this.velocity.length() / this.maxSpeed);
+      this.engineGlowT += (this.engineGlowTarget - this.engineGlowT) * Math.min(1, delta * 4);
+      const boostGlow = this.isBoosting ? 1 : 0;
+      for (const mat of this.engineMaterials) {
+        if (!mat.color || !mat.emissive) continue;
+        mat.color.lerpColors(_engineColorBlack, boostGlow > 0 ? _engineColorBoost : _engineColorGlow, this.engineGlowT);
+        mat.emissive.lerpColors(_engineColorBlack, boostGlow > 0 ? _engineColorBoost : _engineColorGlow, this.engineGlowT);
+        mat.emissiveIntensity = boostGlow > 0 ? 2.2 : (0.05 + 0.25 * this.engineGlowT);
+      }
+    }
+
+    const gunRecover = 1 - Math.exp(-GUN_RETRACT_RECOVERY * delta);
+    if (this.gunL?.userData.restPosition) {
+      this.gunRetractionL = Math.max(0, this.gunRetractionL - this.gunRetractionL * gunRecover);
+      this.gunL.position.copy(this.gunL.userData.restPosition);
+      this.gunL.position.z -= this.gunRetractionL;
+    }
+    if (this.gunR?.userData.restPosition) {
+      this.gunRetractionR = Math.max(0, this.gunRetractionR - this.gunRetractionR * gunRecover);
+      this.gunR.position.copy(this.gunR.userData.restPosition);
+      this.gunR.position.z -= this.gunRetractionR;
+    }
+  }
+
+  triggerGunRecoil(fromLeft) {
+    if (fromLeft && this.gunL) this.gunRetractionL = GUN_RETRACT_AMOUNT;
+    else if (!fromLeft && this.gunR) this.gunRetractionR = GUN_RETRACT_AMOUNT;
   }
 
   getWeaponSpawnPoint() {
+    if (this.gunL && this.gunR) {
+      const gun = this.fireFromLeft ? this.gunL : this.gunR;
+      this.fireFromLeft = !this.fireFromLeft;
+      const out = new THREE.Vector3();
+      gun.getWorldPosition(out);
+      return out;
+    }
     const pos = this.xrManager
       ? this.xrManager.rig.position
       : this.camera.position;
     const quat = this.xrManager
       ? this.xrManager.rig.quaternion
       : this.camera.quaternion;
-
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(quat);
     const down = new THREE.Vector3(0, -1, 0).applyQuaternion(quat);
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(quat);
-
     const sideOffset = this.fireFromLeft ? -0.4 : 0.4;
     this.fireFromLeft = !this.fireFromLeft;
-
     return pos
       .clone()
       .add(right.multiplyScalar(sideOffset))
@@ -286,20 +397,24 @@ export class Player {
   }
 
   getMissileSpawnPoint() {
+    if (this.missileL && this.missileR) {
+      const launcher = this.missileFromLeft ? this.missileL : this.missileR;
+      this.missileFromLeft = !this.missileFromLeft;
+      const out = new THREE.Vector3();
+      launcher.getWorldPosition(out);
+      return out;
+    }
     const pos = this.xrManager
       ? this.xrManager.rig.position
       : this.camera.position;
     const quat = this.xrManager
       ? this.xrManager.rig.quaternion
       : this.camera.quaternion;
-
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(quat);
     const down = new THREE.Vector3(0, -1, 0).applyQuaternion(quat);
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(quat);
-
     const sideOffset = this.missileFromLeft ? -0.5 : 0.5;
     this.missileFromLeft = !this.missileFromLeft;
-
     return pos
       .clone()
       .add(right.multiplyScalar(sideOffset))
@@ -511,6 +626,30 @@ export class Player {
       } else {
         this.velocity.z = 0;
       }
+    }
+
+    if (this.engineMaterials.length > 0) {
+      this.engineGlowTarget = this.isBoosting ? 1 : Math.min(1, this.velocity.length() / this.maxSpeed);
+      this.engineGlowT += (this.engineGlowTarget - this.engineGlowT) * Math.min(1, delta * 4);
+      const boostGlow = this.isBoosting ? 1 : 0;
+      for (const mat of this.engineMaterials) {
+        if (!mat.color || !mat.emissive) continue;
+        mat.color.lerpColors(_engineColorBlack, boostGlow > 0 ? _engineColorBoost : _engineColorGlow, this.engineGlowT);
+        mat.emissive.lerpColors(_engineColorBlack, boostGlow > 0 ? _engineColorBoost : _engineColorGlow, this.engineGlowT);
+        mat.emissiveIntensity = boostGlow > 0 ? 2.2 : (0.05 + 0.25 * this.engineGlowT);
+      }
+    }
+
+    const gunRecover = 1 - Math.exp(-GUN_RETRACT_RECOVERY * delta);
+    if (this.gunL?.userData.restPosition) {
+      this.gunRetractionL = Math.max(0, this.gunRetractionL - this.gunRetractionL * gunRecover);
+      this.gunL.position.copy(this.gunL.userData.restPosition);
+      this.gunL.position.z -= this.gunRetractionL;
+    }
+    if (this.gunR?.userData.restPosition) {
+      this.gunRetractionR = Math.max(0, this.gunRetractionR - this.gunRetractionR * gunRecover);
+      this.gunR.position.copy(this.gunR.userData.restPosition);
+      this.gunR.position.z -= this.gunRetractionR;
     }
   }
 }

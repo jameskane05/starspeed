@@ -55,9 +55,7 @@ export class Input {
     document.addEventListener('keyup', (e) => this.onKeyUp(e));
     document.addEventListener('mousemove', (e) => this.onMouseMove(e));
     document.addEventListener('mousedown', (e) => this.onMouseDown(e));
-    document.addEventListener('contextmenu', (e) => {
-      if (document.pointerLockElement) e.preventDefault();
-    });
+    document.addEventListener('contextmenu', (e) => e.preventDefault());
     document.addEventListener('pointerlockchange', () => this.onPointerLockChange());
 
     this.mobile = new MobileControls(game);

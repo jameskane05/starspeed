@@ -23,5 +23,80 @@
       "gpuVendor": "Google Inc. (Apple)",
       "vram": "unknown"
     }
+  },
+  {
+    "id": "c971a085-9274-4f32-96a5-ea8c1729a131",
+    "createdAt": "2026-03-04T15:45:35.361Z",
+    "type": "bug",
+    "name": "",
+    "email": "",
+    "message": "This game doesn't work.",
+    "ratings": {
+      "gameplay": null,
+      "performance": null,
+      "graphics": null,
+      "overall": null
+    },
+    "systemInfo": {
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Cursor/2.4.31 Chrome/142.0.7444.235 Electron/39.2.7 Safari/537.36",
+      "platform": "Windows",
+      "language": "en-US",
+      "screenWidth": 1920,
+      "screenHeight": 1080,
+      "deviceMemory": 8,
+      "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4090 (0x00002684) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "gpuVendor": "Google Inc. (NVIDIA)",
+      "vram": "unknown"
+    }
+  },
+  {
+    "id": "1a58b7cb-13a0-49d0-a0f6-c8b52bc31052",
+    "createdAt": "2026-03-04T16:06:13.646Z",
+    "type": "bug",
+    "name": "",
+    "email": "",
+    "message": "didnt work",
+    "ratings": {
+      "gameplay": null,
+      "performance": null,
+      "graphics": null,
+      "overall": null
+    },
+    "systemInfo": {
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Cursor/2.4.31 Chrome/142.0.7444.235 Electron/39.2.7 Safari/537.36",
+      "platform": "Windows",
+      "language": "en-US",
+      "screenWidth": 1920,
+      "screenHeight": 1080,
+      "deviceMemory": 8,
+      "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4090 (0x00002684) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "gpuVendor": "Google Inc. (NVIDIA)",
+      "vram": "unknown"
+    }
+  },
+  {
+    "id": "5dde1284-83f0-436b-a349-3e92e32af694",
+    "createdAt": "2026-03-04T16:37:13.334Z",
+    "type": "feedback",
+    "name": "",
+    "email": "",
+    "message": "Great",
+    "ratings": {
+      "gameplay": 4,
+      "performance": 5,
+      "graphics": 2,
+      "overall": null
+    },
+    "systemInfo": {
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+      "platform": "Windows",
+      "language": "en-US",
+      "screenWidth": 1920,
+      "screenHeight": 1080,
+      "deviceMemory": 8,
+      "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4090 (0x00002684) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "gpuVendor": "Google Inc. (NVIDIA)",
+      "vram": "unknown"
+    }
   }
 ]

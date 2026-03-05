@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build-lod": "node scripts/build-lod.cjs",
-    "generate-pwa-assets": "pwa-assets-generator --preset minimal-2023 public/logo.svg",
+    "generate-pwa-assets": "pwa-assets-generator --preset minimal-2023 public/icon.png",
+    "generate-large-pwa-icons": "node scripts/generate-large-pwa-icons.cjs",
     "dev": "vite",
     "dev:all": "concurrently \"npm run dev\" \"npm run server\"",
     "server": "npx kill-port 2567 && cd server && npm start",

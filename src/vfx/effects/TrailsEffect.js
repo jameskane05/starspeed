@@ -79,51 +79,56 @@ export class TrailsEffect {
   }
 
   emitEngineExhaust(worldPos, forwardDir) {
+    if (!this.particles.lineSparks) return;
     _tmp.copy(forwardDir).negate();
-    _tmp2.copy(_tmp).multiplyScalar(0.9 + Math.random() * 1.5);
-    _tmp2.x += (Math.random() - 0.5) * 0.5;
-    _tmp2.y += (Math.random() - 0.5) * 0.5;
-    _tmp2.z += (Math.random() - 0.5) * 0.5;
-
-    this.particles.fire.emit({
-      x: worldPos.x + (Math.random() - 0.5) * 0.06,
-      y: worldPos.y + (Math.random() - 0.5) * 0.06,
-      z: worldPos.z + (Math.random() - 0.5) * 0.06,
+    _tmp2.copy(_tmp).multiplyScalar(0.9 + Math.random() * 1.2);
+    _tmp2.x += (Math.random() - 0.5) * 0.4;
+    _tmp2.y += (Math.random() - 0.5) * 0.4;
+    _tmp2.z += (Math.random() - 0.5) * 0.4;
+    this.particles.lineSparks.emit({
+      x: worldPos.x + (Math.random() - 0.5) * 0.08,
+      y: worldPos.y + (Math.random() - 0.5) * 0.08,
+      z: worldPos.z + (Math.random() - 0.5) * 0.08,
       vx: _tmp2.x,
       vy: _tmp2.y,
       vz: _tmp2.z,
-      r: 1.0,
-      g: 0.65 + Math.random() * 0.2,
-      b: 0.15,
-      alpha: 0.7,
-      size: 0.18 + Math.random() * 0.12,
-      life: 0.1 + Math.random() * 0.08,
-      drag: 0.92,
-      rise: 0,
+      r: 0.25,
+      g: 0.55,
+      b: 1.0,
+      alpha: 0.8,
+      life: 0.4 + Math.random() * 0.25,
+      drag: 0.93,
+      trailLength: 1.2 + Math.random() * 0.8,
     });
+  }
 
-    if (Math.random() > 0.45) {
-      _tmp2.copy(_tmp).multiplyScalar(0.8 + Math.random() * 1.4);
-      _tmp2.x += (Math.random() - 0.5) * 0.4;
-      _tmp2.y += (Math.random() - 0.5) * 0.4;
-      _tmp2.z += (Math.random() - 0.5) * 0.4;
-      const grey = 0.38 + Math.random() * 0.18;
-      this.particles.smoke.emit({
-        x: worldPos.x + (Math.random() - 0.5) * 0.08,
-        y: worldPos.y + (Math.random() - 0.5) * 0.08,
-        z: worldPos.z + (Math.random() - 0.5) * 0.08,
+  emitPlasmaExhaust(worldPos, forwardDir) {
+    _tmp.copy(forwardDir).negate();
+    const speed = 2.5 + Math.random() * 2;
+    _tmp2.copy(_tmp).multiplyScalar(speed);
+    _tmp2.x += (Math.random() - 0.5) * 0.3;
+    _tmp2.y += (Math.random() - 0.5) * 0.3;
+    _tmp2.z += (Math.random() - 0.5) * 0.3;
+
+    const r = 0.25;
+    const g = 0.55;
+    const b = 1.0;
+
+    if (this.particles.lineSparks) {
+      this.particles.lineSparks.emit({
+        x: worldPos.x + (Math.random() - 0.5) * 0.15,
+        y: worldPos.y + (Math.random() - 0.5) * 0.15,
+        z: worldPos.z + (Math.random() - 0.5) * 0.15,
         vx: _tmp2.x,
         vy: _tmp2.y,
         vz: _tmp2.z,
-        r: grey,
-        g: grey,
-        b: grey,
-        alpha: 0.42,
-        size: 0.28 + Math.random() * 0.2,
-        sizeGrow: 1.6,
-        life: 0.45 + Math.random() * 0.3,
-        drag: 0.92,
-        rise: 0,
+        r,
+        g,
+        b,
+        alpha: 0.85,
+        life: 1.8 + Math.random() * 1.2,
+        drag: 0.96,
+        trailLength: 4 + Math.random() * 3,
       });
     }
   }

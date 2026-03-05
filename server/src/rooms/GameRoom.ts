@@ -22,6 +22,10 @@ const SPAWN_POINTS = [
 
 const TICK_RATE = 20;
 const RESPAWN_TIME = 5;
+const BOOST_DRAIN_RATE = 20;
+const BOOST_REGEN_RATE = 33;
+const BOOST_REGEN_DELAY = 3;
+const BOOST_MAX_FUEL = 200;
 const COLLECTIBLE_SPAWN_RADIUS = 25;
 const COLLECTIBLE_COLLECT_RADIUS = 3;
 const COLLECTIBLE_RESPAWN_TIME = 15;
@@ -34,6 +38,8 @@ export class GameRoom extends Room {
   private projectileIdCounter = 0;
   private collectibleIdCounter = 0;
   private collectibleRespawnTimers: Map<string, number> = new Map();
+  private lastBoostInput: Map<string, boolean> = new Map();
+  private lastBoostTime: Map<string, number> = new Map();
 
   async onCreate(options: any) {
     this.setState(new GameState());
@@ -217,7 +223,9 @@ export class GameRoom extends Room {
     if (player) {
       console.log(`[GameRoom] ${player.name} left`);
     }
-    
+
+    this.lastBoostInput.delete(client.sessionId);
+    this.lastBoostTime.delete(client.sessionId);
     this.state.players.delete(client.sessionId);
     
     // Reassign host if host left
@@ -261,6 +269,9 @@ export class GameRoom extends Room {
     player.vy = data.vy || 0;
     player.vz = data.vz || 0;
     player.lastProcessedInput = data.seq || 0;
+    if (data.boost !== undefined) {
+      this.lastBoostInput.set(client.sessionId, !!data.boost);
+    }
   }
 
   private handleFire(client: Client, data: any) {
@@ -533,10 +544,14 @@ export class GameRoom extends Room {
     player.maxHealth = classStats.health;
     player.missiles = classStats.missiles;
     player.maxMissiles = classStats.maxMissiles;
+    player.boostFuel = BOOST_MAX_FUEL;
+    player.maxBoostFuel = BOOST_MAX_FUEL;
+    player.isBoosting = false;
     player.hasLaserUpgrade = false;
     player.lastDamageTime = 0;
     player.alive = true;
     player.respawnTime = 0;
+    this.lastBoostTime.set(player.id, 0);
   }
 
   private tick() {
@@ -552,7 +567,10 @@ export class GameRoom extends Room {
     
     // Handle shield regeneration
     this.updateShieldRegen(dt);
-    
+
+    // Handle boost (drain + regen)
+    this.updateBoost(dt);
+
     // Handle respawns
     this.handleRespawns(dt);
     
@@ -742,13 +760,38 @@ export class GameRoom extends Room {
     const REGEN_DELAY = 5000; // 5 seconds in ms
     const REGEN_RATE = 15; // HP per second
     const now = Date.now();
-    
+
     this.state.players.forEach((player: Player) => {
       if (!player.alive) return;
       if (player.health >= player.maxHealth) return;
       if (now - player.lastDamageTime < REGEN_DELAY) return;
-      
+
       player.health = Math.min(player.maxHealth, player.health + REGEN_RATE * dt);
+    });
+  }
+
+  private updateBoost(dt: number) {
+    this.state.players.forEach((player: Player, sessionId: string) => {
+      if (!player.alive) return;
+
+      const boostHeld = this.lastBoostInput.get(sessionId) ?? false;
+      const velSq = player.vx * player.vx + player.vy * player.vy + player.vz * player.vz;
+      const isMoving = velSq > 0.01;
+
+      if (boostHeld && player.boostFuel > 0 && isMoving) {
+        player.boostFuel = Math.max(0, player.boostFuel - BOOST_DRAIN_RATE * dt);
+        player.isBoosting = true;
+        this.lastBoostTime.set(sessionId, this.state.matchTime);
+      } else {
+        player.isBoosting = false;
+        const lastBoost = this.lastBoostTime.get(sessionId) ?? 0;
+        if (this.state.matchTime - lastBoost >= BOOST_REGEN_DELAY) {
+          player.boostFuel = Math.min(
+            player.maxBoostFuel,
+            player.boostFuel + BOOST_REGEN_RATE * dt
+          );
+        }
+      }
     });
   }
 

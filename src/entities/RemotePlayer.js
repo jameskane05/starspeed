@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { Interpolation } from "../network/Interpolation.js";
+import { EngineTrail } from "../vfx/EngineTrail.js";
 
 const SHIP_COLORS = {
   fighter: 0x00f0ff,
@@ -23,7 +24,7 @@ async function loadExteriorModel() {
   exteriorLoading = new Promise((resolve) => {
     const loader = new GLTFLoader();
     loader.load(
-      "./Heavy_EXT_01.glb",
+      "./Heavy_EXT_02.glb",
       (gltf) => {
         exteriorModel = gltf.scene;
         resolve(exteriorModel);
@@ -38,8 +39,16 @@ async function loadExteriorModel() {
   return exteriorLoading;
 }
 
+const _engineColorBlack = new THREE.Color(0x000000);
+const _engineColorGlow = new THREE.Color(0xbbddff);
+const _engineColorBoost = new THREE.Color(0xddffff);
+const _velocity = new THREE.Vector3();
+const _enginePos = new THREE.Vector3();
+const GUN_RETRACT_AMOUNT = 0.06;
+const GUN_RETRACT_RECOVERY = 6;
+
 export class RemotePlayer {
-  constructor(scene, playerData, teamMode = false) {
+  constructor(scene, playerData, teamMode = false, options = {}) {
     this.scene = scene;
     this.id = playerData.id;
     this.name = playerData.name;
@@ -48,13 +57,29 @@ export class RemotePlayer {
     this.health = playerData.health || 100;
     this.maxHealth = playerData.maxHealth || 100;
     this.alive = playerData.alive !== false;
+    this.isBoosting = playerData.isBoosting ?? false;
     this.teamMode = teamMode;
-    
+    this.engineMarkers = [];
+    this.engineTrails = [];
+    this.engineMaterials = [];
+    this.engineGlowT = 0;
+    this.engineGlowTarget = 0;
+    this.trailTimer = 0;
+    this._lastPosition = new THREE.Vector3();
+    this.gunL = null;
+    this.gunR = null;
+    this.missileL = null;
+    this.missileR = null;
+    this.gunRetractionL = 0;
+    this.gunRetractionR = 0;
+    this.fireFromLeft = true;
+    this.missileFromLeft = true;
+
     this.interpolation = new Interpolation({
       bufferSize: 5,
       interpolationDelay: 100,
     });
-    
+
     this.mesh = new THREE.Group();
     this.mesh.position.set(playerData.x || 0, playerData.y || 0, playerData.z || 0);
     this.mesh.quaternion.set(
@@ -77,7 +102,39 @@ export class RemotePlayer {
       const clone = model.clone();
       clone.scale.setScalar(0.5);
       clone.rotation.set(0, Math.PI, 0);
-      
+
+      clone.traverse((child) => {
+        const n = child.name;
+        if (n === "Gun_L") {
+          this.gunL = child;
+          child.userData.restPosition = child.position.clone();
+        } else if (n === "Gun_R") {
+          this.gunR = child;
+          child.userData.restPosition = child.position.clone();
+        } else if (n === "Missile_L") this.missileL = child;
+        else if (n === "Missile_R") this.missileR = child;
+        if (n === "Engine_L" || n === "Engine_R") this.engineMarkers.push(child);
+        if (n === "Engine_Center" || n === "Engine_L" || n === "Engine_R") {
+          if (child.isMesh && child.material) this.engineMaterials.push(child.material);
+          else if (child.children) {
+            child.traverse((c) => {
+              if (c.isMesh && c.material) this.engineMaterials.push(c.material);
+            });
+          }
+        }
+      });
+      if (this.engineMarkers.length < 2) {
+        console.warn("[RemotePlayer] Ship model missing Engine_L and/or Engine_R; trail VFX disabled.");
+      } else {
+        const trailColor = this.teamMode && this.team > 0
+          ? TEAM_COLORS[this.team]
+          : (SHIP_COLORS[this.shipClass] ?? 0x00f0ff);
+        this.engineTrails = [
+          new EngineTrail(this.scene, { maxPoints: 64, trailTime: 1.8, width: 1, color: trailColor, emissiveIntensity: 2.8 }),
+          new EngineTrail(this.scene, { maxPoints: 64, trailTime: 1.8, width: 1, color: trailColor, emissiveIntensity: 2.8 }),
+        ];
+      }
+
       this.shipMesh = clone;
       this.mesh.add(clone);
     } else {
@@ -145,6 +202,7 @@ export class RemotePlayer {
     this.alive = playerData.alive;
     this.shipClass = playerData.shipClass;
     this.team = playerData.team;
+    this.isBoosting = playerData.isBoosting ?? false;
     
     if (this.alive) {
       this.interpolation.pushState(
@@ -159,15 +217,84 @@ export class RemotePlayer {
 
   update(delta) {
     if (!this.alive) return;
-    
+
     const { position, rotation } = this.interpolation.getInterpolatedState();
-    
+
+    _velocity.set(0, 0, 0);
+    if (this._lastPosition.x !== position.x || this._lastPosition.y !== position.y || this._lastPosition.z !== position.z) {
+      _velocity.subVectors(position, this._lastPosition).divideScalar(Math.max(delta, 0.001));
+    }
+    this._lastPosition.copy(position);
+
     this.mesh.position.copy(position);
     this.mesh.quaternion.copy(rotation);
-    
+
     if (this.nameSprite) {
       this.nameSprite.quaternion.identity();
     }
+
+    const speed = _velocity.length();
+    const maxSpeed = 2.5;
+    this.engineGlowTarget = this.isBoosting ? 1 : Math.min(1, speed / maxSpeed);
+    this.engineGlowT += (this.engineGlowTarget - this.engineGlowT) * Math.min(1, delta * 4);
+    const boostGlow = this.isBoosting ? 1 : 0;
+    for (const mat of this.engineMaterials) {
+      if (!mat.color || !mat.emissive) continue;
+      mat.color.lerpColors(_engineColorBlack, boostGlow > 0 ? _engineColorBoost : _engineColorGlow, this.engineGlowT);
+      mat.emissive.lerpColors(_engineColorBlack, boostGlow > 0 ? _engineColorBoost : _engineColorGlow, this.engineGlowT);
+      mat.emissiveIntensity = boostGlow > 0 ? 2.2 : (0.05 + 0.25 * this.engineGlowT);
+    }
+
+    if (this.engineTrails.length >= 2 && this.isBoosting) {
+      const t = performance.now() / 1000;
+      for (let i = 0; i < this.engineMarkers.length && i < 2; i++) {
+        this.engineMarkers[i].getWorldPosition(_enginePos);
+        this.engineTrails[i].addPoint(_enginePos, t);
+      }
+      this.engineTrails[0].update(t);
+      this.engineTrails[1].update(t);
+    } else if (this.engineTrails.length >= 2) {
+      this.engineTrails[0].clear();
+      this.engineTrails[1].clear();
+    }
+
+    const gunRecover = 1 - Math.exp(-GUN_RETRACT_RECOVERY * delta);
+    if (this.gunL?.userData.restPosition) {
+      this.gunRetractionL = Math.max(0, this.gunRetractionL - this.gunRetractionL * gunRecover);
+      this.gunL.position.copy(this.gunL.userData.restPosition);
+      this.gunL.position.z -= this.gunRetractionL;
+    }
+    if (this.gunR?.userData.restPosition) {
+      this.gunRetractionR = Math.max(0, this.gunRetractionR - this.gunRetractionR * gunRecover);
+      this.gunR.position.copy(this.gunR.userData.restPosition);
+      this.gunR.position.z -= this.gunRetractionR;
+    }
+
+    this._lastPosition.copy(position);
+  }
+
+  getWeaponSpawnPoint(out = new THREE.Vector3()) {
+    if (!this.gunL || !this.gunR) return null;
+    const gun = this.fireFromLeft ? this.gunL : this.gunR;
+    this.mesh.updateMatrixWorld(true);
+    gun.getWorldPosition(out);
+    return out;
+  }
+
+  getMissileSpawnPoint(out = new THREE.Vector3()) {
+    if (!this.missileL || !this.missileR) return null;
+    const launcher = this.missileFromLeft ? this.missileL : this.missileR;
+    this.missileFromLeft = !this.missileFromLeft;
+    this.mesh.updateMatrixWorld(true);
+    launcher.getWorldPosition(out);
+    return out;
+  }
+
+  triggerGunRecoil() {
+    const fromLeft = this.fireFromLeft;
+    this.fireFromLeft = !this.fireFromLeft;
+    if (fromLeft && this.gunL) this.gunRetractionL = GUN_RETRACT_AMOUNT;
+    else if (!fromLeft && this.gunR) this.gunRetractionR = GUN_RETRACT_AMOUNT;
   }
 
   takeDamage(amount) {
@@ -195,8 +322,10 @@ export class RemotePlayer {
   }
 
   dispose() {
+    this.engineTrails.forEach((t) => t.dispose());
+    this.engineTrails.length = 0;
     this.scene.remove(this.mesh);
-    
+
     this.mesh.traverse((child) => {
       if (child.geometry) child.geometry.dispose();
       if (child.material) {

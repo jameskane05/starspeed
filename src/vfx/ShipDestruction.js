@@ -22,6 +22,8 @@ const innerMaterial = new THREE.MeshStandardMaterial({
   roughness: 0.3,
 });
 
+export const PLAYER_SHIP_MODEL_INDEX = 100;
+
 export function prefractureModels(shipModels) {
   for (let i = 0; i < shipModels.length; i++) {
     try {
@@ -31,6 +33,16 @@ export function prefractureModels(shipModels) {
     }
   }
   console.log(`Pre-fractured ${fragmentCache.size}/${shipModels.length} ship models`);
+}
+
+export function prefracturePlayerShip(model) {
+  if (!model) return;
+  try {
+    prefractureModel(PLAYER_SHIP_MODEL_INDEX, model);
+    console.log("[ShipDestruction] Pre-fractured player ship");
+  } catch (e) {
+    console.warn("Failed to pre-fracture player ship:", e);
+  }
 }
 
 function prefractureModel(index, model) {

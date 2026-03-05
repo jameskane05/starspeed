@@ -110,18 +110,24 @@ canvas {
   display: flex;
 }
 
+#game-top-buttons img {
+  width: 2.2rem;
+  height: 2.2rem;
+  max-width: 48px;
+  max-height: 48px;
+  object-fit: contain;
+}
+
+#game-top-buttons button {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: block;
+}
+
 @media (min-width: 769px) {
-  #game-top-buttons img {
-    width: 2.2rem;
-    height: 2.2rem;
-    object-fit: contain;
-  }
   #game-top-buttons button {
-    padding: 0;
-    border: none;
-    background: none;
-    cursor: pointer;
-    display: block;
     font-size: 2rem;
   }
   #game-top-buttons button:hover img {
@@ -479,6 +485,8 @@ canvas {
 #mobile-leaderboard-btn img {
   width: 56px;
   height: 56px;
+  max-width: 56px;
+  max-height: 56px;
   display: block;
   object-fit: contain;
   transition: filter 0.05s;

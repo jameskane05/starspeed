@@ -35,11 +35,16 @@ export class Player extends Schema {
   @type("string") shipClass: string = "fighter"; // "fighter" | "tank" | "rogue"
   @type("number") team: number = 0; // 0=none (FFA), 1=red, 2=blue
   
+  // Boost (server-authoritative)
+  @type("number") boostFuel: number = 200;
+  @type("number") maxBoostFuel: number = 200;
+  @type("boolean") isBoosting: boolean = false;
+
   // State
   @type("boolean") ready: boolean = false;
   @type("boolean") alive: boolean = true;
   @type("number") respawnTime: number = 0;
-  
+
   // Input sequence for reconciliation
   @type("number") lastProcessedInput: number = 0;
   

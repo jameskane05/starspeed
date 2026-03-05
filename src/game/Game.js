@@ -34,6 +34,7 @@ import {
   spawnDestruction,
   updateDestruction,
   cleanupDestruction,
+  PLAYER_SHIP_MODEL_INDEX,
 } from "../vfx/ShipDestruction.js";
 import { Projectile } from "../entities/Projectile.js";
 import { Missile } from "../entities/Missile.js";
@@ -57,6 +58,7 @@ import { ParticleSystem } from "../vfx/ParticleSystem.js";
 import { ExplosionEffect } from "../vfx/effects/ExplosionEffect.js";
 import { SparksEffect } from "../vfx/effects/SparksEffect.js";
 import { TrailsEffect } from "../vfx/effects/TrailsEffect.js";
+import { EngineTrail } from "../vfx/EngineTrail.js";
 import { DustMotesEffect } from "../vfx/effects/DustMotesEffect.js";
 import { DynamicLightPool } from "../vfx/DynamicLightPool.js";
 import GizmoManager from "../utils/GizmoManager.js";
@@ -75,6 +77,7 @@ const _fireDir = new THREE.Vector3();
 const _hitPos = new THREE.Vector3();
 const _hitNormal = new THREE.Vector3();
 const _sparkPos = new THREE.Vector3();
+const _enginePos = new THREE.Vector3();
 const _audioForward = new THREE.Vector3();
 const _audioUp = new THREE.Vector3();
 const _unitForward = new THREE.Vector3();
@@ -259,6 +262,22 @@ export class Game {
     this.explosionEffect = new ExplosionEffect(this.particles);
     this.sparksEffect = new SparksEffect(this.particles);
     this.trailsEffect = new TrailsEffect(this.particles);
+    this.playerEngineTrails = [
+      new EngineTrail(this.scene, {
+        maxPoints: 64,
+        trailTime: 1.8,
+        width: 1,
+        color: 0xb8ddff,
+        emissiveIntensity: 2.8,
+      }),
+      new EngineTrail(this.scene, {
+        maxPoints: 64,
+        trailTime: 1.8,
+        width: 1,
+        color: 0xb8ddff,
+        emissiveIntensity: 2.8,
+      }),
+    ];
     // this.dustMotesEffect = new DustMotesEffect(this.particles); // TODO: revisit
     this.dynamicLights = new DynamicLightPool(this.scene, { size: 12 });
 
@@ -327,7 +346,9 @@ export class Game {
     if (gameLeaderboardBtn) {
       gameLeaderboardBtn.addEventListener("click", () => {
         if (!this.gameManager?.isPlaying()) return;
-        const isOpen = document.getElementById("tab-leaderboard")?.classList.contains("active");
+        const isOpen = document
+          .getElementById("tab-leaderboard")
+          ?.classList.contains("active");
         if (isOpen) this.hideLeaderboard();
         else this.showLeaderboard();
       });
@@ -497,11 +518,15 @@ export class Game {
         const remote = this.remotePlayers.get(sessionId);
         remote.updateFromServer(player);
       } else if (isLocal && this.player) {
-        // Sync health/missiles from server (source of truth)
+        // Sync health/missiles/boost from server (source of truth)
         this.player.health = player.health;
         this.player.maxHealth = player.maxHealth;
         this.player.missiles = player.missiles;
         this.player.maxMissiles = player.maxMissiles;
+        this.player.boostFuel = player.boostFuel ?? this.player.boostFuel;
+        this.player.maxBoostFuel =
+          player.maxBoostFuel ?? this.player.maxBoostFuel;
+        this.player.isBoosting = player.isBoosting ?? false;
         this.player.hasLaserUpgrade = player.hasLaserUpgrade;
 
         // Server reconciliation for position
@@ -573,6 +598,14 @@ export class Game {
       if (data.victimId === NetworkManager.sessionId) {
         // Local player died
         victimPos = this.camera.position.clone();
+        const deathQuat = this.camera.quaternion.clone();
+        spawnDestruction(
+          this.scene,
+          victimPos,
+          deathQuat,
+          PLAYER_SHIP_MODEL_INDEX,
+          2.0,
+        );
         this.handleLocalPlayerDeath();
       } else {
         // Remote player died
@@ -616,8 +649,14 @@ export class Game {
       if (state.phase === "results") {
         this.onMatchEnd();
       }
-      if (state.phase === "countdown" && state.countdown === 3 && NetworkManager.isHost()) {
-        this.gameManager.setState({ currentLevel: state.level || this.gameManager.getState().currentLevel });
+      if (
+        state.phase === "countdown" &&
+        state.countdown === 3 &&
+        NetworkManager.isHost()
+      ) {
+        this.gameManager.setState({
+          currentLevel: state.level || this.gameManager.getState().currentLevel,
+        });
         const levelDataId = this.gameManager.getState().currentLevel
           ? `${this.gameManager.getState().currentLevel}LevelData`
           : null;
@@ -688,7 +727,10 @@ export class Game {
       await Promise.all(loads);
       console.log("[Game] Level preloaded successfully");
     } catch (err) {
-      console.warn("[Game] Level preload failed, falling back to newworld:", err?.message);
+      console.warn(
+        "[Game] Level preload failed, falling back to newworld:",
+        err?.message,
+      );
       const current = this.gameManager.getState().currentLevel;
       if (current && current !== "newworld") {
         this.gameManager.setState({ currentLevel: "newworld" });
@@ -814,6 +856,9 @@ export class Game {
     this.player.maxHealth = localPlayer.maxHealth;
     this.player.missiles = localPlayer.missiles;
     this.player.maxMissiles = localPlayer.maxMissiles || classStats.maxMissiles;
+    this.player.boostFuel = localPlayer.boostFuel ?? this.player.boostFuel;
+    this.player.maxBoostFuel =
+      localPlayer.maxBoostFuel ?? this.player.maxBoostFuel;
     this.player.hasLaserUpgrade = localPlayer.hasLaserUpgrade || false;
     this.player.acceleration = classStats.acceleration;
     this.player.maxSpeed = classStats.maxSpeed;
@@ -971,15 +1016,33 @@ export class Game {
       "speed:",
       data.speed,
     );
-    const position = new THREE.Vector3(data.x, data.y, data.z);
+    let position = new THREE.Vector3(data.x, data.y, data.z);
     const direction = new THREE.Vector3(data.dx, data.dy, data.dz);
 
     if (data.type === "missile") {
+      const remote = this.remotePlayers.get(data.ownerId);
+      const missilePos = remote?.getMissileSpawnPoint?.();
+      if (missilePos) position.copy(missilePos).addScaledVector(direction, -1);
+
       const missile = new Missile(this.scene, position, direction, {
         trailsEffect: this.trailsEffect,
       });
       this.networkProjectiles.set(id, { type: "missile", obj: missile });
+
+      this.dynamicLights?.flash(position, 0xffaa33, {
+        intensity: 14,
+        distance: 20,
+        ttl: 0.07,
+        fade: 0.16,
+      });
+      proceduralAudio.missileFire();
     } else {
+      const remote = this.remotePlayers.get(data.ownerId);
+      const gunPos = remote?.getWeaponSpawnPoint?.();
+      if (gunPos) {
+        position.copy(gunPos).addScaledVector(direction, -1);
+      }
+
       const splatLight = this._createProjectileSplatLight(true, null);
       const projectile = new Projectile(
         this.scene,
@@ -992,7 +1055,14 @@ export class Game {
       );
       this.networkProjectiles.set(id, { type: "projectile", obj: projectile });
 
-      // Play spatial audio for other players' lasers
+      if (remote?.triggerGunRecoil) remote.triggerGunRecoil();
+
+      this.dynamicLights?.flash(position, 0x00ffff, {
+        intensity: 10,
+        distance: 16,
+        ttl: 0.05,
+        fade: 0.12,
+      });
       sfxManager.play("laser", position);
     }
   }
@@ -1245,6 +1315,9 @@ export class Game {
       this.player.health = localPlayer.health;
       this.player.maxHealth = localPlayer.maxHealth;
       this.player.missiles = localPlayer.missiles;
+      this.player.boostFuel = localPlayer.boostFuel ?? this.player.maxBoostFuel;
+      this.player.maxBoostFuel =
+        localPlayer.maxBoostFuel ?? this.player.maxBoostFuel;
       this.player.lastDamageTime = 0;
       this.camera.position.set(localPlayer.x, localPlayer.y, localPlayer.z);
       this.camera.quaternion.set(
@@ -1306,6 +1379,7 @@ export class Game {
   onStateChanged(newState, oldState) {}
 
   onGameStarted() {
+    this.playerEngineTrails?.forEach((t) => t.clear());
     if (!this.isMultiplayer && !this.input.mobile.shouldSkipPointerLock()) {
       document.body.requestPointerLock?.()?.catch?.(() => {});
       document.getElementById("crosshair").classList.add("active");
@@ -1608,18 +1682,16 @@ export class Game {
     document
       .getElementById("esc-options")
       .addEventListener("click", () => this.showOptionsMenu());
-    document
-      .getElementById("esc-feedback")
-      .addEventListener("click", () => {
-        this.escMenu.style.display = "none";
-        MenuManager.showFeedbackModal({
-          onClose: () => {
-            if (this.isEscMenuOpen && this.escMenu) {
-              this.escMenu.style.display = "flex";
-            }
-          },
-        });
+    document.getElementById("esc-feedback").addEventListener("click", () => {
+      this.escMenu.style.display = "none";
+      MenuManager.showFeedbackModal({
+        onClose: () => {
+          if (this.isEscMenuOpen && this.escMenu) {
+            this.escMenu.style.display = "flex";
+          }
+        },
       });
+    });
     document
       .getElementById("esc-leave")
       .addEventListener("click", () => this.leaveMatch());
@@ -1862,6 +1934,7 @@ export class Game {
       !NetworkManager.getLocalPlayer().alive
     )
       return;
+    if (!this.player.gunL || !this.player.gunR) return;
 
     const now = this.clock.elapsedTime;
     if (now - this.lastLaserTime < this.laserCooldown) return;
@@ -1871,7 +1944,11 @@ export class Game {
       ? this.xrManager.rig.quaternion
       : this.camera.quaternion;
     _fireDir.set(0, 0, -1).applyQuaternion(fireQuat);
+    this.player.camera.updateMatrixWorld(true);
+    const fromLeft = this.player.fireFromLeft;
     const spawnPos = this.player.getWeaponSpawnPoint();
+    this.player.triggerGunRecoil(fromLeft);
+    spawnPos.addScaledVector(_fireDir, -5);
 
     if (this.isMultiplayer) {
       // Send fire event to server
@@ -1921,7 +1998,9 @@ export class Game {
       ? this.xrManager.rig.quaternion
       : this.camera.quaternion;
     _fireDir.set(0, 0, -1).applyQuaternion(fireQuat);
+    this.player.camera.updateMatrixWorld(true);
     const spawnPos = this.player.getMissileSpawnPoint();
+    spawnPos.addScaledVector(_fireDir, -1);
 
     const missile = new Missile(this.scene, spawnPos, _fireDir, {
       trailsEffect: this.trailsEffect,
@@ -2036,6 +2115,7 @@ export class Game {
       vy: this.player.velocity.y,
       vz: this.player.velocity.z,
       dt: delta,
+      boost: this.input.keys.boost || this.input.gamepad.boost,
     });
   }
 
@@ -2074,9 +2154,39 @@ export class Game {
         this.handleGamepadFire();
 
         if (this.player) {
+          const boostFuelBefore = this.player.boostFuel;
           this.player.update(delta, this.clock.elapsedTime);
+          if (this.isMultiplayer) {
+            const localPlayer = NetworkManager.getLocalPlayer();
+            if (localPlayer) {
+              this.player.boostFuel = localPlayer.boostFuel;
+              this.player.maxBoostFuel = localPlayer.maxBoostFuel;
+              this.player.isBoosting = localPlayer.isBoosting;
+            }
+          }
           engineAudio.update(delta, this.player);
           this._updateBoostDoF(delta);
+          const showTrail = this.isMultiplayer
+            ? (NetworkManager.getLocalPlayer()?.isBoosting ?? false)
+            : boostFuelBefore > this.player.boostFuel;
+          if (!showTrail) {
+            this.playerEngineTrails.forEach((t) => t.clear());
+          } else if (
+            this.player.engineMarkers?.length > 0 &&
+            this.playerEngineTrails.length >= 2
+          ) {
+            const t = this.clock.elapsedTime;
+            for (
+              let i = 0;
+              i < this.player.engineMarkers.length && i < 2;
+              i++
+            ) {
+              this.player.engineMarkers[i].getWorldPosition(_enginePos);
+              this.playerEngineTrails[i].addPoint(_enginePos, t);
+            }
+            this.playerEngineTrails[0].update(t);
+            this.playerEngineTrails[1].update(t);
+          }
           if (!this.isMultiplayer) {
             const p = this.player;
             const elapsed = this.clock.elapsedTime;

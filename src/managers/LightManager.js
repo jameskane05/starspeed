@@ -9,11 +9,17 @@
 
 import * as THREE from "three";
 import GUI from "lil-gui";
-import { lights } from "../data/lightData.js";
+import { lights, startScreenLights } from "../data/lightData.js";
 import { LEVELS } from "../data/gameData.js";
 import { checkCriteria } from "../data/sceneData.js";
 
 const DEFAULT_AMBIENT = { color: 0x667788, intensity: 4 };
+
+function positionToObject(pos) {
+  if (!pos) return undefined;
+  if (Array.isArray(pos)) return { x: pos[0], y: pos[1], z: pos[2] };
+  return pos;
+}
 
 class LightManager {
   constructor(scene, options = {}) {
@@ -24,11 +30,21 @@ class LightManager {
 
     this.lights = new Map();
 
+    if (options.startScreenOnly) return;
+
     const gameState = this.gameManager?.getState();
     this.loadLightsFromData(lights, gameState);
 
     const level = gameState?.currentLevel;
     if (level) this.updateAmbientForLevel(level);
+  }
+
+  loadStartScreenLights(moveGroup) {
+    for (const def of startScreenLights) {
+      const config = { ...def, position: positionToObject(def.position) };
+      const addTo = def.parent === "moveGroup" ? moveGroup : null;
+      this.createLight(config, addTo);
+    }
   }
 
   updateAmbientForLevel(levelId) {
@@ -63,23 +79,23 @@ class LightManager {
     console.log(`[LightManager] Created ${this.lights.size} lights`);
   }
 
-  createLight(config) {
+  createLight(config, addTo = null) {
     switch (config.type) {
       case "AmbientLight":
-        return this.createAmbientLight(config);
+        return this.createAmbientLight(config, addTo);
       case "DirectionalLight":
-        return this.createDirectionalLight(config);
+        return this.createDirectionalLight(config, addTo);
       case "PointLight":
-        return this.createPointLight(config);
+        return this.createPointLight(config, addTo);
       case "SpotLight":
-        return this.createSpotLight(config);
+        return this.createSpotLight(config, addTo);
       default:
         console.warn(`Unknown light type "${config.type}"`);
         return null;
     }
   }
 
-  createAmbientLight(config = {}) {
+  createAmbientLight(config = {}, addTo = null) {
     const light = new THREE.AmbientLight(
       config.color ?? 0xffffff,
       config.intensity ?? 1.0
@@ -89,11 +105,11 @@ class LightManager {
       this.lights.set(config.id, light);
     }
 
-    this.scene.add(light);
+    (addTo || this.scene).add(light);
     return light;
   }
 
-  createDirectionalLight(config = {}) {
+  createDirectionalLight(config = {}, addTo = null) {
     const light = new THREE.DirectionalLight(
       config.color ?? 0xffffff,
       config.intensity ?? 1.0
@@ -115,11 +131,11 @@ class LightManager {
       this.lights.set(config.id, light);
     }
 
-    this.scene.add(light);
+    (addTo || this.scene).add(light);
     return light;
   }
 
-  createPointLight(config = {}) {
+  createPointLight(config = {}, addTo = null) {
     const light = new THREE.PointLight(
       config.color ?? 0xffffff,
       config.intensity ?? 1.0,
@@ -143,11 +159,11 @@ class LightManager {
       this.lights.set(config.id, light);
     }
 
-    this.scene.add(light);
+    (addTo || this.scene).add(light);
     return light;
   }
 
-  createSpotLight(config = {}) {
+  createSpotLight(config = {}, addTo = null) {
     const light = new THREE.SpotLight(
       config.color ?? 0xffffff,
       config.intensity ?? 1.0,
@@ -173,7 +189,7 @@ class LightManager {
       this.lights.set(config.id, light);
     }
 
-    this.scene.add(light);
+    (addTo || this.scene).add(light);
 
     if (config.target) {
       light.target.position.set(
@@ -194,7 +210,7 @@ class LightManager {
   removeLight(id) {
     const light = this.lights.get(id);
     if (light) {
-      this.scene.remove(light);
+      light.parent?.remove(light);
       this.lights.delete(id);
     }
   }
@@ -280,8 +296,8 @@ class LightManager {
 
   destroy() {
     this.hideGUI();
-    for (const [id, light] of this.lights) {
-      this.scene.remove(light);
+    for (const [, light] of this.lights) {
+      light.parent?.remove(light);
     }
     this.lights.clear();
   }

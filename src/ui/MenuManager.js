@@ -1,10 +1,21 @@
 import NetworkManager from "../network/NetworkManager.js";
 import { LEVELS } from "../data/gameData.js";
-import { KeyBindings, ACTION_LABELS, getKeyDisplayName, DEFAULT_BINDINGS } from "../game/KeyBindings.js";
-import { GamepadInput, GAMEPAD_INPUT_LABELS, GAMEPAD_ACTION_LABELS } from "../game/Gamepad.js";
+import {
+  KeyBindings,
+  ACTION_LABELS,
+  getKeyDisplayName,
+  DEFAULT_BINDINGS,
+} from "../game/KeyBindings.js";
+import {
+  GamepadInput,
+  GAMEPAD_INPUT_LABELS,
+  GAMEPAD_ACTION_LABELS,
+} from "../game/Gamepad.js";
 import { AudioSettings } from "../game/AudioSettings.js";
 import { StartScreenScene } from "./StartScreenScene.js";
 import proceduralAudio from "../audio/ProceduralAudio.js";
+import sfxManager from "../audio/sfxManager.js";
+import sfxSounds from "../audio/sfxData.js";
 import { getPerformanceProfile } from "../data/performanceSettings.js";
 import { getSystemInfo } from "../utils/systemInfo.js";
 
@@ -17,6 +28,7 @@ const SCREENS = {
   PLAYING: "playing",
   RESULTS: "results",
   OPTIONS: "options",
+  FEEDBACK_DASHBOARD: "feedbackDashboard",
 };
 
 class MenuManager {
@@ -24,21 +36,25 @@ class MenuManager {
     this.currentScreen = SCREENS.MAIN_MENU;
     this.container = null;
     this.eventListeners = {};
-    this.playerName = localStorage.getItem("starspeed_callsign") || `Pilot_${Math.floor(Math.random() * 9999)}`;
+    this.playerName =
+      localStorage.getItem("starspeed_callsign") ||
+      `Pilot_${Math.floor(Math.random() * 9999)}`;
     this.roomList = [];
     this.refreshInterval = null;
-    
+
     this.focusIndex = 0;
     this.focusableElements = [];
     this.lastNavTime = 0;
     this.navCooldown = 150;
     this.gamepadPollInterval = null;
-    
+
     this.startScene = null;
-    
+
     // Chat state
     this.chatMessages = [];
-    this.mutedPlayers = new Set(JSON.parse(localStorage.getItem("starspeed_muted") || "[]"));
+    this.mutedPlayers = new Set(
+      JSON.parse(localStorage.getItem("starspeed_muted") || "[]"),
+    );
     this.maxChatMessages = 50;
   }
 
@@ -59,27 +75,46 @@ class MenuManager {
 
     this.startScene = new StartScreenScene();
     await this.startScene.init(this.menuBg);
+    sfxManager.init(sfxSounds);
 
     // Initialize procedural audio on first user interaction
     const initAudio = () => {
       proceduralAudio.init();
-      document.removeEventListener('click', initAudio);
-      document.removeEventListener('keydown', initAudio);
+      document.removeEventListener("click", initAudio);
+      document.removeEventListener("keydown", initAudio);
     };
-    document.addEventListener('click', initAudio, { once: true });
-    document.addEventListener('keydown', initAudio, { once: true });
+    document.addEventListener("click", initAudio, { once: true });
+    document.addEventListener("keydown", initAudio, { once: true });
 
     this.setupNetworkListeners();
     this.setupMenuNavigation();
+    this.container.addEventListener("click", (e) => this.onMenuContainerClick(e));
+    this.container.addEventListener("mousedown", (e) => this.onMenuContainerMouseDown(e));
     this.render();
     setTimeout(() => this.resetFocus(), 100);
-    
+
     // Check for join code in URL
     this.checkJoinUrl();
   }
 
+  onMenuContainerMouseDown(e) {
+    if (e.button !== 2) return;
+    if (this.currentScreen !== SCREENS.MAIN_MENU) return;
+    if (e.target.closest("a, button, input, select, textarea, [data-action], [role='button']"))
+      return;
+    e.preventDefault();
+    this.startScene?.triggerMissile();
+  }
+
+  onMenuContainerClick(e) {
+    if (this.currentScreen !== SCREENS.MAIN_MENU) return;
+    if (e.target.closest("a, button, input, select, textarea, [data-action], [role='button']"))
+      return;
+    if (e.button === 0) this.startScene?.triggerFire();
+  }
+
   setupMenuNavigation() {
-    document.addEventListener('keydown', (e) => this.handleMenuKeydown(e));
+    document.addEventListener("keydown", (e) => this.handleMenuKeydown(e));
     this.startGamepadPolling();
   }
 
@@ -97,8 +132,13 @@ class MenuManager {
 
   handleMenuKeydown(e) {
     if (this.currentScreen === SCREENS.PLAYING) return;
-    if (this.feedbackModalEl && this.feedbackModalEl.style.display === "flex") return;
-    if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "SELECT" || document.activeElement?.tagName === "TEXTAREA") {
+    if (this.feedbackModalEl && this.feedbackModalEl.style.display === "flex")
+      return;
+    if (
+      document.activeElement?.tagName === "INPUT" ||
+      document.activeElement?.tagName === "SELECT" ||
+      document.activeElement?.tagName === "TEXTAREA"
+    ) {
       if (e.code === "Escape") {
         document.activeElement.blur();
         this.updateFocus();
@@ -107,22 +147,22 @@ class MenuManager {
     }
 
     switch (e.code) {
-      case 'ArrowUp':
-      case 'KeyW':
+      case "ArrowUp":
+      case "KeyW":
         e.preventDefault();
         this.navigateFocus(-1);
         break;
-      case 'ArrowDown':
-      case 'KeyS':
+      case "ArrowDown":
+      case "KeyS":
         e.preventDefault();
         this.navigateFocus(1);
         break;
-      case 'Enter':
-      case 'Space':
+      case "Enter":
+      case "Space":
         e.preventDefault();
         this.activateFocused();
         break;
-      case 'Escape':
+      case "Escape":
         this.handleMenuBack();
         break;
     }
@@ -130,16 +170,17 @@ class MenuManager {
 
   pollGamepadForMenu() {
     if (this.currentScreen === SCREENS.PLAYING) return;
-    if (this.feedbackModalEl && this.feedbackModalEl.style.display === "flex") return;
+    if (this.feedbackModalEl && this.feedbackModalEl.style.display === "flex")
+      return;
 
     GamepadInput.poll();
     if (!GamepadInput.connected) return;
-    
+
     const now = Date.now();
     if (now - this.lastNavTime < this.navCooldown) return;
-    
+
     const state = GamepadInput.state;
-    
+
     // D-pad or left stick navigation
     if (state.buttons.dpadUp || state.leftStick.y < -0.5) {
       this.navigateFocus(-1);
@@ -148,14 +189,14 @@ class MenuManager {
       this.navigateFocus(1);
       this.lastNavTime = now;
     }
-    
+
     // A button to select
-    if (GamepadInput.justPressed('a')) {
+    if (GamepadInput.justPressed("a")) {
       this.activateFocused();
     }
-    
+
     // B button to go back
-    if (GamepadInput.justPressed('b')) {
+    if (GamepadInput.justPressed("b")) {
       this.handleMenuBack();
     }
   }
@@ -163,25 +204,32 @@ class MenuManager {
   navigateFocus(direction) {
     this.updateFocusableElements();
     if (this.focusableElements.length === 0) return;
-    
-    this.focusIndex = (this.focusIndex + direction + this.focusableElements.length) % this.focusableElements.length;
+
+    this.focusIndex =
+      (this.focusIndex + direction + this.focusableElements.length) %
+      this.focusableElements.length;
     this.updateFocus();
     proceduralAudio.uiNavigate();
   }
 
   updateFocusableElements() {
     this.focusableElements = Array.from(
-      this.menuContent.querySelectorAll('.menu-btn, .back-btn, .mode-btn:not(.disabled), .vis-btn, .limit-btn, .players-btn, .join-btn, .refresh-btn, .rebind-btn, .options-btn:not(:disabled), .options-tab, .sidebar-btn, .volume-slider, .ready-checkbox input, #chk-ready, #lobby-level-select, .kick-btn, .mute-btn')
-    ).filter(el => !el.disabled && el.offsetParent !== null);
+      this.menuContent.querySelectorAll(
+        ".menu-btn, .back-btn, .mode-btn:not(.disabled), .vis-btn, .limit-btn, .players-btn, .join-btn, .refresh-btn, .rebind-btn, .options-btn:not(:disabled), .options-tab, .sidebar-btn, .volume-slider, .ready-checkbox input, #chk-ready, #lobby-level-select, .kick-btn, .mute-btn, .feedback-dashboard-input, .feedback-dashboard-select, .feedback-dashboard-expand",
+      ),
+    ).filter((el) => !el.disabled && el.offsetParent !== null);
   }
 
   updateFocus() {
     this.focusableElements.forEach((el, i) => {
-      el.classList.toggle('nav-focus', i === this.focusIndex);
+      el.classList.toggle("nav-focus", i === this.focusIndex);
     });
-    
+
     if (this.focusableElements[this.focusIndex]) {
-      this.focusableElements[this.focusIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      this.focusableElements[this.focusIndex].scrollIntoView({
+        block: "nearest",
+        behavior: "smooth",
+      });
     }
   }
 
@@ -191,9 +239,9 @@ class MenuManager {
     if (el) {
       proceduralAudio.uiClick();
       el.click();
-      if (el.type === 'checkbox') {
+      if (el.type === "checkbox") {
         el.checked = !el.checked;
-        el.dispatchEvent(new Event('change', { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
       }
     }
   }
@@ -203,6 +251,7 @@ class MenuManager {
       case SCREENS.CREATE_GAME:
       case SCREENS.JOIN_GAME:
       case SCREENS.OPTIONS:
+      case SCREENS.FEEDBACK_DASHBOARD:
         this.showScreen(SCREENS.MAIN_MENU);
         break;
       case SCREENS.LOBBY:
@@ -220,11 +269,11 @@ class MenuManager {
   async checkJoinUrl() {
     const params = new URLSearchParams(window.location.search);
     const joinCode = params.get("join");
-    
+
     if (joinCode) {
       // Clear the URL parameter to prevent re-joining on refresh
       window.history.replaceState({}, "", window.location.pathname);
-      
+
       // Auto-join the room (preserve case for random Colyseus IDs)
       await this.joinByCode(joinCode);
     }
@@ -244,13 +293,22 @@ class MenuManager {
       if (state.phase === "playing" && this.currentScreen !== SCREENS.PLAYING) {
         this.showScreen(SCREENS.PLAYING);
         this.emit("gameStart");
-      } else if (state.phase === "results" && this.currentScreen !== SCREENS.RESULTS) {
+      } else if (
+        state.phase === "results" &&
+        this.currentScreen !== SCREENS.RESULTS
+      ) {
         this.showScreen(SCREENS.RESULTS);
-      } else if (state.phase === "lobby" && this.currentScreen === SCREENS.RESULTS) {
+      } else if (
+        state.phase === "lobby" &&
+        this.currentScreen === SCREENS.RESULTS
+      ) {
         this.showScreen(SCREENS.LOBBY);
       } else if (state.phase === "countdown" || state.phase === "lobby") {
         // Play countdown beeps
-        if (state.phase === "countdown" && state.countdown !== this._lastCountdown) {
+        if (
+          state.phase === "countdown" &&
+          state.countdown !== this._lastCountdown
+        ) {
           this._lastCountdown = state.countdown;
           proceduralAudio.uiCountdown(state.countdown === 1);
         }
@@ -274,13 +332,13 @@ class MenuManager {
     NetworkManager.on("error", (err) => {
       console.error("[Menu] Network error:", err);
       let message = "Connection error";
-      
+
       if (err.error?.message) {
         message = err.error.message;
       } else if (err.message) {
         message = err.message;
       }
-      
+
       // User-friendly messages for common errors
       if (message.includes("already exists") || message.includes("roomId")) {
         message = "Room code already in use. Try a different code.";
@@ -289,9 +347,9 @@ class MenuManager {
       } else if (message.includes("full")) {
         message = "Room is full.";
       }
-      
+
       this.showError(message);
-      
+
       // Return to appropriate screen
       if (this.currentScreen === SCREENS.PLAYING) return;
       if (this.lastScreen) {
@@ -304,12 +362,14 @@ class MenuManager {
 
   showScreen(screen) {
     this.currentScreen = screen;
-    
+
     if (this.startScene) {
-      const showScene = screen === SCREENS.MAIN_MENU ||
-                        screen === SCREENS.CREATE_GAME ||
-                        screen === SCREENS.JOIN_GAME ||
-                        screen === SCREENS.OPTIONS;
+      const showScene =
+        screen === SCREENS.MAIN_MENU ||
+        screen === SCREENS.CREATE_GAME ||
+        screen === SCREENS.JOIN_GAME ||
+        screen === SCREENS.OPTIONS ||
+        screen === SCREENS.FEEDBACK_DASHBOARD;
       if (showScene) {
         this.startScene.resume();
         if (this.startScene.renderer) {
@@ -322,19 +382,19 @@ class MenuManager {
         }
       }
     }
-    
+
     this.render();
     setTimeout(() => this.resetFocus(), 50);
   }
-  
+
   showLoading(message = "LOADING LEVEL...") {
     this.loadingMessage = message;
     this.showScreen(SCREENS.LOADING);
   }
-  
+
   updateLoadingProgress(progress) {
-    const progressBar = document.querySelector('.loading-progress-fill');
-    const progressText = document.querySelector('.loading-progress-text');
+    const progressBar = document.querySelector(".loading-progress-fill");
+    const progressText = document.querySelector(".loading-progress-text");
     if (progressBar) {
       progressBar.style.width = `${Math.round(progress * 100)}%`;
     }
@@ -342,7 +402,7 @@ class MenuManager {
       progressText.textContent = `${Math.round(progress * 100)}%`;
     }
   }
-  
+
   loadingComplete() {
     if (this.currentScreen === SCREENS.LOADING) {
       this.showScreen(SCREENS.PLAYING);
@@ -378,6 +438,9 @@ class MenuManager {
       case SCREENS.OPTIONS:
         this.renderOptions();
         break;
+      case SCREENS.FEEDBACK_DASHBOARD:
+        this.renderFeedbackDashboard();
+        break;
     }
   }
 
@@ -386,13 +449,13 @@ class MenuManager {
     if (this.startScene && this.startScene.renderer) {
       this.startScene.renderer.domElement.style.display = "block";
     }
-    
+
     this.menuContent.innerHTML = `
       <div class="menu-screen main-menu">
         <div class="main-menu-right">
           <div class="menu-title">
             <p class="subtitle">JAMES C. KANE'S</p>
-            <h1>STARSPEED</h1>
+            <img class="menu-title-logo" src="/images/ui/Starspeed_WordMark.png" alt="Starspeed game title: metallic silver wordmark with stylized wing on the S and a glowing orange line through the text ending in a starburst." />
             <p class="subtitle">ZERO-G AERIAL COMBAT</p>
           </div>
           <div class="menu-panel">
@@ -409,9 +472,11 @@ class MenuManager {
                 <button class="menu-btn" id="btn-quick">QUICKMATCH</button>
                 <button class="menu-btn" id="btn-join">JOIN MATCH</button>
                 <button class="menu-btn" id="btn-create">CREATE MATCH</button>
-                <label>COMMUNITY</label>
-                <button class="menu-btn" id="btn-feedback">FEEDBACK</button>
-                <button class="menu-btn options-btn-main" id="btn-options">OPTIONS</button>
+                <label>MISC</label>
+                <div class="menu-buttons-row">
+                  <button class="menu-btn" id="btn-feedback">FEEDBACK</button>
+                  <button class="menu-btn" id="btn-options">OPTIONS</button>
+                </div>
               </div>
             </div>
           </div>
@@ -422,9 +487,13 @@ class MenuManager {
             <div class="form-group">
               <label>MAP</label>
               <select id="level-select-solo" class="menu-select">
-                ${Object.values(LEVELS).map(level => `
+                ${Object.values(LEVELS)
+                  .map(
+                    (level) => `
                   <option value="${level.id}">${level.name}</option>
-                `).join('')}
+                `,
+                  )
+                  .join("")}
               </select>
             </div>
             <div class="level-select-buttons">
@@ -452,9 +521,11 @@ class MenuManager {
       this.emit("campaignStart");
     });
 
-    document.getElementById("btn-level-cancel").addEventListener("click", () => {
-      levelModal.style.display = "none";
-    });
+    document
+      .getElementById("btn-level-cancel")
+      .addEventListener("click", () => {
+        levelModal.style.display = "none";
+      });
 
     levelModal.addEventListener("click", (e) => {
       if (e.target === levelModal) levelModal.style.display = "none";
@@ -482,12 +553,13 @@ class MenuManager {
 
     this.updateGamepadIndicator();
   }
-  
+
   updateGamepadIndicator() {
     const indicator = document.getElementById("gamepad-indicator");
     if (indicator) {
       if (GamepadInput.connected) {
-        indicator.textContent = "🎮 Gamepad: D-Pad - Navigate | A - Select | B - Back";
+        indicator.textContent =
+          "🎮 Gamepad: D-Pad - Navigate | A - Select | B - Back";
         indicator.classList.add("active");
       } else {
         indicator.textContent = "";
@@ -515,7 +587,10 @@ class MenuManager {
     this.feedbackModalEl.innerHTML = `
       <div class="feedback-modal-overlay"></div>
       <div class="feedback-modal-content">
-        <h3>FEEDBACK</h3>
+        <div class="feedback-modal-header">
+          <h3>FEEDBACK</h3>
+          <button type="button" class="feedback-modal-close" id="feedback-close" aria-label="Close">×</button>
+        </div>
         <form id="feedback-form" class="feedback-form">
           <div class="form-group">
             <label>NAME</label>
@@ -528,13 +603,15 @@ class MenuManager {
           <div class="form-group feedback-type-group">
             <label>TYPE</label>
             <div class="feedback-type-radios" id="feedback-type-radios">
-              <label class="feedback-type-option">
+              <label class="feedback-type-btn">
                 <input type="radio" name="feedback-type" value="feedback" checked />
-                <span>Feedback</span>
+                <span class="feedback-type-dot"></span>
+                <span class="feedback-type-label">Feedback</span>
               </label>
-              <label class="feedback-type-option">
+              <label class="feedback-type-btn">
                 <input type="radio" name="feedback-type" value="bug" />
-                <span>Bug Report</span>
+                <span class="feedback-type-dot"></span>
+                <span class="feedback-type-label">Bug Report</span>
               </label>
             </div>
           </div>
@@ -543,21 +620,25 @@ class MenuManager {
             <textarea id="feedback-message" rows="4" maxlength="2000"></textarea>
           </div>
           <div class="feedback-ratings" id="feedback-ratings-container">
-            ${ratingLabels.map((r) => `
+            ${ratingLabels
+              .map(
+                (r) => `
               <div class="form-group feedback-rating-row" data-rating="${r.id}">
-                <label>${r.label} (0-5)</label>
-                <select id="feedback-rating-${r.id}" class="menu-select feedback-rating-select">
-                  <option value="" selected>—</option>
-                  ${[0, 1, 2, 3, 4, 5].map((n) => `<option value="${n}">${n}</option>`).join("")}
-                </select>
+                <label>${r.label}</label>
+                <div class="feedback-stars" data-rating-id="${r.id}" role="group" aria-label="${r.label} rating">
+                  <input type="hidden" id="feedback-rating-${r.id}" value="" />
+                  ${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="feedback-star" data-value="${n}" aria-label="${n} star${n > 1 ? "s" : ""}">★</button>`).join("")}
+                </div>
               </div>
-            `).join("")}
+            `,
+              )
+              .join("")}
           </div>
-          <p class="feedback-disclaimer">When you submit this form, we automatically collect technical information from your browser (OS, device memory, GPU) to help diagnose and improve the experience for as many users as possible.</p>
+          <p class="feedback-disclaimer">When you submit this form, we automatically collect technical information from your browser (OS, device memory, GPU) to help diagnose issues and improve the experience for as many users as possible.</p>
           <div id="feedback-error" class="feedback-error" style="display:none;"></div>
           <div class="feedback-modal-buttons">
-            <button type="submit" class="menu-btn" id="feedback-submit">SUBMIT</button>
             <button type="button" class="menu-btn secondary" id="feedback-cancel">CANCEL</button>
+            <button type="submit" class="menu-btn" id="feedback-submit">SUBMIT</button>
           </div>
         </form>
       </div>
@@ -565,14 +646,35 @@ class MenuManager {
 
     this.feedbackModalEl.style.display = "flex";
 
-    const getFeedbackType = () => document.querySelector('input[name="feedback-type"]:checked')?.value || "feedback";
+    const getFeedbackType = () =>
+      document.querySelector('input[name="feedback-type"]:checked')?.value ||
+      "feedback";
     const updateRatingVisibility = () => {
       const type = getFeedbackType();
       const container = document.getElementById("feedback-ratings-container");
       if (container) container.style.display = type === "bug" ? "none" : "";
     };
     updateRatingVisibility();
-    document.getElementById("feedback-type-radios").addEventListener("change", updateRatingVisibility);
+    document
+      .getElementById("feedback-type-radios")
+      .addEventListener("change", updateRatingVisibility);
+
+    this.feedbackModalEl.querySelectorAll(".feedback-stars").forEach((container) => {
+      const id = container.dataset.ratingId;
+      const input = document.getElementById(`feedback-rating-${id}`);
+      const stars = container.querySelectorAll(".feedback-star");
+      const updateStars = (value) => {
+        const n = value === "" ? 0 : parseInt(value, 10);
+        stars.forEach((star, i) => star.classList.toggle("filled", i < n));
+      };
+      stars.forEach((star) => {
+        star.addEventListener("click", () => {
+          const value = star.dataset.value;
+          input.value = value;
+          updateStars(value);
+        });
+      });
+    });
 
     const close = () => {
       this.feedbackModalEl.style.display = "none";
@@ -588,62 +690,97 @@ class MenuManager {
     };
     document.addEventListener("keydown", handleEscape, true);
 
-    this.feedbackModalEl.querySelector(".feedback-modal-overlay").addEventListener("click", close);
-    this.feedbackModalEl.querySelector("#feedback-cancel").addEventListener("click", close);
+    this.feedbackModalEl
+      .querySelector(".feedback-modal-overlay")
+      .addEventListener("click", close);
+    this.feedbackModalEl
+      .querySelector("#feedback-cancel")
+      .addEventListener("click", close);
+    this.feedbackModalEl
+      .querySelector("#feedback-close")
+      .addEventListener("click", close);
 
-    this.feedbackModalEl.querySelector("#feedback-form").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const name = document.getElementById("feedback-name").value.trim();
-      const email = document.getElementById("feedback-email").value.trim();
-      const message = document.getElementById("feedback-message").value.trim();
-      const type = getFeedbackType();
-      const ratingEl = (id) => document.getElementById(`feedback-rating-${id}`).value;
-      const ratings = {
-        gameplay: ratingEl("gameplay") === "" ? null : parseInt(ratingEl("gameplay"), 10),
-        performance: ratingEl("performance") === "" ? null : parseInt(ratingEl("performance"), 10),
-        graphics: ratingEl("graphics") === "" ? null : parseInt(ratingEl("graphics"), 10),
-        overall: ratingEl("overall") === "" ? null : parseInt(ratingEl("overall"), 10),
-      };
+    this.feedbackModalEl
+      .querySelector("#feedback-form")
+      .addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const name = document.getElementById("feedback-name").value.trim();
+        const email = document.getElementById("feedback-email").value.trim();
+        const message = document
+          .getElementById("feedback-message")
+          .value.trim();
+        const type = getFeedbackType();
+        const ratingEl = (id) =>
+          document.getElementById(`feedback-rating-${id}`).value;
+        const ratings = {
+          gameplay:
+            ratingEl("gameplay") === ""
+              ? null
+              : parseInt(ratingEl("gameplay"), 10),
+          performance:
+            ratingEl("performance") === ""
+              ? null
+              : parseInt(ratingEl("performance"), 10),
+          graphics:
+            ratingEl("graphics") === ""
+              ? null
+              : parseInt(ratingEl("graphics"), 10),
+          overall:
+            ratingEl("overall") === ""
+              ? null
+              : parseInt(ratingEl("overall"), 10),
+        };
 
-      const errEl = document.getElementById("feedback-error");
-      if (!message) {
-        errEl.textContent = "Please enter a message.";
-        errEl.style.display = "block";
-        return;
-      }
+        const errEl = document.getElementById("feedback-error");
+        if (!message) {
+          errEl.textContent = "Please enter a message.";
+          errEl.style.display = "block";
+          return;
+        }
 
-      errEl.style.display = "none";
-      document.getElementById("feedback-submit").disabled = true;
+        errEl.style.display = "none";
+        document.getElementById("feedback-submit").disabled = true;
 
-      const base = (NetworkManager.serverUrl || "").replace(/^ws:/, "http:").replace(/^wss:/, "https:");
-      const payload = {
-        name,
-        email,
-        message,
-        type,
-        ratings,
-        systemInfo: getSystemInfo(),
-      };
+        const base = (NetworkManager.serverUrl || "")
+          .replace(/^ws:/, "http:")
+          .replace(/^wss:/, "https:");
+        const payload = {
+          name,
+          email,
+          message,
+          type,
+          ratings,
+          systemInfo: getSystemInfo(),
+        };
 
-      try {
-        const res = await fetch(`${base}/api/feedback`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) throw new Error(res.statusText || "Submit failed");
-        close();
-      } catch (err) {
-        const isNetwork = err?.message === "Failed to fetch" || err?.name === "TypeError";
-        errEl.textContent = isNetwork
-          ? "Server unreachable. Start the game server (e.g. cd server && npm start)."
-          : (err.message || "Failed to submit. Try again.");
-        errEl.style.display = "block";
-      } finally {
-        const btn = document.getElementById("feedback-submit");
-        if (btn) btn.disabled = false;
-      }
-    });
+        try {
+          const res = await fetch(`${base}/api/feedback`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) throw new Error(res.statusText || "Submit failed");
+          this.feedbackModalEl.innerHTML = `
+            <div class="feedback-modal-overlay"></div>
+            <div class="feedback-modal-content feedback-confirmation">
+              <p class="feedback-confirmation-message">Thank you for your feedback!</p>
+              <button type="button" class="menu-btn" id="feedback-confirm-close">OK</button>
+            </div>
+          `;
+          this.feedbackModalEl.querySelector(".feedback-modal-overlay").addEventListener("click", close);
+          this.feedbackModalEl.querySelector("#feedback-confirm-close").addEventListener("click", close);
+        } catch (err) {
+          const isNetwork =
+            err?.message === "Failed to fetch" || err?.name === "TypeError";
+          errEl.textContent = isNetwork
+            ? "Server unreachable. Start the game server (e.g. cd server && npm start)."
+            : err.message || "Failed to submit. Try again.";
+          errEl.style.display = "block";
+        } finally {
+          const btn = document.getElementById("feedback-submit");
+          if (btn) btn.disabled = false;
+        }
+      });
   }
 
   renderCreateGame() {
@@ -663,9 +800,13 @@ class MenuManager {
             <div class="form-group form-group-map">
               <label>MAP</label>
               <select id="level-select" class="menu-select">
-                ${Object.values(LEVELS).map(level => `
+                ${Object.values(LEVELS)
+                  .map(
+                    (level) => `
                   <option value="${level.id}" ${level.id === "newworld" ? "selected" : ""}>${level.name}</option>
-                `).join('')}
+                `,
+                  )
+                  .join("")}
               </select>
             </div>
           </div>
@@ -724,7 +865,9 @@ class MenuManager {
     document.querySelectorAll(".mode-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         if (btn.disabled) return;
-        document.querySelectorAll(".mode-btn").forEach((b) => b.classList.remove("selected"));
+        document
+          .querySelectorAll(".mode-btn")
+          .forEach((b) => b.classList.remove("selected"));
         btn.classList.add("selected");
         selectedMode = btn.dataset.mode;
       });
@@ -732,7 +875,9 @@ class MenuManager {
 
     document.querySelectorAll(".vis-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
-        document.querySelectorAll(".vis-btn").forEach((b) => b.classList.remove("selected"));
+        document
+          .querySelectorAll(".vis-btn")
+          .forEach((b) => b.classList.remove("selected"));
         btn.classList.add("selected");
         isPublic = btn.dataset.public === "true";
       });
@@ -740,7 +885,9 @@ class MenuManager {
 
     document.querySelectorAll(".limit-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
-        document.querySelectorAll(".limit-btn").forEach((b) => b.classList.remove("selected"));
+        document
+          .querySelectorAll(".limit-btn")
+          .forEach((b) => b.classList.remove("selected"));
         btn.classList.add("selected");
         killLimit = parseInt(btn.dataset.limit);
       });
@@ -748,7 +895,9 @@ class MenuManager {
 
     document.querySelectorAll(".players-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
-        document.querySelectorAll(".players-btn").forEach((b) => b.classList.remove("selected"));
+        document
+          .querySelectorAll(".players-btn")
+          .forEach((b) => b.classList.remove("selected"));
         btn.classList.add("selected");
         maxPlayers = parseInt(btn.dataset.players);
       });
@@ -758,13 +907,26 @@ class MenuManager {
       selectedLevel = e.target.value;
     });
 
-    document.getElementById("btn-create-room").addEventListener("click", async () => {
-      const roomName = document.getElementById("room-name").value.trim();
-      const roomCode = roomName
-        ? roomName.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16) || null
-        : null;
-      await this.createGame(roomName, selectedMode, isPublic, killLimit, maxPlayers, selectedLevel, roomCode);
-    });
+    document
+      .getElementById("btn-create-room")
+      .addEventListener("click", async () => {
+        const roomName = document.getElementById("room-name").value.trim();
+        const roomCode = roomName
+          ? roomName
+              .toUpperCase()
+              .replace(/[^A-Z0-9]/g, "")
+              .slice(0, 16) || null
+          : null;
+        await this.createGame(
+          roomName,
+          selectedMode,
+          isPublic,
+          killLimit,
+          maxPlayers,
+          selectedLevel,
+          roomCode,
+        );
+      });
   }
 
   renderJoinGame() {
@@ -820,20 +982,20 @@ class MenuManager {
   addChatMessage(data) {
     // Don't show messages from muted players
     if (this.mutedPlayers.has(data.senderId)) return;
-    
+
     this.chatMessages.push({
       senderId: data.senderId,
       senderName: data.senderName,
       text: data.text,
       timestamp: data.timestamp,
-      isLocal: data.senderId === NetworkManager.sessionId
+      isLocal: data.senderId === NetworkManager.sessionId,
     });
-    
+
     // Limit chat history
     if (this.chatMessages.length > this.maxChatMessages) {
       this.chatMessages.shift();
     }
-    
+
     // Update chat display if in lobby
     this.updateChatDisplay();
   }
@@ -841,14 +1003,18 @@ class MenuManager {
   updateChatDisplay() {
     const chatMessages = document.getElementById("chat-messages");
     if (!chatMessages) return;
-    
-    chatMessages.innerHTML = this.chatMessages.map(msg => `
+
+    chatMessages.innerHTML = this.chatMessages
+      .map(
+        (msg) => `
       <div class="chat-message ${msg.isLocal ? "local" : ""}">
         <span class="chat-sender">${msg.senderName}:</span>
         <span class="chat-text">${this.escapeHtml(msg.text)}</span>
       </div>
-    `).join("");
-    
+    `,
+      )
+      .join("");
+
     // Auto-scroll to bottom
     chatMessages.scrollTop = chatMessages.scrollHeight;
   }
@@ -862,7 +1028,7 @@ class MenuManager {
   sendChatMessage() {
     const input = document.getElementById("chat-input");
     if (!input) return;
-    
+
     const text = input.value.trim();
     if (text) {
       NetworkManager.sendChat(text);
@@ -876,7 +1042,10 @@ class MenuManager {
     } else {
       this.mutedPlayers.add(sessionId);
     }
-    localStorage.setItem("starspeed_muted", JSON.stringify([...this.mutedPlayers]));
+    localStorage.setItem(
+      "starspeed_muted",
+      JSON.stringify([...this.mutedPlayers]),
+    );
     this.renderLobby();
   }
 
@@ -890,7 +1059,8 @@ class MenuManager {
 
     const isCountdown = state.phase === "countdown";
     const allReady = players.every(([, p]) => p.ready);
-    const canStart = isHost && players.length >= 1 && (allReady || players.length === 1);
+    const canStart =
+      isHost && players.length >= 1 && (allReady || players.length === 1);
 
     this.menuContent.innerHTML = `
       <div class="menu-screen lobby">
@@ -912,45 +1082,67 @@ class MenuManager {
           </div>
         </div>
         
-        ${isCountdown ? `
+        ${
+          isCountdown
+            ? `
           <div class="countdown-overlay">
-            <div class="countdown-number">${state.countdown}</div>
-            <div class="countdown-text">GET READY</div>
+            <div class="countdown-overlay-inner">
+              <div class="countdown-number">${state.countdown}</div>
+              <div class="countdown-text">GET READY</div>
+            </div>
           </div>
-        ` : ""}
+        `
+            : ""
+        }
         
         <div class="lobby-content">
           <div class="players-section">
             <h3>PILOTS (${players.length}/8)</h3>
             <div class="player-list">
-              ${players.map(([sessionId, player]) => `
+              ${players
+                .map(
+                  ([sessionId, player]) => `
                 <div class="player-card ${player.ready ? "ready" : ""} ${sessionId === NetworkManager.sessionId ? "local" : ""} ${state.mode === "team" ? `team-${player.team}` : ""}">
                   <div class="player-info">
                     <span class="player-name">${player.name}${state.hostId === sessionId ? " ★" : ""}</span>
                   </div>
                   <div class="player-actions">
-                    ${sessionId !== NetworkManager.sessionId ? `
+                    ${
+                      sessionId !== NetworkManager.sessionId
+                        ? `
                       <button class="mute-btn ${this.mutedPlayers.has(sessionId) ? "muted" : ""}" data-session="${sessionId}" title="${this.mutedPlayers.has(sessionId) ? "Unmute" : "Mute"}">
                         ${this.mutedPlayers.has(sessionId) ? "🔇" : "🔊"}
                       </button>
-                      ${isHost && !isCountdown ? `
+                      ${
+                        isHost && !isCountdown
+                          ? `
                         <button class="kick-btn" data-session="${sessionId}" title="Kick">×</button>
-                      ` : ""}
-                    ` : ""}
+                      `
+                          : ""
+                      }
+                    `
+                        : ""
+                    }
                     <div class="player-status">${player.ready ? "READY" : "..."}</div>
                   </div>
                 </div>
-              `).join("")}
+              `,
+                )
+                .join("")}
             </div>
             
             <div class="chat-section">
               <div class="chat-messages" id="chat-messages">
-                ${this.chatMessages.map(msg => `
+                ${this.chatMessages
+                  .map(
+                    (msg) => `
                   <div class="chat-message ${msg.isLocal ? "local" : ""}">
                     <span class="chat-sender">${msg.senderName}:</span>
                     <span class="chat-text">${this.escapeHtml(msg.text)}</span>
                   </div>
-                `).join("")}
+                `,
+                  )
+                  .join("")}
               </div>
               <div class="chat-input-row">
                 <input type="text" id="chat-input" placeholder="Type a message..." maxlength="200" />
@@ -964,15 +1156,23 @@ class MenuManager {
               <img class="map-preview" src="${LEVELS[state.level]?.preview || "/hull_lights_emit.png"}" alt="" />
               <div class="map-details">
                 <h3>MAP</h3>
-                ${isHost ? `
+                ${
+                  isHost
+                    ? `
                   <select id="lobby-level-select" class="menu-select">
-                    ${Object.values(LEVELS).map(level => `
+                    ${Object.values(LEVELS)
+                      .map(
+                        (level) => `
                       <option value="${level.id}" ${level.id === state.level ? "selected" : ""}>${level.name}</option>
-                    `).join("")}
+                    `,
+                      )
+                      .join("")}
                   </select>
-                ` : `
+                `
+                    : `
                   <div class="map-name">${LEVELS[state.level]?.name || state.level || "Unknown"}</div>
-                `}
+                `
+                }
                 <div class="lobby-map-meta">
                   <span class="mode-badge ${state.mode}">${state.mode === "ffa" ? "FFA" : "TEAM"}</span>
                   <span class="visibility-badge ${state.isPublic !== false ? "public" : "private"}">${state.isPublic !== false ? "PUBLIC" : "PRIVATE"}</span>
@@ -986,11 +1186,15 @@ class MenuManager {
                 <span class="ready-checkmark"></span>
                 <span class="ready-label">READY</span>
               </label>
-              ${isHost ? `
+              ${
+                isHost
+                  ? `
                 <button class="menu-btn primary ${canStart ? "" : "disabled"}" id="btn-start" ${canStart ? "" : "disabled"}>
                   START MATCH
                 </button>
-              ` : ""}
+              `
+                  : ""
+              }
             </div>
           </div>
         </div>
@@ -1028,7 +1232,10 @@ class MenuManager {
     }
     this._shareTooltipOutsideClick = (e) => {
       const tooltip = document.getElementById("share-tooltip");
-      if (tooltip?.classList.contains("active") && !e.target.closest(".room-code-wrapper")) {
+      if (
+        tooltip?.classList.contains("active") &&
+        !e.target.closest(".room-code-wrapper")
+      ) {
         tooltip.classList.remove("active");
       }
     };
@@ -1042,10 +1249,12 @@ class MenuManager {
       NetworkManager.startGame();
     });
 
-    document.getElementById("lobby-level-select")?.addEventListener("change", (e) => {
-      const level = e.target.value;
-      NetworkManager.setLevel(level);
-    });
+    document
+      .getElementById("lobby-level-select")
+      ?.addEventListener("change", (e) => {
+        const level = e.target.value;
+        NetworkManager.setLevel(level);
+      });
 
     // Chat event listeners
     document.getElementById("btn-send-chat")?.addEventListener("click", () => {
@@ -1111,19 +1320,25 @@ class MenuManager {
     const state = NetworkManager.getState();
     if (!state) return;
 
-    const players = NetworkManager.getPlayers().sort((a, b) => b[1].kills - a[1].kills);
+    const players = NetworkManager.getPlayers().sort(
+      (a, b) => b[1].kills - a[1].kills,
+    );
 
     this.container.classList.remove("hidden");
     this.menuContent.innerHTML = `
       <div class="menu-screen results">
         <div class="results-header">
           <h1>MATCH COMPLETE</h1>
-          ${state.mode === "team" ? `
+          ${
+            state.mode === "team"
+              ? `
             <div class="team-scores">
               <div class="team-score team-1">RED: ${state.team1Score}</div>
               <div class="team-score team-2">BLUE: ${state.team2Score}</div>
             </div>
-          ` : ""}
+          `
+              : ""
+          }
         </div>
         <div class="scoreboard">
           <div class="scoreboard-header">
@@ -1133,7 +1348,9 @@ class MenuManager {
             <span>DEATHS</span>
             <span>K/D</span>
           </div>
-          ${players.map(([sessionId, player], index) => `
+          ${players
+            .map(
+              ([sessionId, player], index) => `
             <div class="scoreboard-row ${sessionId === NetworkManager.sessionId ? "local" : ""} ${state.mode === "team" ? `team-${player.team}` : ""}">
               <span class="rank">#${index + 1}</span>
               <span class="name">${player.name}</span>
@@ -1141,7 +1358,9 @@ class MenuManager {
               <span class="deaths">${player.deaths}</span>
               <span class="kd">${player.deaths > 0 ? (player.kills / player.deaths).toFixed(2) : player.kills.toFixed(2)}</span>
             </div>
-          `).join("")}
+          `,
+            )
+            .join("")}
         </div>
         <div class="results-footer">
           <p>Returning to lobby in 10 seconds...</p>
@@ -1150,16 +1369,141 @@ class MenuManager {
     `;
   }
 
-  renderOptions(returnScreen = null) {
-    this.optionsReturnScreen = returnScreen || this.lastScreen || SCREENS.MAIN_MENU;
-    this.optionsSection = this.optionsSection || 'gameplay';
-    const isMobile = window.gameManager?.state?.isMobile;
-    if (isMobile && this.optionsSection === 'controls') this.optionsSection = 'gameplay';
+  getFeedbackApiBase() {
+    const base = (NetworkManager.serverUrl || "").replace(/^ws:/, "http:").replace(/^wss:/, "https:");
+    return base || window.location.origin;
+  }
 
-    const controlsBtn = !isMobile ? `
-            <button class="sidebar-btn ${this.optionsSection === 'controls' ? 'active' : ''}" data-section="controls">
+  renderFeedbackDashboard() {
+    this.feedbackDashboardData = this.feedbackDashboardData || [];
+
+    const escapeHtml = (s) => {
+      const div = document.createElement("div");
+      div.textContent = s == null ? "" : String(s);
+      return div.innerHTML;
+    };
+    const formatRatings = (r) => {
+      if (!r || typeof r !== "object") return "—";
+      const parts = [];
+      if (typeof r.gameplay === "number") parts.push("G:" + r.gameplay);
+      if (typeof r.performance === "number") parts.push("P:" + r.performance);
+      if (typeof r.graphics === "number") parts.push("Gr:" + r.graphics);
+      if (typeof r.overall === "number") parts.push("O:" + r.overall);
+      return parts.length ? parts.join(" ") : "—";
+    };
+
+    this.menuContent.innerHTML = `
+      <div class="menu-screen feedback-dashboard-screen">
+        <div class="feedback-dashboard-header">
+          <button class="back-btn" id="feedback-dashboard-back">← BACK</button>
+          <h2>FEEDBACK DASHBOARD</h2>
+        </div>
+        <div class="feedback-dashboard-toolbar">
+          <label class="feedback-dashboard-label">Key: <input type="password" id="feedback-dashboard-key" placeholder="Optional dashboard key" class="feedback-dashboard-input" /></label>
+          <button type="button" class="menu-btn" id="feedback-dashboard-load">LOAD</button>
+          <label class="feedback-dashboard-label">Type: <select id="feedback-dashboard-filter" class="menu-select feedback-dashboard-select"><option value="">All</option><option value="feedback">Feedback</option><option value="bug">Bug Report</option></select></label>
+          <button type="button" class="menu-btn secondary" id="feedback-dashboard-export">EXPORT CSV</button>
+        </div>
+        <div id="feedback-dashboard-error" class="feedback-dashboard-error" style="display:none;"></div>
+        <div id="feedback-dashboard-table-wrap" class="feedback-dashboard-table-wrap"></div>
+      </div>
+    `;
+
+    const renderTable = () => {
+      const filterType = document.getElementById("feedback-dashboard-filter").value;
+      const list = !filterType ? this.feedbackDashboardData : this.feedbackDashboardData.filter((r) => r.type === filterType);
+      const wrap = document.getElementById("feedback-dashboard-table-wrap");
+      if (list.length === 0) {
+        wrap.innerHTML = "<p class=\"feedback-dashboard-empty\">No feedback entries.</p>";
+        return;
+      }
+      wrap.innerHTML = "<table class=\"feedback-dashboard-table\"><thead><tr><th>Date</th><th>Type</th><th>Name</th><th>Email</th><th>Message</th><th>Ratings</th><th></th></tr></thead><tbody>" +
+        list.map((row, i) => {
+          const msg = row.message || "";
+          const shortMsg = msg.slice(0, 60) + (msg.length > 60 ? "…" : "");
+          return "<tr data-i=\"" + i + "\"><td>" + new Date(row.createdAt).toLocaleString() + "</td><td>" + (row.type || "") + "</td><td>" + escapeHtml(row.name || "") + "</td><td>" + escapeHtml(row.email || "") + "</td><td class=\"feedback-dashboard-msg\" title=\"" + escapeHtml(msg).replace(/"/g, "&quot;") + "\">" + escapeHtml(shortMsg) + "</td><td>" + formatRatings(row.ratings) + "</td><td><span class=\"feedback-dashboard-expand\" data-i=\"" + i + "\">Details</span></td></tr><tr data-detail=\"" + i + "\" style=\"display:none;\"><td colspan=\"7\"><div class=\"feedback-dashboard-system-info\">" + escapeHtml(JSON.stringify(row.systemInfo || {}, null, 2)) + "</div><div class=\"feedback-dashboard-system-info\" style=\"margin-top:0.5rem;\"><strong>Full message:</strong><br/>" + escapeHtml(msg) + "</div></td></tr>";
+        }).join("") +
+        "</tbody></table>";
+      wrap.querySelectorAll(".feedback-dashboard-expand").forEach((el) => {
+        el.addEventListener("click", () => {
+          const i = el.dataset.i;
+          const detail = wrap.querySelector("tr[data-detail=\"" + i + "\"]");
+          detail.style.display = detail.style.display === "none" ? "table-row" : "none";
+        });
+      });
+    };
+
+    document.getElementById("feedback-dashboard-back").addEventListener("click", () => {
+      this.showScreen(SCREENS.MAIN_MENU);
+    });
+
+    document.getElementById("feedback-dashboard-load").addEventListener("click", async () => {
+      const key = document.getElementById("feedback-dashboard-key").value.trim();
+      const base = this.getFeedbackApiBase();
+      const url = key ? base + "/api/feedback?key=" + encodeURIComponent(key) : base + "/api/feedback";
+      const errEl = document.getElementById("feedback-dashboard-error");
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          if (res.status === 401) throw new Error("Invalid or missing key");
+          throw new Error(res.statusText || "Load failed");
+        }
+        this.feedbackDashboardData = await res.json();
+        errEl.style.display = "none";
+        errEl.textContent = "";
+        renderTable();
+      } catch (e) {
+        errEl.textContent = e.message;
+        errEl.style.display = "block";
+        this.feedbackDashboardData = [];
+        renderTable();
+      }
+    });
+
+    document.getElementById("feedback-dashboard-filter").addEventListener("change", () => renderTable());
+
+    document.getElementById("feedback-dashboard-export").addEventListener("click", () => {
+      const filterType = document.getElementById("feedback-dashboard-filter").value;
+      const list = !filterType ? this.feedbackDashboardData : this.feedbackDashboardData.filter((r) => r.type === filterType);
+      if (list.length === 0) return;
+      const headers = ["createdAt", "type", "name", "email", "message", "gameplay", "performance", "graphics", "overall"];
+      const rows = list.map((r) => {
+        const ratings = r.ratings || {};
+        return [r.createdAt, r.type, r.name || "", r.email || "", (r.message || "").replace(/"/g, '""'), ratings.gameplay ?? "", ratings.performance ?? "", ratings.graphics ?? "", ratings.overall ?? ""].map((c) => "\"" + String(c).replace(/"/g, '""') + "\"").join(",");
+      });
+      const csv = [headers.join(",")].concat(rows).join("\n");
+      const a = document.createElement("a");
+      a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
+      a.download = "feedback-" + new Date().toISOString().slice(0, 10) + ".csv";
+      a.click();
+    });
+
+    renderTable();
+
+    setTimeout(() => {
+      this.updateFocusableElements();
+      const loadIdx = this.focusableElements.findIndex((el) => el.id === "feedback-dashboard-load");
+      if (loadIdx >= 0) {
+        this.focusIndex = loadIdx;
+        this.updateFocus();
+      }
+    }, 60);
+  }
+
+  renderOptions(returnScreen = null) {
+    this.optionsReturnScreen =
+      returnScreen || this.lastScreen || SCREENS.MAIN_MENU;
+    this.optionsSection = this.optionsSection || "graphics";
+    const isMobile = window.gameManager?.state?.isMobile;
+    if (isMobile && this.optionsSection === "controls")
+      this.optionsSection = "gameplay";
+
+    const controlsBtn = !isMobile
+      ? `
+            <button class="sidebar-btn ${this.optionsSection === "controls" ? "active" : ""}" data-section="controls">
               <span class="sidebar-icon">⌨</span> CONTROLS
-            </button>` : '';
+            </button>`
+      : "";
 
     this.menuContent.innerHTML = `
       <div class="menu-screen options-menu">
@@ -1169,14 +1513,14 @@ class MenuManager {
         </div>
         <div class="options-layout">
           <div class="options-sidebar">
-            <button class="sidebar-btn ${this.optionsSection === 'graphics' ? 'active' : ''}" data-section="graphics">
+            <button class="sidebar-btn ${this.optionsSection === "graphics" ? "active" : ""}" data-section="graphics">
               <span class="sidebar-icon">🖥</span> GRAPHICS
             </button>
-            <button class="sidebar-btn ${this.optionsSection === 'gameplay' ? 'active' : ''}" data-section="gameplay">
+            <button class="sidebar-btn ${this.optionsSection === "gameplay" ? "active" : ""}" data-section="gameplay">
               <span class="sidebar-icon">🎮</span> GAMEPLAY
             </button>
             ${controlsBtn}
-            <button class="sidebar-btn ${this.optionsSection === 'sound' ? 'active' : ''}" data-section="sound">
+            <button class="sidebar-btn ${this.optionsSection === "sound" ? "active" : ""}" data-section="sound">
               <span class="sidebar-icon">🔊</span> SOUND
             </button>
           </div>
@@ -1199,7 +1543,7 @@ class MenuManager {
       this.showScreen(this.optionsReturnScreen);
     });
 
-    document.querySelectorAll(".sidebar-btn").forEach(btn => {
+    document.querySelectorAll(".sidebar-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         this.optionsSection = btn.dataset.section;
         this.renderOptions(this.optionsReturnScreen);
@@ -1211,16 +1555,16 @@ class MenuManager {
   }
 
   renderOptionsSection() {
-    if (this.optionsSection === 'gameplay') {
+    if (this.optionsSection === "gameplay") {
       return this.renderGameplaySection();
-    } else if (this.optionsSection === 'controls') {
+    } else if (this.optionsSection === "controls") {
       return this.renderControlsSection();
-    } else if (this.optionsSection === 'sound') {
+    } else if (this.optionsSection === "sound") {
       return this.renderSoundSection();
-    } else if (this.optionsSection === 'graphics') {
+    } else if (this.optionsSection === "graphics") {
       return this.renderGraphicsSection();
     }
-    return '';
+    return "";
   }
 
   renderGameplaySection() {
@@ -1243,33 +1587,13 @@ class MenuManager {
 
   renderGraphicsSection() {
     const gm = window.gameManager;
-    const currentProfile = gm?.state?.performanceProfile || 'high';
-    const profiles = ['low', 'medium', 'high', 'max'];
-    const bloomUserSetting = gm?.getSetting('bloomEnabled');
-    const profileBloom = gm ? getPerformanceProfile(currentProfile).rendering?.bloom : true;
+    const currentProfile = gm?.state?.performanceProfile || "medium";
+    const profiles = ["low", "medium", "high", "max"];
+    const bloomUserSetting = gm?.getSetting("bloomEnabled");
+    const profileBloom = gm
+      ? getPerformanceProfile(currentProfile).rendering?.bloom
+      : true;
     const bloomEnabled = bloomUserSetting ?? profileBloom ?? true;
-    const bloomStrength = gm?.getSetting('bloomStrength') ?? 0.15;
-    const bloomRadius = gm?.getSetting('bloomRadius') ?? 0.4;
-    const bloomThreshold = gm?.getSetting('bloomThreshold') ?? 0.8;
-
-    const bloomPresets = {
-      subtle: { strength: 0.08, radius: 0.3, threshold: 0.9 },
-      low: { strength: 0.15, radius: 0.4, threshold: 0.8 },
-      medium: { strength: 0.3, radius: 0.5, threshold: 0.7 },
-      high: { strength: 0.5, radius: 0.6, threshold: 0.5 },
-      intense: { strength: 0.8, radius: 0.8, threshold: 0.3 },
-    };
-
-    // Detect which preset matches current values (if any)
-    let currentBloomPreset = 'custom';
-    for (const [name, vals] of Object.entries(bloomPresets)) {
-      if (Math.abs(vals.strength - bloomStrength) < 0.01 &&
-          Math.abs(vals.radius - bloomRadius) < 0.01 &&
-          Math.abs(vals.threshold - bloomThreshold) < 0.01) {
-        currentBloomPreset = name;
-        break;
-      }
-    }
 
     return `
       <div class="options-section graphics-section">
@@ -1277,39 +1601,19 @@ class MenuManager {
         <div class="keybind-row" style="grid-template-columns: 1fr 1fr;">
           <span class="keybind-action">Performance Mode</span>
           <select id="perf-profile-select" class="preset-select">
-            ${profiles.map(p => `<option value="${p}" ${p === currentProfile ? 'selected' : ''}>${p.toUpperCase()}</option>`).join('')}
+            ${profiles.map((p) => `<option value="${p}" ${p === currentProfile ? "selected" : ""}>${p.toUpperCase()}</option>`).join("")}
           </select>
         </div>
         <p class="options-hint" style="margin-top: 12px; opacity: 0.5; font-size: 12px;">
           Changes particle counts, shadow quality, and render resolution. Takes effect on next match.
         </p>
 
-        <h3 style="margin-top: 20px;">BLOOM</h3>
-        <div class="keybind-row" style="grid-template-columns: 1fr 1fr;">
-          <span class="keybind-action">Enabled</span>
+        <div class="keybind-row" style="grid-template-columns: 1fr 1fr; margin-top: 20px;">
+          <span class="keybind-action">BLOOM</span>
           <label class="toggle-switch">
-            <input type="checkbox" id="bloom-toggle" ${bloomEnabled ? 'checked' : ''}>
-            <span class="toggle-label">${bloomEnabled ? 'ON' : 'OFF'}</span>
+            <input type="checkbox" id="bloom-toggle" ${bloomEnabled ? "checked" : ""}>
+            <span class="toggle-label">${bloomEnabled ? "ON" : "OFF"}</span>
           </label>
-        </div>
-        <div class="keybind-row" style="grid-template-columns: 1fr 1fr;">
-          <span class="keybind-action">Preset</span>
-          <select id="bloom-preset-select" class="preset-select">
-            ${Object.keys(bloomPresets).map(p => `<option value="${p}" ${p === currentBloomPreset ? 'selected' : ''}>${p.toUpperCase()}</option>`).join('')}
-            <option value="custom" ${currentBloomPreset === 'custom' ? 'selected' : ''}>CUSTOM</option>
-          </select>
-        </div>
-        <div class="keybind-row" style="grid-template-columns: 1fr 1fr;">
-          <span class="keybind-action">Strength <span id="bloom-strength-val" style="opacity:0.5">${bloomStrength.toFixed(2)}</span></span>
-          <input type="range" id="bloom-strength" class="options-slider" min="0" max="1" step="0.01" value="${bloomStrength}">
-        </div>
-        <div class="keybind-row" style="grid-template-columns: 1fr 1fr;">
-          <span class="keybind-action">Radius <span id="bloom-radius-val" style="opacity:0.5">${bloomRadius.toFixed(2)}</span></span>
-          <input type="range" id="bloom-radius" class="options-slider" min="0" max="1" step="0.01" value="${bloomRadius}">
-        </div>
-        <div class="keybind-row" style="grid-template-columns: 1fr 1fr;">
-          <span class="keybind-action">Threshold <span id="bloom-threshold-val" style="opacity:0.5">${bloomThreshold.toFixed(2)}</span></span>
-          <input type="range" id="bloom-threshold" class="options-slider" min="0" max="1" step="0.01" value="${bloomThreshold}">
         </div>
       </div>
     `;
@@ -1321,158 +1625,184 @@ class MenuManager {
     const gpBindings = GamepadInput.getBindings();
     const gpConnected = GamepadInput.connected;
     const isHotas = GamepadInput.isHotas;
-    const activeTab = this.optionsTab || (isHotas ? 'hotas' : gpConnected ? 'gamepad' : 'keyboard');
+    const activeTab =
+      this.optionsTab ||
+      (isHotas ? "hotas" : gpConnected ? "gamepad" : "keyboard");
 
     const HOTAS_ACTION_LABELS = {
-      lookX: 'Yaw (Left/Right)',
-      lookY: 'Pitch (Up/Down)',
-      moveY: 'Throttle (Fwd/Back)',
-      rollAxis: 'Roll (Twist)',
-      fire: 'Fire Lasers',
-      missile: 'Fire Missiles',
-      boost: 'Boost',
-      strafeUp: 'Strafe Up',
-      strafeDown: 'Strafe Down',
-      strafeLeft: 'Strafe Left',
-      strafeRight: 'Strafe Right',
-      pause: 'Pause Menu',
+      lookX: "Yaw (Left/Right)",
+      lookY: "Pitch (Up/Down)",
+      moveY: "Throttle (Fwd/Back)",
+      rollAxis: "Roll (Twist)",
+      fire: "Fire Lasers",
+      missile: "Fire Missiles",
+      boost: "Boost",
+      strafeUp: "Strafe Up",
+      strafeDown: "Strafe Down",
+      strafeLeft: "Strafe Left",
+      strafeRight: "Strafe Right",
+      pause: "Pause Menu",
     };
 
     const HOTAS_INPUT_LABELS = {
-      leftStickX: 'Stick X',
-      leftStickY: 'Stick Y',
-      throttle: 'Throttle Axis',
-      twist: 'Twist Axis',
-      buttonA: 'Trigger',
-      buttonB: 'Button 1',
-      buttonX: 'Button 2',
-      buttonY: 'Button 3',
-      button4: 'Button 4',
-      button5: 'Button 5',
-      button6: 'Button 6',
-      button7: 'Button 7',
-      button8: 'Button 8',
-      button9: 'Button 9',
-      button10: 'Button 10',
-      button11: 'Button 11',
-      povUp: 'POV Up',
-      povDown: 'POV Down',
-      povLeft: 'POV Left',
-      povRight: 'POV Right',
-      start: 'Start',
-      back: 'Back',
+      leftStickX: "Stick X",
+      leftStickY: "Stick Y",
+      throttle: "Throttle Axis",
+      twist: "Twist Axis",
+      buttonA: "Trigger",
+      buttonB: "Button 1",
+      buttonX: "Button 2",
+      buttonY: "Button 3",
+      button4: "Button 4",
+      button5: "Button 5",
+      button6: "Button 6",
+      button7: "Button 7",
+      button8: "Button 8",
+      button9: "Button 9",
+      button10: "Button 10",
+      button11: "Button 11",
+      povUp: "POV Up",
+      povDown: "POV Down",
+      povLeft: "POV Left",
+      povRight: "POV Right",
+      start: "Start",
+      back: "Back",
     };
 
     return `
       <div class="options-tabs">
-        <button class="options-tab ${activeTab === 'keyboard' ? 'active' : ''}" data-tab="keyboard">
+        <button class="options-tab ${activeTab === "keyboard" ? "active" : ""}" data-tab="keyboard">
           KEYBOARD
         </button>
-        <button class="options-tab ${activeTab === 'gamepad' ? 'active' : ''}" data-tab="gamepad">
-          GAMEPAD <span class="tab-status ${gpConnected && !isHotas ? 'connected' : ''}" id="gamepad-tab-status">${gpConnected && !isHotas ? '●' : '○'}</span>
+        <button class="options-tab ${activeTab === "gamepad" ? "active" : ""}" data-tab="gamepad">
+          GAMEPAD <span class="tab-status ${gpConnected && !isHotas ? "connected" : ""}" id="gamepad-tab-status">${gpConnected && !isHotas ? "●" : "○"}</span>
         </button>
-        <button class="options-tab ${activeTab === 'hotas' ? 'active' : ''}" data-tab="hotas">
-          HOTAS <span class="tab-status ${isHotas ? 'connected' : ''}" id="hotas-tab-status">${isHotas ? '●' : '○'}</span>
+        <button class="options-tab ${activeTab === "hotas" ? "active" : ""}" data-tab="hotas">
+          HOTAS <span class="tab-status ${isHotas ? "connected" : ""}" id="hotas-tab-status">${isHotas ? "●" : "○"}</span>
         </button>
       </div>
       
-      <div class="options-tab-content ${activeTab === 'keyboard' ? 'active' : ''}" data-tab="keyboard">
+      <div class="options-tab-content ${activeTab === "keyboard" ? "active" : ""}" data-tab="keyboard">
         <div class="options-section">
           <div class="options-header-row">
             <div class="preset-controls">
               <select id="preset-select" class="menu-select preset-select">
-                ${presets.map(p => `<option value="${p}" ${p === KeyBindings.activePreset ? 'selected' : ''}>${p.toUpperCase()}${p === 'custom' ? ' *' : ''}</option>`).join('')}
+                ${presets.map((p) => `<option value="${p}" ${p === KeyBindings.activePreset ? "selected" : ""}>${p.toUpperCase()}${p === "custom" ? " *" : ""}</option>`).join("")}
               </select>
-              <button class="options-btn" id="btn-save-preset" title="Save current as new preset" ${!KeyBindings.isCustom() ? 'disabled' : ''}>SAVE AS</button>
-              <button class="options-btn danger" id="btn-delete-preset" title="Delete selected preset" ${KeyBindings.activePreset === 'default' || KeyBindings.activePreset === 'custom' ? 'disabled' : ''}>DELETE</button>
+              <button class="options-btn" id="btn-save-preset" title="Save current as new preset" ${!KeyBindings.isCustom() ? "disabled" : ""}>SAVE AS</button>
+              <button class="options-btn danger" id="btn-delete-preset" title="Delete selected preset" ${KeyBindings.activePreset === "default" || KeyBindings.activePreset === "custom" ? "disabled" : ""}>DELETE</button>
             </div>
           </div>
           <div class="keybind-list">
-            ${Object.keys(ACTION_LABELS).map(action => `
+            ${Object.keys(ACTION_LABELS)
+              .map(
+                (action) => `
               <div class="keybind-row" data-action="${action}">
                 <span class="keybind-action">${ACTION_LABELS[action]}</span>
                 <div class="keybind-keys">
-                  ${bindings[action] ? `<span class="keybind-key">${getKeyDisplayName(bindings[action])}</span>` : '<span class="keybind-unset">UNBOUND</span>'}
+                  ${bindings[action] ? `<span class="keybind-key">${getKeyDisplayName(Array.isArray(bindings[action]) ? bindings[action][0] : bindings[action])}</span>` : '<span class="keybind-unset">UNBOUND</span>'}
                 </div>
                 <button class="rebind-btn" data-action="${action}">REBIND</button>
               </div>
-            `).join('')}
+            `,
+              )
+              .join("")}
           </div>
         </div>
       </div>
       
-      <div class="options-tab-content ${activeTab === 'gamepad' ? 'active' : ''}" data-tab="gamepad">
+      <div class="options-tab-content ${activeTab === "gamepad" ? "active" : ""}" data-tab="gamepad">
         <div class="options-section">
           <div class="options-header-row">
             <div class="preset-controls gamepad-preset-controls">
               <select id="gamepad-preset-select" class="menu-select preset-select">
-                ${['default', 'custom'].map(p => `<option value="${p}" ${p === GamepadInput.activePreset ? 'selected' : ''}>${p.toUpperCase()}${p === 'custom' ? ' *' : ''}</option>`).join('')}
+                ${["default", "custom"].map((p) => `<option value="${p}" ${p === GamepadInput.activePreset ? "selected" : ""}>${p.toUpperCase()}${p === "custom" ? " *" : ""}</option>`).join("")}
               </select>
-              <button class="options-btn" id="btn-save-gamepad-preset" title="Save current as new preset" ${!GamepadInput.isCustom() ? 'disabled' : ''}>SAVE AS</button>
+              <button class="options-btn" id="btn-save-gamepad-preset" title="Save current as new preset" ${!GamepadInput.isCustom() ? "disabled" : ""}>SAVE AS</button>
             </div>
-            <span class="gamepad-status ${gpConnected && !isHotas ? 'connected' : ''}" id="gamepad-status">${gpConnected && !isHotas ? '● CONNECTED' : '○ NOT DETECTED'}</span>
+            <span class="gamepad-status ${gpConnected && !isHotas ? "connected" : ""}" id="gamepad-status">${gpConnected && !isHotas ? "● CONNECTED" : "○ NOT DETECTED"}</span>
           </div>
           <div class="keybind-list gamepad-list">
-            ${Object.keys(GAMEPAD_ACTION_LABELS).map(action => {
-              const input = Object.entries(gpBindings).find(([, a]) => a === action)?.[0];
-              return `
+            ${Object.keys(GAMEPAD_ACTION_LABELS)
+              .map((action) => {
+                const input = Object.entries(gpBindings).find(
+                  ([, a]) => a === action,
+                )?.[0];
+                return `
               <div class="keybind-row gamepad-row" data-action="${action}">
                 <span class="keybind-action">${GAMEPAD_ACTION_LABELS[action]}</span>
-                <span class="gamepad-input ${!input ? 'unbound' : ''}">${input ? (GAMEPAD_INPUT_LABELS[input] || input) : 'UNBOUND'}</span>
+                <span class="gamepad-input ${!input ? "unbound" : ""}">${input ? GAMEPAD_INPUT_LABELS[input] || input : "UNBOUND"}</span>
                 <button class="rebind-btn gamepad-rebind-btn" data-action="${action}">REBIND</button>
               </div>
-            `}).join('')}
+            `;
+              })
+              .join("")}
           </div>
           <p class="gamepad-hint">Gamepad auto-switches when input is detected</p>
         </div>
       </div>
       
-      <div class="options-tab-content ${activeTab === 'hotas' ? 'active' : ''}" data-tab="hotas">
+      <div class="options-tab-content ${activeTab === "hotas" ? "active" : ""}" data-tab="hotas">
         <div class="options-section">
           <div class="options-header-row">
             <div class="preset-controls hotas-preset-controls">
               <select id="hotas-preset-select" class="menu-select preset-select">
-                ${['hotas', 'custom'].map(p => `<option value="${p}" ${p === GamepadInput.activePreset ? 'selected' : ''}>${p.toUpperCase()}${p === 'custom' ? ' *' : ''}</option>`).join('')}
+                ${["hotas", "custom"].map((p) => `<option value="${p}" ${p === GamepadInput.activePreset ? "selected" : ""}>${p.toUpperCase()}${p === "custom" ? " *" : ""}</option>`).join("")}
               </select>
-              <button class="options-btn" id="btn-save-hotas-preset" title="Save current as new preset" ${GamepadInput.activePreset !== 'custom' ? 'disabled' : ''}>SAVE AS</button>
+              <button class="options-btn" id="btn-save-hotas-preset" title="Save current as new preset" ${GamepadInput.activePreset !== "custom" ? "disabled" : ""}>SAVE AS</button>
             </div>
-            <span class="gamepad-status ${isHotas ? 'connected' : ''}" id="hotas-status">${isHotas ? '● CONNECTED' : '○ NOT DETECTED'}</span>
+            <span class="gamepad-status ${isHotas ? "connected" : ""}" id="hotas-status">${isHotas ? "● CONNECTED" : "○ NOT DETECTED"}</span>
           </div>
           <div class="hotas-scroll-container">
             <h4 class="hotas-section-title">AXES</h4>
             <div class="keybind-list hotas-list">
-              ${['lookX', 'lookY', 'moveY', 'rollAxis'].map(action => {
-                const input = Object.entries(gpBindings).find(([, a]) => a === action)?.[0];
-                return `
+              ${["lookX", "lookY", "moveY", "rollAxis"]
+                .map((action) => {
+                  const input = Object.entries(gpBindings).find(
+                    ([, a]) => a === action,
+                  )?.[0];
+                  return `
                 <div class="keybind-row hotas-row">
                   <span class="keybind-action">${HOTAS_ACTION_LABELS[action]}</span>
-                  <span class="gamepad-input ${!input ? 'unbound' : ''}">${input ? (HOTAS_INPUT_LABELS[input] || input) : 'UNBOUND'}</span>
+                  <span class="gamepad-input ${!input ? "unbound" : ""}">${input ? HOTAS_INPUT_LABELS[input] || input : "UNBOUND"}</span>
                 </div>
-              `}).join('')}
+              `;
+                })
+                .join("")}
             </div>
             <h4 class="hotas-section-title">BUTTONS</h4>
             <div class="keybind-list hotas-list">
-              ${['fire', 'missile', 'boost', 'pause'].map(action => {
-                const input = Object.entries(gpBindings).find(([, a]) => a === action)?.[0];
-                return `
+              ${["fire", "missile", "boost", "pause"]
+                .map((action) => {
+                  const input = Object.entries(gpBindings).find(
+                    ([, a]) => a === action,
+                  )?.[0];
+                  return `
                 <div class="keybind-row hotas-row" data-action="${action}">
                   <span class="keybind-action">${HOTAS_ACTION_LABELS[action]}</span>
-                  <span class="gamepad-input ${!input ? 'unbound' : ''}">${input ? (HOTAS_INPUT_LABELS[input] || input) : 'UNBOUND'}</span>
+                  <span class="gamepad-input ${!input ? "unbound" : ""}">${input ? HOTAS_INPUT_LABELS[input] || input : "UNBOUND"}</span>
                   <button class="rebind-btn hotas-rebind-btn" data-action="${action}">REBIND</button>
                 </div>
-              `}).join('')}
+              `;
+                })
+                .join("")}
             </div>
             <h4 class="hotas-section-title">STRAFING</h4>
             <div class="keybind-list hotas-list">
-              ${['strafeUp', 'strafeDown', 'strafeLeft', 'strafeRight'].map(action => {
-                const input = Object.entries(gpBindings).find(([, a]) => a === action)?.[0];
-                return `
+              ${["strafeUp", "strafeDown", "strafeLeft", "strafeRight"]
+                .map((action) => {
+                  const input = Object.entries(gpBindings).find(
+                    ([, a]) => a === action,
+                  )?.[0];
+                  return `
                 <div class="keybind-row hotas-row" data-action="${action}">
                   <span class="keybind-action">${HOTAS_ACTION_LABELS[action]}</span>
-                  <span class="gamepad-input ${!input ? 'unbound' : ''}">${input ? (HOTAS_INPUT_LABELS[input] || 'POV Hat') : 'POV HAT'}</span>
+                  <span class="gamepad-input ${!input ? "unbound" : ""}">${input ? HOTAS_INPUT_LABELS[input] || "POV Hat" : "POV HAT"}</span>
                   <button class="rebind-btn hotas-rebind-btn" data-action="${action}">REBIND</button>
                 </div>
-              `}).join('')}
+              `;
+                })
+                .join("")}
             </div>
             <p class="gamepad-hint">POV hat provides 8-directional strafing by default</p>
           </div>
@@ -1482,8 +1812,8 @@ class MenuManager {
   }
 
   renderSoundSection() {
-    const musicVol = Math.round(AudioSettings.get('musicVolume') * 100);
-    const sfxVol = Math.round(AudioSettings.get('sfxVolume') * 100);
+    const musicVol = Math.round(AudioSettings.get("musicVolume") * 100);
+    const sfxVol = Math.round(AudioSettings.get("sfxVolume") * 100);
 
     return `
       <div class="options-section sound-section">
@@ -1513,101 +1843,43 @@ class MenuManager {
   }
 
   setupGraphicsListeners() {
-    const select = document.getElementById('perf-profile-select');
+    const select = document.getElementById("perf-profile-select");
     if (select) {
-      select.addEventListener('change', () => {
+      select.addEventListener("change", () => {
         const gm = window.gameManager;
         if (gm) {
           gm.setPerformanceProfile(select.value);
-          const bloomUser = gm.getSetting('bloomEnabled');
+          const bloomUser = gm.getSetting("bloomEnabled");
           if (bloomUser === undefined) {
             const profile = gm.getPerformanceProfile();
-            gm.emit('bloom:changed', profile.rendering?.bloom ?? true);
+            gm.emit("bloom:changed", profile.rendering?.bloom ?? true);
           }
         }
       });
     }
 
-    const bloomToggle = document.getElementById('bloom-toggle');
+    const bloomToggle = document.getElementById("bloom-toggle");
     if (bloomToggle) {
-      bloomToggle.addEventListener('change', () => {
+      bloomToggle.addEventListener("change", () => {
         const enabled = bloomToggle.checked;
-        const label = bloomToggle.parentElement.querySelector('.toggle-label');
-        if (label) label.textContent = enabled ? 'ON' : 'OFF';
+        const label = bloomToggle.parentElement.querySelector(".toggle-label");
+        if (label) label.textContent = enabled ? "ON" : "OFF";
         if (window.gameManager) {
-          window.gameManager.setSetting('bloomEnabled', enabled);
-          window.gameManager.emit('bloom:changed', enabled);
+          window.gameManager.setSetting("bloomEnabled", enabled);
+          window.gameManager.emit("bloom:changed", enabled);
         }
       });
     }
-
-    const bloomPresets = {
-      subtle: { strength: 0.08, radius: 0.3, threshold: 0.9 },
-      low: { strength: 0.15, radius: 0.4, threshold: 0.8 },
-      medium: { strength: 0.3, radius: 0.5, threshold: 0.7 },
-      high: { strength: 0.5, radius: 0.6, threshold: 0.5 },
-      intense: { strength: 0.8, radius: 0.8, threshold: 0.3 },
-    };
-
-    const applyBloomSettings = (strength, radius, threshold) => {
-      const gm = window.gameManager;
-      if (!gm) return;
-      gm.setSetting('bloomStrength', strength);
-      gm.setSetting('bloomRadius', radius);
-      gm.setSetting('bloomThreshold', threshold);
-      gm.emit('bloom:settings', { strength, radius, threshold });
-      
-      // Update slider positions and value labels
-      const sS = document.getElementById('bloom-strength');
-      const sR = document.getElementById('bloom-radius');
-      const sT = document.getElementById('bloom-threshold');
-      if (sS) { sS.value = strength; document.getElementById('bloom-strength-val').textContent = strength.toFixed(2); }
-      if (sR) { sR.value = radius; document.getElementById('bloom-radius-val').textContent = radius.toFixed(2); }
-      if (sT) { sT.value = threshold; document.getElementById('bloom-threshold-val').textContent = threshold.toFixed(2); }
-    };
-
-    const bloomPresetSelect = document.getElementById('bloom-preset-select');
-    if (bloomPresetSelect) {
-      bloomPresetSelect.addEventListener('change', () => {
-        const preset = bloomPresets[bloomPresetSelect.value];
-        if (preset) applyBloomSettings(preset.strength, preset.radius, preset.threshold);
-      });
-    }
-
-    const setupSlider = (id, settingKey, emitKey) => {
-      const slider = document.getElementById(id);
-      if (!slider) {
-        console.warn(`[Bloom] Slider not found: ${id}`);
-        return;
-      }
-      console.log(`[Bloom] Slider attached: ${id}, initial value: ${slider.value}`);
-      slider.addEventListener('input', () => {
-        const val = parseFloat(slider.value);
-        const valSpan = document.getElementById(id + '-val');
-        if (valSpan) valSpan.textContent = val.toFixed(2);
-        if (window.gameManager) {
-          window.gameManager.setSetting(settingKey, val);
-          window.gameManager.emit('bloom:settings', { [emitKey]: val });
-          console.log(`[Bloom] Slider ${emitKey} = ${val}`);
-        }
-        const presetSel = document.getElementById('bloom-preset-select');
-        if (presetSel) presetSel.value = 'custom';
-      });
-    };
-
-    setupSlider('bloom-strength', 'bloomStrength', 'strength');
-    setupSlider('bloom-radius', 'bloomRadius', 'radius');
-    setupSlider('bloom-threshold', 'bloomThreshold', 'threshold');
   }
 
   setupOptionsSectionListeners() {
-    if (this.optionsSection === 'gameplay') {
+    if (this.optionsSection === "gameplay") {
       this.setupGameplayListeners();
-    } else if (this.optionsSection === 'controls') {
+    } else if (this.optionsSection === "controls") {
       this.setupControlsListeners();
-    } else if (this.optionsSection === 'sound') {
+    } else if (this.optionsSection === "sound") {
       this.setupSoundListeners();
-    } else if (this.optionsSection === 'graphics') {
+    } else if (this.optionsSection === "graphics") {
       this.setupGraphicsListeners();
     }
   }
@@ -1624,60 +1896,86 @@ class MenuManager {
   }
 
   setupControlsListeners() {
-    document.querySelectorAll(".options-tab").forEach(tab => {
+    document.querySelectorAll(".options-tab").forEach((tab) => {
       tab.addEventListener("click", () => {
         this.optionsTab = tab.dataset.tab;
-        document.querySelectorAll(".options-tab").forEach(t => t.classList.toggle("active", t.dataset.tab === this.optionsTab));
-        document.querySelectorAll(".options-tab-content").forEach(c => c.classList.toggle("active", c.dataset.tab === this.optionsTab));
+        document
+          .querySelectorAll(".options-tab")
+          .forEach((t) =>
+            t.classList.toggle("active", t.dataset.tab === this.optionsTab),
+          );
+        document
+          .querySelectorAll(".options-tab-content")
+          .forEach((c) =>
+            c.classList.toggle("active", c.dataset.tab === this.optionsTab),
+          );
       });
     });
 
-    document.getElementById("preset-select")?.addEventListener("change", (e) => {
-      KeyBindings.loadPreset(e.target.value);
-      this.renderOptions(this.optionsReturnScreen);
-    });
-
-    document.getElementById("btn-save-preset")?.addEventListener("click", () => {
-      const name = prompt("Enter preset name:");
-      if (name && name.trim()) {
-        KeyBindings.savePreset(name.trim().toLowerCase());
+    document
+      .getElementById("preset-select")
+      ?.addEventListener("change", (e) => {
+        KeyBindings.loadPreset(e.target.value);
         this.renderOptions(this.optionsReturnScreen);
-      }
-    });
+      });
 
-    document.getElementById("btn-delete-preset")?.addEventListener("click", () => {
-      if (KeyBindings.activePreset !== 'default' && KeyBindings.activePreset !== 'custom') {
-        if (confirm(`Delete preset "${KeyBindings.activePreset}"?`)) {
-          KeyBindings.deletePreset(KeyBindings.activePreset);
-          KeyBindings.loadPreset('default');
+    document
+      .getElementById("btn-save-preset")
+      ?.addEventListener("click", () => {
+        const name = prompt("Enter preset name:");
+        if (name && name.trim()) {
+          KeyBindings.savePreset(name.trim().toLowerCase());
           this.renderOptions(this.optionsReturnScreen);
         }
-      }
-    });
+      });
 
-    document.getElementById("gamepad-preset-select")?.addEventListener("change", (e) => {
-      GamepadInput.loadPreset(e.target.value);
-      this.renderOptions(this.optionsReturnScreen);
-    });
+    document
+      .getElementById("btn-delete-preset")
+      ?.addEventListener("click", () => {
+        if (
+          KeyBindings.activePreset !== "default" &&
+          KeyBindings.activePreset !== "custom"
+        ) {
+          if (confirm(`Delete preset "${KeyBindings.activePreset}"?`)) {
+            KeyBindings.deletePreset(KeyBindings.activePreset);
+            KeyBindings.loadPreset("default");
+            this.renderOptions(this.optionsReturnScreen);
+          }
+        }
+      });
 
-    document.getElementById("btn-save-gamepad-preset")?.addEventListener("click", () => {
-      const name = prompt("Enter preset name:");
-      if (name && name.trim()) {
-        GamepadInput.saveAsPreset(name.trim().toLowerCase());
+    document
+      .getElementById("gamepad-preset-select")
+      ?.addEventListener("change", (e) => {
+        GamepadInput.loadPreset(e.target.value);
         this.renderOptions(this.optionsReturnScreen);
-      }
-    });
+      });
 
-    document.getElementById("btn-delete-gamepad-preset")?.addEventListener("click", () => {
-      if (GamepadInput.activePreset !== 'default' && GamepadInput.activePreset !== 'custom') {
-        if (confirm(`Delete preset "${GamepadInput.activePreset}"?`)) {
-          GamepadInput.deletePreset(GamepadInput.activePreset);
+    document
+      .getElementById("btn-save-gamepad-preset")
+      ?.addEventListener("click", () => {
+        const name = prompt("Enter preset name:");
+        if (name && name.trim()) {
+          GamepadInput.saveAsPreset(name.trim().toLowerCase());
           this.renderOptions(this.optionsReturnScreen);
         }
-      }
-    });
+      });
 
-    document.querySelectorAll(".rebind-btn").forEach(btn => {
+    document
+      .getElementById("btn-delete-gamepad-preset")
+      ?.addEventListener("click", () => {
+        if (
+          GamepadInput.activePreset !== "default" &&
+          GamepadInput.activePreset !== "custom"
+        ) {
+          if (confirm(`Delete preset "${GamepadInput.activePreset}"?`)) {
+            GamepadInput.deletePreset(GamepadInput.activePreset);
+            this.renderOptions(this.optionsReturnScreen);
+          }
+        }
+      });
+
+    document.querySelectorAll(".rebind-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const action = btn.dataset.action;
         this.startRebinding(action);
@@ -1703,65 +2001,68 @@ class MenuManager {
       sfxValue.textContent = `${val}%`;
     });
 
-    document.getElementById("btn-reset-audio")?.addEventListener("click", () => {
-      if (confirm("Reset audio settings to defaults?")) {
-        AudioSettings.resetToDefault();
-        this.renderOptions(this.optionsReturnScreen);
-      }
-    });
+    document
+      .getElementById("btn-reset-audio")
+      ?.addEventListener("click", () => {
+        if (confirm("Reset audio settings to defaults?")) {
+          AudioSettings.resetToDefault();
+          this.renderOptions(this.optionsReturnScreen);
+        }
+      });
   }
 
   startGamepadStatusPolling() {
     if (this.gamepadStatusInterval) {
       clearInterval(this.gamepadStatusInterval);
     }
-    
+
     this.gamepadStatusInterval = setInterval(() => {
       if (this.currentScreen !== SCREENS.OPTIONS) {
         clearInterval(this.gamepadStatusInterval);
         this.gamepadStatusInterval = null;
         return;
       }
-      
+
       GamepadInput.poll();
       const connected = GamepadInput.connected;
-      
+
       const statusEl = document.getElementById("gamepad-status");
       const tabStatusEl = document.getElementById("gamepad-tab-status");
-      
+
       if (statusEl) {
-        statusEl.className = `gamepad-status ${connected ? 'connected' : ''}`;
-        statusEl.textContent = connected ? '● CONNECTED' : '○ NOT DETECTED';
+        statusEl.className = `gamepad-status ${connected ? "connected" : ""}`;
+        statusEl.textContent = connected ? "● CONNECTED" : "○ NOT DETECTED";
       }
       if (tabStatusEl) {
-        tabStatusEl.className = `tab-status ${connected ? 'connected' : ''}`;
-        tabStatusEl.textContent = connected ? '●' : '○';
+        tabStatusEl.className = `tab-status ${connected ? "connected" : ""}`;
+        tabStatusEl.textContent = connected ? "●" : "○";
       }
     }, 500);
   }
 
   startRebinding(action) {
     const modal = document.getElementById("rebind-modal");
-    document.getElementById("rebind-action-name").textContent = ACTION_LABELS[action];
+    document.getElementById("rebind-action-name").textContent =
+      ACTION_LABELS[action];
     modal.style.display = "flex";
-    
+
     const handleKey = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      
-      if (e.code === 'Escape') {
+
+      if (e.code === "Escape") {
         modal.style.display = "none";
-        document.removeEventListener('keydown', handleKey, true);
+        document.removeEventListener("keydown", handleKey, true);
         return;
       }
-      
-      KeyBindings.setBinding(action, [e.code]);
+
+      KeyBindings.setBinding(action, e.code);
       modal.style.display = "none";
-      document.removeEventListener('keydown', handleKey, true);
+      document.removeEventListener("keydown", handleKey, true);
       this.renderOptions(this.optionsReturnScreen);
     };
-    
-    document.addEventListener('keydown', handleKey, true);
+
+    document.addEventListener("keydown", handleKey, true);
   }
 
   showOptionsFromGame(onClose) {
@@ -1772,14 +2073,17 @@ class MenuManager {
   }
 
   renderOptionsInGame() {
-    this.optionsSection = this.optionsSection || 'gameplay';
+    this.optionsSection = this.optionsSection || "graphics";
     const isMobile = window.gameManager?.state?.isMobile;
-    if (isMobile && this.optionsSection === 'controls') this.optionsSection = 'gameplay';
+    if (isMobile && this.optionsSection === "controls")
+      this.optionsSection = "gameplay";
 
-    const controlsBtn = !isMobile ? `
-            <button class="sidebar-btn ${this.optionsSection === 'controls' ? 'active' : ''}" data-section="controls">
+    const controlsBtn = !isMobile
+      ? `
+            <button class="sidebar-btn ${this.optionsSection === "controls" ? "active" : ""}" data-section="controls">
               <span class="sidebar-icon">⌨</span> CONTROLS
-            </button>` : '';
+            </button>`
+      : "";
 
     this.menuContent.innerHTML = `
       <div class="menu-screen options-menu in-game">
@@ -1789,14 +2093,14 @@ class MenuManager {
         </div>
         <div class="options-layout">
           <div class="options-sidebar">
-            <button class="sidebar-btn ${this.optionsSection === 'graphics' ? 'active' : ''}" data-section="graphics">
+            <button class="sidebar-btn ${this.optionsSection === "graphics" ? "active" : ""}" data-section="graphics">
               <span class="sidebar-icon">🖥</span> GRAPHICS
             </button>
-            <button class="sidebar-btn ${this.optionsSection === 'gameplay' ? 'active' : ''}" data-section="gameplay">
+            <button class="sidebar-btn ${this.optionsSection === "gameplay" ? "active" : ""}" data-section="gameplay">
               <span class="sidebar-icon">🎮</span> GAMEPLAY
             </button>
             ${controlsBtn}
-            <button class="sidebar-btn ${this.optionsSection === 'sound' ? 'active' : ''}" data-section="sound">
+            <button class="sidebar-btn ${this.optionsSection === "sound" ? "active" : ""}" data-section="sound">
               <span class="sidebar-icon">🔊</span> SOUND
             </button>
           </div>
@@ -1819,7 +2123,7 @@ class MenuManager {
       this.closeOptionsInGame();
     });
 
-    document.querySelectorAll(".sidebar-btn").forEach(btn => {
+    document.querySelectorAll(".sidebar-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         this.optionsSection = btn.dataset.section;
         this.renderOptionsInGame();
@@ -1831,171 +2135,224 @@ class MenuManager {
   }
 
   setupOptionsSectionListenersInGame() {
-    if (this.optionsSection === 'gameplay') {
+    if (this.optionsSection === "gameplay") {
       this.setupGameplayListeners();
-    } else if (this.optionsSection === 'controls') {
+    } else if (this.optionsSection === "controls") {
       this.setupControlsListenersInGame();
-    } else if (this.optionsSection === 'sound') {
+    } else if (this.optionsSection === "sound") {
       this.setupSoundListeners();
-    } else if (this.optionsSection === 'graphics') {
+    } else if (this.optionsSection === "graphics") {
       this.setupGraphicsListeners();
     }
   }
 
   setupControlsListenersInGame() {
-    document.querySelectorAll(".options-tab").forEach(tab => {
+    document.querySelectorAll(".options-tab").forEach((tab) => {
       tab.addEventListener("click", () => {
         this.optionsTab = tab.dataset.tab;
-        document.querySelectorAll(".options-tab").forEach(t => t.classList.toggle("active", t.dataset.tab === this.optionsTab));
-        document.querySelectorAll(".options-tab-content").forEach(c => c.classList.toggle("active", c.dataset.tab === this.optionsTab));
+        document
+          .querySelectorAll(".options-tab")
+          .forEach((t) =>
+            t.classList.toggle("active", t.dataset.tab === this.optionsTab),
+          );
+        document
+          .querySelectorAll(".options-tab-content")
+          .forEach((c) =>
+            c.classList.toggle("active", c.dataset.tab === this.optionsTab),
+          );
       });
     });
 
-    document.getElementById("preset-select")?.addEventListener("change", (e) => {
-      KeyBindings.loadPreset(e.target.value);
-      this.renderOptionsInGame();
-    });
-
-    document.getElementById("btn-save-preset")?.addEventListener("click", () => {
-      const name = prompt("Enter preset name:");
-      if (name && name.trim()) {
-        KeyBindings.savePreset(name.trim().toLowerCase());
+    document
+      .getElementById("preset-select")
+      ?.addEventListener("change", (e) => {
+        KeyBindings.loadPreset(e.target.value);
         this.renderOptionsInGame();
-      }
-    });
-
-    document.getElementById("btn-delete-preset")?.addEventListener("click", () => {
-      if (KeyBindings.activePreset !== 'default') {
-        if (confirm(`Delete preset "${KeyBindings.activePreset}"?`)) {
-          KeyBindings.deletePreset(KeyBindings.activePreset);
-          KeyBindings.loadPreset('default');
-          this.renderOptionsInGame();
-        }
-      }
-    });
-
-    document.getElementById("btn-reset-defaults")?.addEventListener("click", () => {
-      if (confirm("Reset all bindings to defaults?")) {
-        KeyBindings.resetToDefault();
-        this.renderOptionsInGame();
-      }
-    });
-
-    document.getElementById("gamepad-preset-select")?.addEventListener("change", (e) => {
-      GamepadInput.loadPreset(e.target.value);
-      this.renderOptionsInGame();
-    });
-
-    document.getElementById("btn-save-gamepad-preset")?.addEventListener("click", () => {
-      const name = prompt("Enter preset name:");
-      if (name && name.trim()) {
-        GamepadInput.saveAsPreset(name.trim().toLowerCase());
-        this.renderOptionsInGame();
-      }
-    });
-
-    document.getElementById("btn-delete-gamepad-preset")?.addEventListener("click", () => {
-      if (GamepadInput.activePreset !== 'default' && GamepadInput.activePreset !== 'custom') {
-        if (confirm(`Delete preset "${GamepadInput.activePreset}"?`)) {
-          GamepadInput.deletePreset(GamepadInput.activePreset);
-          this.renderOptionsInGame();
-        }
-      }
-    });
-
-    document.getElementById("hotas-preset-select")?.addEventListener("change", (e) => {
-      GamepadInput.loadPreset(e.target.value);
-      this.renderOptionsInGame();
-    });
-
-    document.getElementById("btn-save-hotas-preset")?.addEventListener("click", () => {
-      const name = prompt("Enter preset name:");
-      if (name && name.trim()) {
-        GamepadInput.saveAsPreset(name.trim().toLowerCase());
-        this.renderOptionsInGame();
-      }
-    });
-
-    document.querySelectorAll(".rebind-btn:not(.gamepad-rebind-btn)").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const action = btn.dataset.action;
-        this.startRebindingInGame(action);
       });
-    });
-    
-    document.querySelectorAll(".gamepad-rebind-btn").forEach(btn => {
+
+    document
+      .getElementById("btn-save-preset")
+      ?.addEventListener("click", () => {
+        const name = prompt("Enter preset name:");
+        if (name && name.trim()) {
+          KeyBindings.savePreset(name.trim().toLowerCase());
+          this.renderOptionsInGame();
+        }
+      });
+
+    document
+      .getElementById("btn-delete-preset")
+      ?.addEventListener("click", () => {
+        if (KeyBindings.activePreset !== "default") {
+          if (confirm(`Delete preset "${KeyBindings.activePreset}"?`)) {
+            KeyBindings.deletePreset(KeyBindings.activePreset);
+            KeyBindings.loadPreset("default");
+            this.renderOptionsInGame();
+          }
+        }
+      });
+
+    document
+      .getElementById("btn-reset-defaults")
+      ?.addEventListener("click", () => {
+        if (confirm("Reset all bindings to defaults?")) {
+          KeyBindings.resetToDefault();
+          this.renderOptionsInGame();
+        }
+      });
+
+    document
+      .getElementById("gamepad-preset-select")
+      ?.addEventListener("change", (e) => {
+        GamepadInput.loadPreset(e.target.value);
+        this.renderOptionsInGame();
+      });
+
+    document
+      .getElementById("btn-save-gamepad-preset")
+      ?.addEventListener("click", () => {
+        const name = prompt("Enter preset name:");
+        if (name && name.trim()) {
+          GamepadInput.saveAsPreset(name.trim().toLowerCase());
+          this.renderOptionsInGame();
+        }
+      });
+
+    document
+      .getElementById("btn-delete-gamepad-preset")
+      ?.addEventListener("click", () => {
+        if (
+          GamepadInput.activePreset !== "default" &&
+          GamepadInput.activePreset !== "custom"
+        ) {
+          if (confirm(`Delete preset "${GamepadInput.activePreset}"?`)) {
+            GamepadInput.deletePreset(GamepadInput.activePreset);
+            this.renderOptionsInGame();
+          }
+        }
+      });
+
+    document
+      .getElementById("hotas-preset-select")
+      ?.addEventListener("change", (e) => {
+        GamepadInput.loadPreset(e.target.value);
+        this.renderOptionsInGame();
+      });
+
+    document
+      .getElementById("btn-save-hotas-preset")
+      ?.addEventListener("click", () => {
+        const name = prompt("Enter preset name:");
+        if (name && name.trim()) {
+          GamepadInput.saveAsPreset(name.trim().toLowerCase());
+          this.renderOptionsInGame();
+        }
+      });
+
+    document
+      .querySelectorAll(".rebind-btn:not(.gamepad-rebind-btn)")
+      .forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const action = btn.dataset.action;
+          this.startRebindingInGame(action);
+        });
+      });
+
+    document.querySelectorAll(".gamepad-rebind-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const action = btn.dataset.action;
         this.startGamepadRebinding(action);
       });
     });
-    
-    document.querySelectorAll(".hotas-rebind-btn").forEach(btn => {
+
+    document.querySelectorAll(".hotas-rebind-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const action = btn.dataset.action;
         this.startGamepadRebinding(action); // Use same rebinding logic
       });
     });
   }
-  
+
   startGamepadRebinding(action) {
     const modal = document.getElementById("rebind-modal");
-    document.getElementById("rebind-action-name").textContent = GAMEPAD_ACTION_LABELS[action] || action;
-    modal.querySelector(".rebind-prompt").textContent = "Press a gamepad button...";
+    document.getElementById("rebind-action-name").textContent =
+      GAMEPAD_ACTION_LABELS[action] || action;
+    modal.querySelector(".rebind-prompt").textContent =
+      "Press a gamepad button...";
     modal.style.display = "flex";
-    
+
     let pollInterval = null;
     let prevButtons = [];
     let prevAxes = [];
-    
+
     const cleanup = () => {
       if (pollInterval) clearInterval(pollInterval);
       modal.style.display = "none";
       modal.querySelector(".rebind-prompt").textContent = "Press a key...";
-      document.removeEventListener('keydown', handleEscape, true);
+      document.removeEventListener("keydown", handleEscape, true);
     };
-    
+
     const handleEscape = (e) => {
-      if (e.code === 'Escape') {
+      if (e.code === "Escape") {
         e.preventDefault();
         cleanup();
       }
     };
-    
-    document.addEventListener('keydown', handleEscape, true);
-    
+
+    document.addEventListener("keydown", handleEscape, true);
+
     // Poll for gamepad input
     pollInterval = setInterval(() => {
       GamepadInput.poll();
       const gp = navigator.getGamepads()[GamepadInput.gamepad?.index ?? 0];
       if (!gp) return;
-      
+
       // Check for button press
       for (let i = 0; i < gp.buttons.length; i++) {
         const wasPressed = prevButtons[i] || false;
         if (gp.buttons[i].pressed && !wasPressed) {
           // Map button index to binding name
-          const buttonNames = ['buttonA', 'buttonB', 'buttonX', 'buttonY', 'leftBumper', 'rightBumper', 
-                               'leftTrigger', 'rightTrigger', 'back', 'start', 'leftStickPress', 'rightStickPress',
-                               'dpadUp', 'dpadDown', 'dpadLeft', 'dpadRight'];
+          const buttonNames = [
+            "buttonA",
+            "buttonB",
+            "buttonX",
+            "buttonY",
+            "leftBumper",
+            "rightBumper",
+            "leftTrigger",
+            "rightTrigger",
+            "back",
+            "start",
+            "leftStickPress",
+            "rightStickPress",
+            "dpadUp",
+            "dpadDown",
+            "dpadLeft",
+            "dpadRight",
+          ];
           const bindingName = buttonNames[i] || `button${i}`;
-          
+
           GamepadInput.setBinding(bindingName, action);
           cleanup();
           this.renderOptionsInGame();
           return;
         }
       }
-      prevButtons = gp.buttons.map(b => b.pressed);
-      
+      prevButtons = gp.buttons.map((b) => b.pressed);
+
       // Check for significant axis change (for sticks/triggers)
       for (let i = 0; i < gp.axes.length; i++) {
         const prev = prevAxes[i] || 0;
         const curr = gp.axes[i];
         if (Math.abs(curr) > 0.7 && Math.abs(prev) < 0.3) {
-          const axisNames = ['leftStickX', 'leftStickY', 'rightStickX', 'rightStickY'];
+          const axisNames = [
+            "leftStickX",
+            "leftStickY",
+            "rightStickX",
+            "rightStickY",
+          ];
           const bindingName = axisNames[i] || `axis${i}`;
-          
+
           GamepadInput.setBinding(bindingName, action);
           cleanup();
           this.renderOptionsInGame();
@@ -2010,21 +2367,21 @@ class MenuManager {
     if (this.gamepadStatusInterval) {
       clearInterval(this.gamepadStatusInterval);
     }
-    
+
     this.gamepadStatusInterval = setInterval(() => {
       GamepadInput.poll();
       const connected = GamepadInput.connected;
-      
+
       const statusEl = document.getElementById("gamepad-status");
       const tabStatusEl = document.getElementById("gamepad-tab-status");
-      
+
       if (statusEl) {
-        statusEl.className = `gamepad-status ${connected ? 'connected' : ''}`;
-        statusEl.textContent = connected ? '● CONNECTED' : '○ NOT DETECTED';
+        statusEl.className = `gamepad-status ${connected ? "connected" : ""}`;
+        statusEl.textContent = connected ? "● CONNECTED" : "○ NOT DETECTED";
       }
       if (tabStatusEl) {
-        tabStatusEl.className = `tab-status ${connected ? 'connected' : ''}`;
-        tabStatusEl.textContent = connected ? '●' : '○';
+        tabStatusEl.className = `tab-status ${connected ? "connected" : ""}`;
+        tabStatusEl.textContent = connected ? "●" : "○";
       }
     }, 500);
   }
@@ -2038,26 +2395,27 @@ class MenuManager {
 
   startRebindingInGame(action) {
     const modal = document.getElementById("rebind-modal");
-    document.getElementById("rebind-action-name").textContent = ACTION_LABELS[action];
+    document.getElementById("rebind-action-name").textContent =
+      ACTION_LABELS[action];
     modal.style.display = "flex";
-    
+
     const handleKey = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      
-      if (e.code === 'Escape') {
+
+      if (e.code === "Escape") {
         modal.style.display = "none";
-        document.removeEventListener('keydown', handleKey, true);
+        document.removeEventListener("keydown", handleKey, true);
         return;
       }
-      
-      KeyBindings.setBinding(action, [e.code]);
+
+      KeyBindings.setBinding(action, e.code);
       modal.style.display = "none";
-      document.removeEventListener('keydown', handleKey, true);
+      document.removeEventListener("keydown", handleKey, true);
       this.renderOptionsInGame();
     };
-    
-    document.addEventListener('keydown', handleKey, true);
+
+    document.addEventListener("keydown", handleKey, true);
   }
 
   closeOptionsInGame() {
@@ -2072,7 +2430,15 @@ class MenuManager {
     this.container.classList.add("hidden");
   }
 
-  async createGame(roomName, mode, isPublic, killLimit, maxPlayers = 8, level = "newworld", roomCode = null) {
+  async createGame(
+    roomName,
+    mode,
+    isPublic,
+    killLimit,
+    maxPlayers = 8,
+    level = "newworld",
+    roomCode = null,
+  ) {
     this.emit("levelSelected", level);
     this.showLoading("Creating arena...");
     await NetworkManager.connect();
@@ -2097,17 +2463,24 @@ class MenuManager {
   async quickMatch() {
     this.showLoading("Finding match...");
     await NetworkManager.connect();
-    
+
     // Check if there are existing public rooms to join
     const rooms = await NetworkManager.getAvailableRooms();
-    const publicRooms = rooms.filter(r => r.metadata?.isPublic && r.clients < (r.metadata?.maxPlayers || 8));
-    
+    const publicRooms = rooms.filter(
+      (r) => r.metadata?.isPublic && r.clients < (r.metadata?.maxPlayers || 8),
+    );
+
     if (publicRooms.length > 0) {
       // Join existing room - will go to lobby
-      await NetworkManager.joinRoom(publicRooms[0].roomId, { playerName: this.playerName });
+      await NetworkManager.joinRoom(publicRooms[0].roomId, {
+        playerName: this.playerName,
+      });
     } else {
       // No rooms available - create and auto-start
-      await NetworkManager.joinOrCreate({ playerName: this.playerName, autoStart: true });
+      await NetworkManager.joinOrCreate({
+        playerName: this.playerName,
+        autoStart: true,
+      });
     }
   }
 
@@ -2138,7 +2511,7 @@ class MenuManager {
         <div class="room-players">${room.clients}/${room.maxClients}</div>
         <button class="join-btn">JOIN</button>
       </div>
-    `
+    `,
       )
       .join("");
 
@@ -2193,7 +2566,9 @@ class MenuManager {
     };
     document.addEventListener("keydown", onKey);
 
-    overlay.querySelector("#kicked-modal-ok").addEventListener("click", dismiss);
+    overlay
+      .querySelector("#kicked-modal-ok")
+      .addEventListener("click", dismiss);
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) dismiss();
     });
@@ -2212,10 +2587,11 @@ class MenuManager {
       this.container.classList.remove("hidden");
     }
     if (this.startScene) {
-      const showScene = this.currentScreen === SCREENS.MAIN_MENU ||
-                        this.currentScreen === SCREENS.CREATE_GAME ||
-                        this.currentScreen === SCREENS.JOIN_GAME ||
-                        this.currentScreen === SCREENS.OPTIONS;
+      const showScene =
+        this.currentScreen === SCREENS.MAIN_MENU ||
+        this.currentScreen === SCREENS.CREATE_GAME ||
+        this.currentScreen === SCREENS.JOIN_GAME ||
+        this.currentScreen === SCREENS.OPTIONS;
       if (showScene) {
         this.startScene.resume();
         if (this.startScene.renderer) {
