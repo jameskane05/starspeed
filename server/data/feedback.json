@@ -98,5 +98,30 @@
       "gpuVendor": "Google Inc. (NVIDIA)",
       "vram": "unknown"
     }
+  },
+  {
+    "id": "98717db2-acb4-4827-860d-9ed0389ea9c9",
+    "createdAt": "2026-03-05T23:04:55.833Z",
+    "type": "feedback",
+    "name": "",
+    "email": "",
+    "message": "Broken",
+    "ratings": {
+      "gameplay": 1,
+      "performance": 1,
+      "graphics": 1,
+      "overall": 1
+    },
+    "systemInfo": {
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+      "platform": "Windows",
+      "language": "en-US",
+      "screenWidth": 1920,
+      "screenHeight": 1080,
+      "deviceMemory": 8,
+      "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4090 (0x00002684) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "gpuVendor": "Google Inc. (NVIDIA)",
+      "vram": "unknown"
+    }
   }
 ]

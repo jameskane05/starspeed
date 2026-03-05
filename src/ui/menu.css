@@ -1,5 +1,68 @@
 @import url("https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;500;700;900&display=swap");
 
+@font-face {
+  font-family: "Supercharge Halftone";
+  src: url("/fonts/SuperchargeHalftone-6Y0Vq.otf") format("opentype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Sterion";
+  src: url("/fonts/Sterion-BLLld.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Supercharge 3D";
+  src: url("/fonts/Supercharge3D-GO79P.otf") format("opentype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Supercharge";
+  src: url("/fonts/Supercharge-JRgPo.otf") format("opentype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Edge of the Galaxy";
+  src: url("/fonts/EdgeOfTheGalaxyItalic-ZVJB3.otf") format("opentype");
+  font-weight: normal;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Ion Cannon Expanded";
+  src: url("/fonts/IonCannonExpandedItalic-E45x8.otf") format("opentype");
+  font-weight: normal;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Hacked";
+  src: url("/fonts/Hacked-KerX.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Space Crusaders";
+  src: url("/fonts/SpaceCrusadersItalic-ZV1Zx.ttf") format("truetype");
+  font-weight: normal;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Science";
+  src: url("/fonts/SciencePersonalUseOnly-JpG37.otf") format("opentype");
+  font-weight: normal;
+  font-style: normal;
+}
+
 :root {
   --bg-dark: #0a0a12;
   --bg-panel: #12121c;
@@ -64,10 +127,14 @@
   width: 100%;
   height: 100%;
   min-height: 100dvh;
+  max-width: 100vw;
   z-index: 1000;
   font-family: "Rajdhani", sans-serif;
   color: var(--text-primary);
   user-select: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 #menu-container input,
@@ -107,7 +174,9 @@
 
 .menu-screen {
   width: 100%;
+  max-width: 100%;
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -128,6 +197,8 @@
   padding-top: 10vh;
   padding-bottom: 10vh;
   box-sizing: border-box;
+  overflow: hidden;
+  max-width: 100%;
 }
 
 .main-menu-right {
@@ -166,6 +237,15 @@
   object-fit: contain;
 }
 
+.main-menu .menu-title .subtitle:first-of-type {
+  width: 60%;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: 0;
+  margin-bottom: 4px;
+  text-align: left;
+}
+
 .main-menu .menu-title h1 {
   font-family: "Orbitron", sans-serif;
   font-size: 5rem;
@@ -197,8 +277,10 @@
 }
 
 .main-menu .subtitle {
-  font-family: "Orbitron", sans-serif;
-  font-size: 1rem;
+  font-family: "Science", "Orbitron", sans-serif;
+  font-style: normal;
+  font-weight: bolder;
+  font-size: 0.85rem;
   color: var(--text-secondary);
   letter-spacing: 0.5em;
   margin-top: 0.5rem;
@@ -2251,18 +2333,15 @@
   padding: 0;
   border: none;
   background: transparent;
-  color: #f44;
+  color: var(--accent-cyan);
   font-size: 1.75rem;
   line-height: 1;
   cursor: pointer;
   border-radius: 4px;
-  transition:
-    background 0.15s,
-    color 0.15s;
+  transition: color 0.15s;
 }
 
 .feedback-modal-close:hover {
-  background: #f44;
   color: #fff;
 }
 
@@ -2617,6 +2696,7 @@
   padding: 3rem 4rem;
   text-align: center;
   box-shadow: 0 0 30px rgba(255, 51, 102, 0.2);
+  font-family: "Rajdhani", sans-serif;
 }
 
 .kicked-modal-content p {
@@ -3179,7 +3259,8 @@
 
 /* Tablet / small desktop */
 @media (max-width: 900px) {
-  .main-menu .menu-title .menu-title-logo {
+  .main-menu .menu-title .menu-title-logo,
+  .main-menu .menu-title .subtitle:first-of-type {
     width: 85%;
   }
   .main-menu .menu-title h1 {
@@ -3198,14 +3279,16 @@
 
 /* Mobile */
 @media (max-width: 600px) {
-  /* Main menu */
+  /* Main menu - top-aligned so ship can be framed below */
   .main-menu {
     align-items: center !important;
-    justify-content: center !important;
+    justify-content: flex-start !important;
+    padding-top: 1.5rem;
     padding-bottom: env(safe-area-inset-bottom, 16px);
   }
   .main-menu-right {
     align-items: center;
+    justify-content: flex-start;
     margin-right: 0;
     width: 100%;
     padding: 0 1rem;
@@ -3215,15 +3298,22 @@
     margin-bottom: 1rem;
   }
   .main-menu .menu-title h1 {
-    font-size: 2.2rem;
+    font-size: 2.75rem;
   }
-  .main-menu .menu-title .menu-title-logo {
-    width: 85%;
+  .main-menu .menu-title .menu-title-logo,
+  .main-menu .menu-title .subtitle:first-of-type {
+    width: 95%;
     margin-left: auto;
     margin-right: auto;
   }
+  .main-menu .menu-title .subtitle:last-of-type {
+    width: 95%;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: right;
+  }
   .main-menu .subtitle {
-    font-size: 0.65rem;
+    font-size: 0.9rem;
     letter-spacing: 0.25em;
   }
   .main-menu .menu-panel {
@@ -3270,6 +3360,14 @@
     min-width: 0;
     width: 100%;
     padding: 0.9rem 1rem;
+  }
+  .main-menu .menu-buttons-row {
+    width: 100%;
+  }
+  .main-menu .menu-buttons-row .menu-btn {
+    flex: 1;
+    max-width: none;
+    min-width: 0;
   }
 
   /* Options layout */
@@ -3517,6 +3615,51 @@
   .chat-messages {
     height: 90px;
   }
+
+  .main-menu {
+    justify-content: center !important;
+  }
+  .main-menu-right {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 100%;
+    margin-right: 0;
+    padding: 0 1rem;
+    box-sizing: border-box;
+  }
+  .main-menu .menu-title {
+    text-align: left;
+    max-width: 55%;
+    margin-bottom: 0.5rem;
+    min-width: 0;
+  }
+  .main-menu .menu-title .menu-title-logo,
+  .main-menu .menu-title .subtitle:first-of-type,
+  .main-menu .menu-title .subtitle:last-of-type {
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: auto;
+  }
+  .main-menu .menu-title .subtitle:first-of-type {
+    text-align: left;
+  }
+  .main-menu .menu-title .subtitle:last-of-type {
+    text-align: right;
+  }
+  .main-menu .menu-panel {
+    flex-shrink: 0;
+  }
+  .main-menu .menu-buttons-row {
+    width: 100%;
+  }
+  .main-menu .menu-buttons-row .menu-btn {
+    flex: 1;
+    max-width: none;
+    min-width: 0;
+  }
 }
 
 @media (max-height: 500px) and (orientation: landscape) {
@@ -3680,16 +3823,52 @@
   }
   .main-menu {
     justify-content: center !important;
-    align-items: flex-end !important;
+    align-items: flex-start !important;
   }
   .main-menu-right {
-    align-items: flex-end;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 100%;
+    margin-right: 0;
+    padding: 0 1rem;
+    box-sizing: border-box;
   }
   .main-menu .menu-title h1 {
     font-size: 1.8rem;
   }
   .main-menu .menu-title {
+    text-align: left;
+    max-width: 55%;
+    margin-bottom: 0.5rem;
+    min-width: 0;
+  }
+  .main-menu .menu-title .menu-title-logo,
+  .main-menu .menu-title .subtitle:first-of-type,
+  .main-menu .menu-title .subtitle:last-of-type {
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: auto;
+  }
+  .main-menu .menu-title .subtitle:first-of-type {
+    text-align: left;
+  }
+  .main-menu .menu-title .subtitle:last-of-type {
     text-align: right;
+  }
+  .main-menu .menu-panel {
+    flex-shrink: 0;
+    min-width: 0;
+  }
+  .main-menu .menu-buttons-row {
+    width: 100%;
+  }
+  .main-menu .menu-buttons-row .menu-btn {
+    flex: 1;
+    max-width: none;
+    min-width: 0;
   }
   .main-menu #btn-campaign {
     display: none;
@@ -3844,6 +4023,38 @@
   color: var(--text-secondary);
   letter-spacing: 0.15em;
   text-transform: uppercase;
+}
+
+.initial-loading-screen {
+  background: linear-gradient(135deg, #0a0a12 0%, #0d0d18 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.initial-loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.initial-loading-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 120px;
+}
+
+.initial-loading-progress .loading-progress-bar {
+  flex: 1;
+  height: 3px;
+  max-width: 80px;
+}
+
+.initial-loading-progress .loading-progress-text {
+  font-size: 0.75rem;
+  min-width: 2ch;
 }
 
 .toggle-switch {

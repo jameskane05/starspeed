@@ -7,8 +7,8 @@ const _right = new THREE.Vector3();
 const _up = new THREE.Vector3();
 const _forward = new THREE.Vector3();
 const _accel = new THREE.Vector3();
-const _pitchQuat = new THREE.Quaternion();
 const _yawQuat = new THREE.Quaternion();
+const _pitchQuat = new THREE.Quaternion();
 const _rollQuat = new THREE.Quaternion();
 const _engineColorBlack = new THREE.Color(0x000000);
 const _engineColorGlow = new THREE.Color(0xbbddff);
@@ -446,11 +446,10 @@ export class Player {
     const controlDelta = Math.min(delta, 0.05);
     const lookSens = (window.gameManager?.getLookSensitivity?.() ?? 0.8) / 0.8;
 
-    _right.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
     _up.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
     _forward.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    _right.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
 
-    // Look input
     if (useGamepad) {
       const gpLookSpeed = 4.0 * lookSens;
       this.pitchVelocity += -gp.lookY * gpLookSpeed * controlDelta;
@@ -476,8 +475,18 @@ export class Player {
     this.pitchVelocity *= Math.pow(this.lookDrag, delta * 60);
     this.yawVelocity *= Math.pow(this.lookDrag, delta * 60);
 
-    _pitchQuat.setFromAxisAngle(_right, this.pitchVelocity * controlDelta);
     _yawQuat.setFromAxisAngle(_up, this.yawVelocity * controlDelta);
+    this.camera.quaternion.premultiply(_yawQuat);
+
+    _right.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    _forward.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    const maxPitch = Math.PI / 2 - 1e-4;
+    let pitchDelta = this.pitchVelocity * controlDelta;
+    const pitchNow = Math.asin(THREE.MathUtils.clamp(-_forward.y, -1, 1));
+    const pitchAfter = THREE.MathUtils.clamp(pitchNow + pitchDelta, -maxPitch, maxPitch);
+    pitchDelta = pitchAfter - pitchNow;
+    _pitchQuat.setFromAxisAngle(_right, pitchDelta);
+    this.camera.quaternion.premultiply(_pitchQuat);
 
     let rollInput = 0;
     if (useGamepad) {
@@ -496,14 +505,20 @@ export class Player {
     if (Math.abs(this.rollVelocity) > this.rollMaxSpeed) {
       this.rollVelocity = Math.sign(this.rollVelocity) * this.rollMaxSpeed;
     }
-    this.rollVelocity *= Math.pow(this.rollDrag, delta * 60);
+    const hasRollInput = rollInput !== 0 || (useGamepad && gp.rollAnalog && Math.abs(gp.rollAnalog) > 0.1);
+    const rollDamp = hasRollInput
+      ? Math.pow(this.rollDrag, delta * 60)
+      : Math.pow(this.rollDrag, delta * 60) * Math.pow(0.92, delta * 60);
+    this.rollVelocity *= rollDamp;
 
+    _forward.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
     _rollQuat.setFromAxisAngle(_forward, this.rollVelocity * controlDelta);
-
-    this.camera.quaternion.premultiply(_pitchQuat);
-    this.camera.quaternion.premultiply(_yawQuat);
     this.camera.quaternion.premultiply(_rollQuat);
     this.camera.quaternion.normalize();
+
+    _right.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    _up.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
+    _forward.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
 
     // Movement
     _accel.set(0, 0, 0);

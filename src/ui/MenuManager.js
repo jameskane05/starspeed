@@ -18,18 +18,18 @@ import sfxManager from "../audio/sfxManager.js";
 import sfxSounds from "../audio/sfxData.js";
 import { getPerformanceProfile } from "../data/performanceSettings.js";
 import { getSystemInfo } from "../utils/systemInfo.js";
-
-const SCREENS = {
-  MAIN_MENU: "mainMenu",
-  CREATE_GAME: "createGame",
-  JOIN_GAME: "joinGame",
-  LOBBY: "lobby",
-  LOADING: "loading",
-  PLAYING: "playing",
-  RESULTS: "results",
-  OPTIONS: "options",
-  FEEDBACK_DASHBOARD: "feedbackDashboard",
-};
+import { SCREENS } from "./constants.js";
+import * as menuFocus from "./menuFocus.js";
+import * as menuNetwork from "./menuNetwork.js";
+import * as mainMenuScreen from "./screens/mainMenu.js";
+import * as createGameScreen from "./screens/createGame.js";
+import * as joinGameScreen from "./screens/joinGame.js";
+import * as lobbyScreen from "./screens/lobby.js";
+import * as loadingScreen from "./screens/loading.js";
+import * as playingScreen from "./screens/playing.js";
+import * as resultsScreen from "./screens/results.js";
+import * as feedbackDashboardScreen from "./screens/feedbackDashboard.js";
+import * as feedbackModalScreen from "./screens/feedbackModal.js";
 
 class MenuManager {
   constructor() {
@@ -73,8 +73,15 @@ class MenuManager {
     this.menuContent.id = "menu-content";
     this.container.appendChild(this.menuContent);
 
+    this.currentScreen = SCREENS.INITIAL_LOADING;
+    this.render();
+
     this.startScene = new StartScreenScene();
-    await this.startScene.init(this.menuBg);
+    const onProgress = (pct) => this.updateInitialLoadProgress(pct);
+    await this.startScene.init(this.menuBg, onProgress);
+
+    this.currentScreen = SCREENS.MAIN_MENU;
+    this.render();
     sfxManager.init(sfxSounds);
 
     // Initialize procedural audio on first user interaction
@@ -86,21 +93,28 @@ class MenuManager {
     document.addEventListener("click", initAudio, { once: true });
     document.addEventListener("keydown", initAudio, { once: true });
 
-    this.setupNetworkListeners();
-    this.setupMenuNavigation();
-    this.container.addEventListener("click", (e) => this.onMenuContainerClick(e));
-    this.container.addEventListener("mousedown", (e) => this.onMenuContainerMouseDown(e));
+    menuNetwork.setupNetworkListeners(this);
+    menuFocus.init(this);
+    this.container.addEventListener("click", (e) =>
+      this.onMenuContainerClick(e),
+    );
+    this.container.addEventListener("mousedown", (e) =>
+      this.onMenuContainerMouseDown(e),
+    );
     this.render();
-    setTimeout(() => this.resetFocus(), 100);
+    setTimeout(() => menuFocus.resetFocus(this), 100);
 
-    // Check for join code in URL
-    this.checkJoinUrl();
+    menuNetwork.checkJoinUrl(this);
   }
 
   onMenuContainerMouseDown(e) {
     if (e.button !== 2) return;
     if (this.currentScreen !== SCREENS.MAIN_MENU) return;
-    if (e.target.closest("a, button, input, select, textarea, [data-action], [role='button']"))
+    if (
+      e.target.closest(
+        "a, button, input, select, textarea, [data-action], [role='button']",
+      )
+    )
       return;
     e.preventDefault();
     this.startScene?.triggerMissile();
@@ -108,256 +122,70 @@ class MenuManager {
 
   onMenuContainerClick(e) {
     if (this.currentScreen !== SCREENS.MAIN_MENU) return;
-    if (e.target.closest("a, button, input, select, textarea, [data-action], [role='button']"))
+    if (
+      e.target.closest(
+        "a, button, input, select, textarea, [data-action], [role='button']",
+      )
+    )
       return;
     if (e.button === 0) this.startScene?.triggerFire();
   }
 
-  setupMenuNavigation() {
-    document.addEventListener("keydown", (e) => this.handleMenuKeydown(e));
-    this.startGamepadPolling();
-  }
-
-  startGamepadPolling() {
-    if (this.gamepadPollInterval) return;
-    this.gamepadPollInterval = setInterval(() => this.pollGamepadForMenu(), 16);
-  }
-
-  stopGamepadPolling() {
-    if (this.gamepadPollInterval) {
-      clearInterval(this.gamepadPollInterval);
-      this.gamepadPollInterval = null;
-    }
-  }
-
-  handleMenuKeydown(e) {
-    if (this.currentScreen === SCREENS.PLAYING) return;
-    if (this.feedbackModalEl && this.feedbackModalEl.style.display === "flex")
-      return;
-    if (
-      document.activeElement?.tagName === "INPUT" ||
-      document.activeElement?.tagName === "SELECT" ||
-      document.activeElement?.tagName === "TEXTAREA"
-    ) {
-      if (e.code === "Escape") {
-        document.activeElement.blur();
-        this.updateFocus();
-      }
-      return;
-    }
-
-    switch (e.code) {
-      case "ArrowUp":
-      case "KeyW":
-        e.preventDefault();
-        this.navigateFocus(-1);
-        break;
-      case "ArrowDown":
-      case "KeyS":
-        e.preventDefault();
-        this.navigateFocus(1);
-        break;
-      case "Enter":
-      case "Space":
-        e.preventDefault();
-        this.activateFocused();
-        break;
-      case "Escape":
-        this.handleMenuBack();
-        break;
-    }
-  }
-
-  pollGamepadForMenu() {
-    if (this.currentScreen === SCREENS.PLAYING) return;
-    if (this.feedbackModalEl && this.feedbackModalEl.style.display === "flex")
-      return;
-
-    GamepadInput.poll();
-    if (!GamepadInput.connected) return;
-
-    const now = Date.now();
-    if (now - this.lastNavTime < this.navCooldown) return;
-
-    const state = GamepadInput.state;
-
-    // D-pad or left stick navigation
-    if (state.buttons.dpadUp || state.leftStick.y < -0.5) {
-      this.navigateFocus(-1);
-      this.lastNavTime = now;
-    } else if (state.buttons.dpadDown || state.leftStick.y > 0.5) {
-      this.navigateFocus(1);
-      this.lastNavTime = now;
-    }
-
-    // A button to select
-    if (GamepadInput.justPressed("a")) {
-      this.activateFocused();
-    }
-
-    // B button to go back
-    if (GamepadInput.justPressed("b")) {
-      this.handleMenuBack();
-    }
-  }
-
   navigateFocus(direction) {
-    this.updateFocusableElements();
-    if (this.focusableElements.length === 0) return;
-
-    this.focusIndex =
-      (this.focusIndex + direction + this.focusableElements.length) %
-      this.focusableElements.length;
-    this.updateFocus();
-    proceduralAudio.uiNavigate();
+    menuFocus.navigateFocus(this, direction);
   }
 
   updateFocusableElements() {
-    this.focusableElements = Array.from(
-      this.menuContent.querySelectorAll(
-        ".menu-btn, .back-btn, .mode-btn:not(.disabled), .vis-btn, .limit-btn, .players-btn, .join-btn, .refresh-btn, .rebind-btn, .options-btn:not(:disabled), .options-tab, .sidebar-btn, .volume-slider, .ready-checkbox input, #chk-ready, #lobby-level-select, .kick-btn, .mute-btn, .feedback-dashboard-input, .feedback-dashboard-select, .feedback-dashboard-expand",
-      ),
-    ).filter((el) => !el.disabled && el.offsetParent !== null);
+    menuFocus.updateFocusableElements(this);
   }
 
   updateFocus() {
-    this.focusableElements.forEach((el, i) => {
-      el.classList.toggle("nav-focus", i === this.focusIndex);
-    });
-
-    if (this.focusableElements[this.focusIndex]) {
-      this.focusableElements[this.focusIndex].scrollIntoView({
-        block: "nearest",
-        behavior: "smooth",
-      });
-    }
+    menuFocus.updateFocus(this);
   }
 
   activateFocused() {
-    this.updateFocusableElements();
-    const el = this.focusableElements[this.focusIndex];
-    if (el) {
-      proceduralAudio.uiClick();
-      el.click();
-      if (el.type === "checkbox") {
-        el.checked = !el.checked;
-        el.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-    }
+    menuFocus.activateFocused(this);
   }
 
   handleMenuBack() {
-    switch (this.currentScreen) {
-      case SCREENS.CREATE_GAME:
-      case SCREENS.JOIN_GAME:
-      case SCREENS.OPTIONS:
-      case SCREENS.FEEDBACK_DASHBOARD:
-        this.showScreen(SCREENS.MAIN_MENU);
-        break;
-      case SCREENS.LOBBY:
-        NetworkManager.leaveRoom();
-        break;
-    }
+    menuFocus.handleMenuBack(this);
   }
 
   resetFocus() {
-    this.focusIndex = 0;
-    this.updateFocusableElements();
-    this.updateFocus();
+    menuFocus.resetFocus(this);
   }
 
   async checkJoinUrl() {
-    const params = new URLSearchParams(window.location.search);
-    const joinCode = params.get("join");
-
-    if (joinCode) {
-      // Clear the URL parameter to prevent re-joining on refresh
-      window.history.replaceState({}, "", window.location.pathname);
-
-      // Auto-join the room (preserve case for random Colyseus IDs)
-      await this.joinByCode(joinCode);
-    }
+    return menuNetwork.checkJoinUrl(this);
   }
 
   saveCallsign(name) {
-    this.playerName = name;
-    localStorage.setItem("starspeed_callsign", name);
+    menuNetwork.saveCallsign(this, name);
   }
 
-  setupNetworkListeners() {
-    NetworkManager.on("roomJoined", () => {
-      this.showScreen(SCREENS.LOBBY);
-    });
+  async joinByCode(code) {
+    this.showLoading("Joining...");
+    return menuNetwork.joinByCode(this, code);
+  }
 
-    NetworkManager.on("stateChange", (state) => {
-      if (state.phase === "playing" && this.currentScreen !== SCREENS.PLAYING) {
-        this.showScreen(SCREENS.PLAYING);
-        this.emit("gameStart");
-      } else if (
-        state.phase === "results" &&
-        this.currentScreen !== SCREENS.RESULTS
-      ) {
-        this.showScreen(SCREENS.RESULTS);
-      } else if (
-        state.phase === "lobby" &&
-        this.currentScreen === SCREENS.RESULTS
-      ) {
-        this.showScreen(SCREENS.LOBBY);
-      } else if (state.phase === "countdown" || state.phase === "lobby") {
-        // Play countdown beeps
-        if (
-          state.phase === "countdown" &&
-          state.countdown !== this._lastCountdown
-        ) {
-          this._lastCountdown = state.countdown;
-          proceduralAudio.uiCountdown(state.countdown === 1);
-        }
-        this.renderLobby();
-      }
-    });
+  async refreshRoomList() {
+    return menuNetwork.refreshRoomList(this);
+  }
 
-    NetworkManager.on("roomLeft", (data) => {
-      this.chatMessages = [];
-      if (data?.code === 4000) {
-        this.showKickedModal();
-      } else {
-        this.showScreen(SCREENS.MAIN_MENU);
-      }
-    });
+  startRefreshing() {
+    menuNetwork.startRefreshing(this);
+  }
 
-    NetworkManager.on("chat", (data) => {
-      this.addChatMessage(data);
-    });
+  stopRefreshing() {
+    menuNetwork.stopRefreshing(this);
+  }
 
-    NetworkManager.on("error", (err) => {
-      console.error("[Menu] Network error:", err);
-      let message = "Connection error";
+  showKickedModal() {
+    menuNetwork.showKickedModal(this);
+  }
 
-      if (err.error?.message) {
-        message = err.error.message;
-      } else if (err.message) {
-        message = err.message;
-      }
-
-      // User-friendly messages for common errors
-      if (message.includes("already exists") || message.includes("roomId")) {
-        message = "Room code already in use. Try a different code.";
-      } else if (message.includes("not found")) {
-        message = "Room not found. Check the code and try again.";
-      } else if (message.includes("full")) {
-        message = "Room is full.";
-      }
-
-      this.showError(message);
-
-      // Return to appropriate screen
-      if (this.currentScreen === SCREENS.PLAYING) return;
-      if (this.lastScreen) {
-        this.showScreen(this.lastScreen);
-      } else {
-        this.showScreen(SCREENS.MAIN_MENU);
-      }
-    });
+  showError(message) {
+    menuNetwork.showError(this, message);
   }
 
   showScreen(screen) {
@@ -392,6 +220,14 @@ class MenuManager {
     this.showScreen(SCREENS.LOADING);
   }
 
+  updateInitialLoadProgress(progress) {
+    const progressBar = document.querySelector(".initial-loading-screen .loading-progress-fill");
+    const progressText = document.querySelector(".initial-loading-screen .loading-progress-text");
+    const pct = Math.round(progress * 100);
+    if (progressBar) progressBar.style.width = `${pct}%`;
+    if (progressText) progressText.textContent = `${pct}%`;
+  }
+
   updateLoadingProgress(progress) {
     const progressBar = document.querySelector(".loading-progress-fill");
     const progressText = document.querySelector(".loading-progress-text");
@@ -414,6 +250,9 @@ class MenuManager {
     if (!this.container) return;
 
     switch (this.currentScreen) {
+      case SCREENS.INITIAL_LOADING:
+        loadingScreen.renderInitialLoading(this);
+        break;
       case SCREENS.MAIN_MENU:
         this.renderMainMenu();
         break;
@@ -445,1049 +284,63 @@ class MenuManager {
   }
 
   renderMainMenu() {
-    // Show start scene when on main menu
-    if (this.startScene && this.startScene.renderer) {
-      this.startScene.renderer.domElement.style.display = "block";
-    }
-
-    this.menuContent.innerHTML = `
-      <div class="menu-screen main-menu">
-        <div class="main-menu-right">
-          <div class="menu-title">
-            <p class="subtitle">JAMES C. KANE'S</p>
-            <img class="menu-title-logo" src="/images/ui/Starspeed_WordMark.png" alt="Starspeed game title: metallic silver wordmark with stylized wing on the S and a glowing orange line through the text ending in a starburst." />
-            <p class="subtitle">ZERO-G AERIAL COMBAT</p>
-          </div>
-          <div class="menu-panel">
-            <div class="menu-content">
-              <div class="menu-buttons">
-                <label>CALLSIGN</label>
-                <div class="name-input-group">
-                  <input type="text" id="player-name" value="${this.playerName}" maxlength="16" />
-                </div>
-                <label>SINGLE-PLAYER</label>
-                <button class="menu-btn" id="btn-testing">TESTING GROUNDS</button>
-                <button class="menu-btn" id="btn-campaign" disabled>CAMPAIGN</button>
-                <label>MULTI-PLAYER</label>
-                <button class="menu-btn" id="btn-quick">QUICKMATCH</button>
-                <button class="menu-btn" id="btn-join">JOIN MATCH</button>
-                <button class="menu-btn" id="btn-create">CREATE MATCH</button>
-                <label>MISC</label>
-                <div class="menu-buttons-row">
-                  <button class="menu-btn" id="btn-feedback">FEEDBACK</button>
-                  <button class="menu-btn" id="btn-options">OPTIONS</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="level-select-modal" id="level-select-modal" style="display:none;">
-          <div class="level-select-content">
-            <h3>SELECT LEVEL</h3>
-            <div class="form-group">
-              <label>MAP</label>
-              <select id="level-select-solo" class="menu-select">
-                ${Object.values(LEVELS)
-                  .map(
-                    (level) => `
-                  <option value="${level.id}">${level.name}</option>
-                `,
-                  )
-                  .join("")}
-              </select>
-            </div>
-            <div class="level-select-buttons">
-              <button class="menu-btn" id="btn-level-start">START</button>
-              <button class="menu-btn secondary" id="btn-level-cancel">CANCEL</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    document.getElementById("player-name").addEventListener("input", (e) => {
-      this.saveCallsign(e.target.value || "Pilot");
-    });
-
-    document.getElementById("btn-testing").addEventListener("click", () => {
-      document.getElementById("level-select-modal").style.display = "flex";
-    });
-
-    const levelModal = document.getElementById("level-select-modal");
-    document.getElementById("btn-level-start").addEventListener("click", () => {
-      const levelId = document.getElementById("level-select-solo").value;
-      levelModal.style.display = "none";
-      if (levelId) this.emit("levelSelected", levelId);
-      this.emit("campaignStart");
-    });
-
-    document
-      .getElementById("btn-level-cancel")
-      .addEventListener("click", () => {
-        levelModal.style.display = "none";
-      });
-
-    levelModal.addEventListener("click", (e) => {
-      if (e.target === levelModal) levelModal.style.display = "none";
-    });
-
-    document.getElementById("btn-create").addEventListener("click", () => {
-      this.showScreen(SCREENS.CREATE_GAME);
-    });
-
-    document.getElementById("btn-join").addEventListener("click", () => {
-      this.showScreen(SCREENS.JOIN_GAME);
-    });
-
-    document.getElementById("btn-quick").addEventListener("click", () => {
-      this.quickMatch();
-    });
-
-    document.getElementById("btn-options").addEventListener("click", () => {
-      this.showScreen(SCREENS.OPTIONS);
-    });
-
-    document.getElementById("btn-feedback").addEventListener("click", () => {
-      this.showFeedbackModal({});
-    });
-
-    this.updateGamepadIndicator();
-  }
-
-  updateGamepadIndicator() {
-    const indicator = document.getElementById("gamepad-indicator");
-    if (indicator) {
-      if (GamepadInput.connected) {
-        indicator.textContent =
-          "🎮 Gamepad: D-Pad - Navigate | A - Select | B - Back";
-        indicator.classList.add("active");
-      } else {
-        indicator.textContent = "";
-        indicator.classList.remove("active");
-      }
-    }
+    mainMenuScreen.renderMainMenu(this);
   }
 
   showFeedbackModal(options = {}) {
-    const { onClose = () => {} } = options;
-    if (!this.feedbackModalEl) {
-      this.feedbackModalEl = document.createElement("div");
-      this.feedbackModalEl.id = "feedback-modal";
-      this.feedbackModalEl.className = "feedback-modal";
-      document.body.appendChild(this.feedbackModalEl);
-    }
-
-    const ratingLabels = [
-      { id: "gameplay", label: "Gameplay" },
-      { id: "performance", label: "Performance" },
-      { id: "graphics", label: "Graphics" },
-      { id: "overall", label: "Overall" },
-    ];
-
-    this.feedbackModalEl.innerHTML = `
-      <div class="feedback-modal-overlay"></div>
-      <div class="feedback-modal-content">
-        <div class="feedback-modal-header">
-          <h3>FEEDBACK</h3>
-          <button type="button" class="feedback-modal-close" id="feedback-close" aria-label="Close">×</button>
-        </div>
-        <form id="feedback-form" class="feedback-form">
-          <div class="form-group">
-            <label>NAME</label>
-            <input type="text" id="feedback-name" maxlength="64" />
-          </div>
-          <div class="form-group">
-            <label>CONTACT EMAIL</label>
-            <input type="email" id="feedback-email" maxlength="128" />
-          </div>
-          <div class="form-group feedback-type-group">
-            <label>TYPE</label>
-            <div class="feedback-type-radios" id="feedback-type-radios">
-              <label class="feedback-type-btn">
-                <input type="radio" name="feedback-type" value="feedback" checked />
-                <span class="feedback-type-dot"></span>
-                <span class="feedback-type-label">Feedback</span>
-              </label>
-              <label class="feedback-type-btn">
-                <input type="radio" name="feedback-type" value="bug" />
-                <span class="feedback-type-dot"></span>
-                <span class="feedback-type-label">Bug Report</span>
-              </label>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>MESSAGE</label>
-            <textarea id="feedback-message" rows="4" maxlength="2000"></textarea>
-          </div>
-          <div class="feedback-ratings" id="feedback-ratings-container">
-            ${ratingLabels
-              .map(
-                (r) => `
-              <div class="form-group feedback-rating-row" data-rating="${r.id}">
-                <label>${r.label}</label>
-                <div class="feedback-stars" data-rating-id="${r.id}" role="group" aria-label="${r.label} rating">
-                  <input type="hidden" id="feedback-rating-${r.id}" value="" />
-                  ${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="feedback-star" data-value="${n}" aria-label="${n} star${n > 1 ? "s" : ""}">★</button>`).join("")}
-                </div>
-              </div>
-            `,
-              )
-              .join("")}
-          </div>
-          <p class="feedback-disclaimer">When you submit this form, we automatically collect technical information from your browser (OS, device memory, GPU) to help diagnose issues and improve the experience for as many users as possible.</p>
-          <div id="feedback-error" class="feedback-error" style="display:none;"></div>
-          <div class="feedback-modal-buttons">
-            <button type="button" class="menu-btn secondary" id="feedback-cancel">CANCEL</button>
-            <button type="submit" class="menu-btn" id="feedback-submit">SUBMIT</button>
-          </div>
-        </form>
-      </div>
-    `;
-
-    this.feedbackModalEl.style.display = "flex";
-
-    const getFeedbackType = () =>
-      document.querySelector('input[name="feedback-type"]:checked')?.value ||
-      "feedback";
-    const updateRatingVisibility = () => {
-      const type = getFeedbackType();
-      const container = document.getElementById("feedback-ratings-container");
-      if (container) container.style.display = type === "bug" ? "none" : "";
-    };
-    updateRatingVisibility();
-    document
-      .getElementById("feedback-type-radios")
-      .addEventListener("change", updateRatingVisibility);
-
-    this.feedbackModalEl.querySelectorAll(".feedback-stars").forEach((container) => {
-      const id = container.dataset.ratingId;
-      const input = document.getElementById(`feedback-rating-${id}`);
-      const stars = container.querySelectorAll(".feedback-star");
-      const updateStars = (value) => {
-        const n = value === "" ? 0 : parseInt(value, 10);
-        stars.forEach((star, i) => star.classList.toggle("filled", i < n));
-      };
-      stars.forEach((star) => {
-        star.addEventListener("click", () => {
-          const value = star.dataset.value;
-          input.value = value;
-          updateStars(value);
-        });
-      });
-    });
-
-    const close = () => {
-      this.feedbackModalEl.style.display = "none";
-      document.removeEventListener("keydown", handleEscape, true);
-      onClose();
-    };
-
-    const handleEscape = (e) => {
-      if (e.code === "Escape") {
-        e.preventDefault();
-        close();
-      }
-    };
-    document.addEventListener("keydown", handleEscape, true);
-
-    this.feedbackModalEl
-      .querySelector(".feedback-modal-overlay")
-      .addEventListener("click", close);
-    this.feedbackModalEl
-      .querySelector("#feedback-cancel")
-      .addEventListener("click", close);
-    this.feedbackModalEl
-      .querySelector("#feedback-close")
-      .addEventListener("click", close);
-
-    this.feedbackModalEl
-      .querySelector("#feedback-form")
-      .addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const name = document.getElementById("feedback-name").value.trim();
-        const email = document.getElementById("feedback-email").value.trim();
-        const message = document
-          .getElementById("feedback-message")
-          .value.trim();
-        const type = getFeedbackType();
-        const ratingEl = (id) =>
-          document.getElementById(`feedback-rating-${id}`).value;
-        const ratings = {
-          gameplay:
-            ratingEl("gameplay") === ""
-              ? null
-              : parseInt(ratingEl("gameplay"), 10),
-          performance:
-            ratingEl("performance") === ""
-              ? null
-              : parseInt(ratingEl("performance"), 10),
-          graphics:
-            ratingEl("graphics") === ""
-              ? null
-              : parseInt(ratingEl("graphics"), 10),
-          overall:
-            ratingEl("overall") === ""
-              ? null
-              : parseInt(ratingEl("overall"), 10),
-        };
-
-        const errEl = document.getElementById("feedback-error");
-        if (!message) {
-          errEl.textContent = "Please enter a message.";
-          errEl.style.display = "block";
-          return;
-        }
-
-        errEl.style.display = "none";
-        document.getElementById("feedback-submit").disabled = true;
-
-        const base = (NetworkManager.serverUrl || "")
-          .replace(/^ws:/, "http:")
-          .replace(/^wss:/, "https:");
-        const payload = {
-          name,
-          email,
-          message,
-          type,
-          ratings,
-          systemInfo: getSystemInfo(),
-        };
-
-        try {
-          const res = await fetch(`${base}/api/feedback`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          if (!res.ok) throw new Error(res.statusText || "Submit failed");
-          this.feedbackModalEl.innerHTML = `
-            <div class="feedback-modal-overlay"></div>
-            <div class="feedback-modal-content feedback-confirmation">
-              <p class="feedback-confirmation-message">Thank you for your feedback!</p>
-              <button type="button" class="menu-btn" id="feedback-confirm-close">OK</button>
-            </div>
-          `;
-          this.feedbackModalEl.querySelector(".feedback-modal-overlay").addEventListener("click", close);
-          this.feedbackModalEl.querySelector("#feedback-confirm-close").addEventListener("click", close);
-        } catch (err) {
-          const isNetwork =
-            err?.message === "Failed to fetch" || err?.name === "TypeError";
-          errEl.textContent = isNetwork
-            ? "Server unreachable. Start the game server (e.g. cd server && npm start)."
-            : err.message || "Failed to submit. Try again.";
-          errEl.style.display = "block";
-        } finally {
-          const btn = document.getElementById("feedback-submit");
-          if (btn) btn.disabled = false;
-        }
-      });
+    feedbackModalScreen.showFeedbackModal(this, options);
   }
 
   renderCreateGame() {
-    this.menuContent.innerHTML = `
-      <div class="menu-screen create-game">
-        <div class="create-game-wrapper">
-          <div class="menu-header create-game-header">
-            <button class="back-btn" id="btn-back">← BACK</button>
-            <h2>CREATE MATCH</h2>
-          </div>
-          <div class="menu-content">
-          <div class="form-row form-row-top">
-            <div class="form-group form-group-room-name">
-              <label>ROOM NAME</label>
-              <input type="text" id="room-name" value="${this.playerName}'s Arena" maxlength="24" />
-            </div>
-            <div class="form-group form-group-map">
-              <label>MAP</label>
-              <select id="level-select" class="menu-select">
-                ${Object.values(LEVELS)
-                  .map(
-                    (level) => `
-                  <option value="${level.id}" ${level.id === "newworld" ? "selected" : ""}>${level.name}</option>
-                `,
-                  )
-                  .join("")}
-              </select>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>GAME MODE</label>
-              <div class="mode-select stacked">
-                <button class="mode-btn selected" data-mode="ffa">FREE FOR ALL</button>
-                <button class="mode-btn disabled" data-mode="team" disabled>TEAM BATTLE</button>
-              </div>
-            </div>
-            <div class="form-group">
-              <label>VISIBILITY</label>
-              <div class="visibility-select stacked">
-                <button class="vis-btn selected" data-public="true">PUBLIC</button>
-                <button class="vis-btn" data-public="false">PRIVATE</button>
-              </div>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>KILL LIMIT</label>
-              <div class="limit-select">
-                <button class="limit-btn" data-limit="10">10</button>
-                <button class="limit-btn selected" data-limit="20">20</button>
-                <button class="limit-btn" data-limit="30">30</button>
-                <button class="limit-btn" data-limit="50">50</button>
-              </div>
-            </div>
-            <div class="form-group">
-              <label>MAX PLAYERS</label>
-              <div class="players-select">
-                <button class="players-btn" data-players="2">2</button>
-                <button class="players-btn" data-players="4">4</button>
-                <button class="players-btn" data-players="6">6</button>
-                <button class="players-btn selected" data-players="8">8</button>
-              </div>
-            </div>
-          </div>
-          <button class="menu-btn primary large" id="btn-create-room">LAUNCH ARENA</button>
-        </div>
-        </div>
-      </div>
-    `;
-
-    let selectedMode = "ffa";
-    let selectedLevel = "newworld";
-    let isPublic = true;
-    let killLimit = 20;
-    let maxPlayers = 8;
-
-    document.getElementById("btn-back").addEventListener("click", () => {
-      this.showScreen(SCREENS.MAIN_MENU);
-    });
-
-    document.querySelectorAll(".mode-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        if (btn.disabled) return;
-        document
-          .querySelectorAll(".mode-btn")
-          .forEach((b) => b.classList.remove("selected"));
-        btn.classList.add("selected");
-        selectedMode = btn.dataset.mode;
-      });
-    });
-
-    document.querySelectorAll(".vis-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        document
-          .querySelectorAll(".vis-btn")
-          .forEach((b) => b.classList.remove("selected"));
-        btn.classList.add("selected");
-        isPublic = btn.dataset.public === "true";
-      });
-    });
-
-    document.querySelectorAll(".limit-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        document
-          .querySelectorAll(".limit-btn")
-          .forEach((b) => b.classList.remove("selected"));
-        btn.classList.add("selected");
-        killLimit = parseInt(btn.dataset.limit);
-      });
-    });
-
-    document.querySelectorAll(".players-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        document
-          .querySelectorAll(".players-btn")
-          .forEach((b) => b.classList.remove("selected"));
-        btn.classList.add("selected");
-        maxPlayers = parseInt(btn.dataset.players);
-      });
-    });
-
-    document.getElementById("level-select").addEventListener("change", (e) => {
-      selectedLevel = e.target.value;
-    });
-
-    document
-      .getElementById("btn-create-room")
-      .addEventListener("click", async () => {
-        const roomName = document.getElementById("room-name").value.trim();
-        const roomCode = roomName
-          ? roomName
-              .toUpperCase()
-              .replace(/[^A-Z0-9]/g, "")
-              .slice(0, 16) || null
-          : null;
-        await this.createGame(
-          roomName,
-          selectedMode,
-          isPublic,
-          killLimit,
-          maxPlayers,
-          selectedLevel,
-          roomCode,
-        );
-      });
+    createGameScreen.renderCreateGame(this);
   }
 
   renderJoinGame() {
-    this.menuContent.innerHTML = `
-      <div class="menu-screen join-game">
-        <div class="join-game-wrapper">
-          <div class="menu-header join-game-header">
-            <button class="back-btn" id="btn-back">← BACK</button>
-            <h2>JOIN MATCH</h2>
-          </div>
-          <div class="menu-content">
-          <div class="join-code-section">
-            <label>JOIN BY CODE</label>
-            <div class="code-input-group">
-              <input type="text" id="room-code" placeholder="Enter room code..." maxlength="16" />
-              <button class="menu-btn" id="btn-join-code">JOIN</button>
-            </div>
-          </div>
-          <div class="divider"><span>OR</span></div>
-          <div class="room-list-section">
-            <div class="room-list-header">
-              <label>PUBLIC GAMES</label>
-              <button class="refresh-btn" id="btn-refresh">↻ REFRESH</button>
-            </div>
-            <div class="room-list" id="room-list">
-              <div class="loading">Searching for matches...</div>
-            </div>
-          </div>
-        </div>
-        </div>
-      </div>
-    `;
-
-    document.getElementById("btn-back").addEventListener("click", () => {
-      this.stopRefreshing();
-      this.showScreen(SCREENS.MAIN_MENU);
-    });
-
-    document.getElementById("btn-join-code").addEventListener("click", () => {
-      const code = document.getElementById("room-code").value.trim();
-      if (code) this.joinByCode(code);
-    });
-
-    document.getElementById("btn-refresh").addEventListener("click", () => {
-      this.refreshRoomList();
-    });
-
-    this.refreshRoomList();
-    this.startRefreshing();
+    joinGameScreen.renderJoinGame(this);
   }
 
-  // Chat methods
   addChatMessage(data) {
-    // Don't show messages from muted players
-    if (this.mutedPlayers.has(data.senderId)) return;
-
-    this.chatMessages.push({
-      senderId: data.senderId,
-      senderName: data.senderName,
-      text: data.text,
-      timestamp: data.timestamp,
-      isLocal: data.senderId === NetworkManager.sessionId,
-    });
-
-    // Limit chat history
-    if (this.chatMessages.length > this.maxChatMessages) {
-      this.chatMessages.shift();
-    }
-
-    // Update chat display if in lobby
-    this.updateChatDisplay();
+    lobbyScreen.addChatMessage(this, data);
   }
 
   updateChatDisplay() {
-    const chatMessages = document.getElementById("chat-messages");
-    if (!chatMessages) return;
-
-    chatMessages.innerHTML = this.chatMessages
-      .map(
-        (msg) => `
-      <div class="chat-message ${msg.isLocal ? "local" : ""}">
-        <span class="chat-sender">${msg.senderName}:</span>
-        <span class="chat-text">${this.escapeHtml(msg.text)}</span>
-      </div>
-    `,
-      )
-      .join("");
-
-    // Auto-scroll to bottom
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    lobbyScreen.updateChatDisplay(this);
   }
 
   escapeHtml(text) {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
+    return lobbyScreen.escapeHtml(text);
   }
 
   sendChatMessage() {
-    const input = document.getElementById("chat-input");
-    if (!input) return;
-
-    const text = input.value.trim();
-    if (text) {
-      NetworkManager.sendChat(text);
-      input.value = "";
-    }
+    lobbyScreen.sendChatMessage(this);
   }
 
   toggleMute(sessionId) {
-    if (this.mutedPlayers.has(sessionId)) {
-      this.mutedPlayers.delete(sessionId);
-    } else {
-      this.mutedPlayers.add(sessionId);
-    }
-    localStorage.setItem(
-      "starspeed_muted",
-      JSON.stringify([...this.mutedPlayers]),
-    );
-    this.renderLobby();
+    lobbyScreen.toggleMute(this, sessionId);
   }
 
   renderLobby() {
-    const state = NetworkManager.getState();
-    if (!state) return;
-
-    const isHost = NetworkManager.isHost();
-    const localPlayer = NetworkManager.getLocalPlayer();
-    const players = NetworkManager.getPlayers();
-
-    const isCountdown = state.phase === "countdown";
-    const allReady = players.every(([, p]) => p.ready);
-    const canStart =
-      isHost && players.length >= 1 && (allReady || players.length === 1);
-
-    this.menuContent.innerHTML = `
-      <div class="menu-screen lobby">
-        <div class="lobby-wrapper">
-          <div class="menu-header lobby-header">
-            <button class="back-btn" id="btn-leave">← LEAVE</button>
-            <h2>${state.roomName || "GAME LOBBY"}</h2>
-            <div class="room-info">
-            <div class="room-code-wrapper">
-              <span class="room-code" id="room-code-btn">CODE: ${NetworkManager.room?.roomId?.toUpperCase() || "..."}</span>
-              <div class="share-tooltip" id="share-tooltip">
-                <label>SHARE LINK</label>
-                <div class="share-input-group">
-                  <input type="text" id="share-url" readonly value="${window.location.origin}${window.location.pathname}?join=${NetworkManager.room?.roomId || ""}" />
-                  <button class="copy-btn" id="btn-copy">📋</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        ${
-          isCountdown
-            ? `
-          <div class="countdown-overlay">
-            <div class="countdown-overlay-inner">
-              <div class="countdown-number">${state.countdown}</div>
-              <div class="countdown-text">GET READY</div>
-            </div>
-          </div>
-        `
-            : ""
-        }
-        
-        <div class="lobby-content">
-          <div class="players-section">
-            <h3>PILOTS (${players.length}/8)</h3>
-            <div class="player-list">
-              ${players
-                .map(
-                  ([sessionId, player]) => `
-                <div class="player-card ${player.ready ? "ready" : ""} ${sessionId === NetworkManager.sessionId ? "local" : ""} ${state.mode === "team" ? `team-${player.team}` : ""}">
-                  <div class="player-info">
-                    <span class="player-name">${player.name}${state.hostId === sessionId ? " ★" : ""}</span>
-                  </div>
-                  <div class="player-actions">
-                    ${
-                      sessionId !== NetworkManager.sessionId
-                        ? `
-                      <button class="mute-btn ${this.mutedPlayers.has(sessionId) ? "muted" : ""}" data-session="${sessionId}" title="${this.mutedPlayers.has(sessionId) ? "Unmute" : "Mute"}">
-                        ${this.mutedPlayers.has(sessionId) ? "🔇" : "🔊"}
-                      </button>
-                      ${
-                        isHost && !isCountdown
-                          ? `
-                        <button class="kick-btn" data-session="${sessionId}" title="Kick">×</button>
-                      `
-                          : ""
-                      }
-                    `
-                        : ""
-                    }
-                    <div class="player-status">${player.ready ? "READY" : "..."}</div>
-                  </div>
-                </div>
-              `,
-                )
-                .join("")}
-            </div>
-            
-            <div class="chat-section">
-              <div class="chat-messages" id="chat-messages">
-                ${this.chatMessages
-                  .map(
-                    (msg) => `
-                  <div class="chat-message ${msg.isLocal ? "local" : ""}">
-                    <span class="chat-sender">${msg.senderName}:</span>
-                    <span class="chat-text">${this.escapeHtml(msg.text)}</span>
-                  </div>
-                `,
-                  )
-                  .join("")}
-              </div>
-              <div class="chat-input-row">
-                <input type="text" id="chat-input" placeholder="Type a message..." maxlength="200" />
-                <button class="chat-send-btn" id="btn-send-chat">SEND</button>
-              </div>
-            </div>
-          </div>
-          
-          <div class="settings-section">
-            <div class="lobby-map-info">
-              <img class="map-preview" src="${LEVELS[state.level]?.preview || "/hull_lights_emit.png"}" alt="" />
-              <div class="map-details">
-                <h3>MAP</h3>
-                ${
-                  isHost
-                    ? `
-                  <select id="lobby-level-select" class="menu-select">
-                    ${Object.values(LEVELS)
-                      .map(
-                        (level) => `
-                      <option value="${level.id}" ${level.id === state.level ? "selected" : ""}>${level.name}</option>
-                    `,
-                      )
-                      .join("")}
-                  </select>
-                `
-                    : `
-                  <div class="map-name">${LEVELS[state.level]?.name || state.level || "Unknown"}</div>
-                `
-                }
-                <div class="lobby-map-meta">
-                  <span class="mode-badge ${state.mode}">${state.mode === "ffa" ? "FFA" : "TEAM"}</span>
-                  <span class="visibility-badge ${state.isPublic !== false ? "public" : "private"}">${state.isPublic !== false ? "PUBLIC" : "PRIVATE"}</span>
-                </div>
-              </div>
-            </div>
-            
-            <div class="lobby-actions">
-              <label class="ready-checkbox">
-                <input type="checkbox" id="chk-ready" ${localPlayer?.ready ? "checked" : ""} />
-                <span class="ready-checkmark"></span>
-                <span class="ready-label">READY</span>
-              </label>
-              ${
-                isHost
-                  ? `
-                <button class="menu-btn primary ${canStart ? "" : "disabled"}" id="btn-start" ${canStart ? "" : "disabled"}>
-                  START MATCH
-                </button>
-              `
-                  : ""
-              }
-            </div>
-          </div>
-        </div>
-        </div>
-      </div>
-    `;
-
-    document.getElementById("btn-leave").addEventListener("click", () => {
-      NetworkManager.leaveRoom();
-    });
-
-    const shareTooltip = document.getElementById("share-tooltip");
-    document.getElementById("room-code-btn").addEventListener("click", (e) => {
-      e.stopPropagation();
-      shareTooltip.classList.toggle("active");
-      if (shareTooltip.classList.contains("active")) {
-        document.getElementById("share-url").select();
-      }
-    });
-
-    document.getElementById("btn-copy").addEventListener("click", async (e) => {
-      e.stopPropagation();
-      const btn = e.target;
-      const url = document.getElementById("share-url").value;
-      await navigator.clipboard.writeText(url);
-      btn.textContent = "✓";
-      setTimeout(() => {
-        btn.textContent = "📋";
-        shareTooltip.classList.remove("active");
-      }, 500);
-    });
-
-    if (this._shareTooltipOutsideClick) {
-      document.removeEventListener("click", this._shareTooltipOutsideClick);
-    }
-    this._shareTooltipOutsideClick = (e) => {
-      const tooltip = document.getElementById("share-tooltip");
-      if (
-        tooltip?.classList.contains("active") &&
-        !e.target.closest(".room-code-wrapper")
-      ) {
-        tooltip.classList.remove("active");
-      }
-    };
-    document.addEventListener("click", this._shareTooltipOutsideClick);
-
-    document.getElementById("chk-ready")?.addEventListener("change", () => {
-      NetworkManager.toggleReady();
-    });
-
-    document.getElementById("btn-start")?.addEventListener("click", () => {
-      NetworkManager.startGame();
-    });
-
-    document
-      .getElementById("lobby-level-select")
-      ?.addEventListener("change", (e) => {
-        const level = e.target.value;
-        NetworkManager.setLevel(level);
-      });
-
-    // Chat event listeners
-    document.getElementById("btn-send-chat")?.addEventListener("click", () => {
-      this.sendChatMessage();
-    });
-
-    document.getElementById("chat-input")?.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        this.sendChatMessage();
-      }
-    });
-
-    // Mute button listeners
-    document.querySelectorAll(".mute-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this.toggleMute(btn.dataset.session);
-      });
-    });
-
-    document.querySelectorAll(".kick-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        NetworkManager.kickPlayer(btn.dataset.session);
-      });
-    });
-
-    // Scroll chat to bottom on render
-    const chatMessages = document.getElementById("chat-messages");
-    if (chatMessages) {
-      chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
+    lobbyScreen.renderLobby(this);
   }
 
   renderLoading() {
-    this.container.classList.remove("hidden");
-    this.menuContent.innerHTML = `
-      <div class="menu-screen loading-screen">
-        <div class="loading-content">
-          <div class="loading-title">
-            <h1>STARSPEED</h1>
-          </div>
-          <div class="loading-message">${this.loadingMessage || "LOADING..."}</div>
-          <div class="loading-progress">
-            <div class="loading-progress-bar">
-              <div class="loading-progress-fill"></div>
-            </div>
-            <div class="loading-progress-text">0%</div>
-          </div>
-          <div class="loading-hint">PREPARE FOR COMBAT</div>
-        </div>
-      </div>
-    `;
+    loadingScreen.renderLoading(this);
   }
 
   renderPlaying() {
-    this.menuContent.innerHTML = "";
-    this.container.classList.add("hidden");
+    playingScreen.renderPlaying(this);
   }
 
   renderResults() {
-    const state = NetworkManager.getState();
-    if (!state) return;
-
-    const players = NetworkManager.getPlayers().sort(
-      (a, b) => b[1].kills - a[1].kills,
-    );
-
-    this.container.classList.remove("hidden");
-    this.menuContent.innerHTML = `
-      <div class="menu-screen results">
-        <div class="results-header">
-          <h1>MATCH COMPLETE</h1>
-          ${
-            state.mode === "team"
-              ? `
-            <div class="team-scores">
-              <div class="team-score team-1">RED: ${state.team1Score}</div>
-              <div class="team-score team-2">BLUE: ${state.team2Score}</div>
-            </div>
-          `
-              : ""
-          }
-        </div>
-        <div class="scoreboard">
-          <div class="scoreboard-header">
-            <span>RANK</span>
-            <span>PILOT</span>
-            <span>KILLS</span>
-            <span>DEATHS</span>
-            <span>K/D</span>
-          </div>
-          ${players
-            .map(
-              ([sessionId, player], index) => `
-            <div class="scoreboard-row ${sessionId === NetworkManager.sessionId ? "local" : ""} ${state.mode === "team" ? `team-${player.team}` : ""}">
-              <span class="rank">#${index + 1}</span>
-              <span class="name">${player.name}</span>
-              <span class="kills">${player.kills}</span>
-              <span class="deaths">${player.deaths}</span>
-              <span class="kd">${player.deaths > 0 ? (player.kills / player.deaths).toFixed(2) : player.kills.toFixed(2)}</span>
-            </div>
-          `,
-            )
-            .join("")}
-        </div>
-        <div class="results-footer">
-          <p>Returning to lobby in 10 seconds...</p>
-        </div>
-      </div>
-    `;
+    resultsScreen.renderResults(this);
   }
 
   getFeedbackApiBase() {
-    const base = (NetworkManager.serverUrl || "").replace(/^ws:/, "http:").replace(/^wss:/, "https:");
-    return base || window.location.origin;
+    return feedbackDashboardScreen.getFeedbackApiBase();
   }
 
   renderFeedbackDashboard() {
-    this.feedbackDashboardData = this.feedbackDashboardData || [];
-
-    const escapeHtml = (s) => {
-      const div = document.createElement("div");
-      div.textContent = s == null ? "" : String(s);
-      return div.innerHTML;
-    };
-    const formatRatings = (r) => {
-      if (!r || typeof r !== "object") return "—";
-      const parts = [];
-      if (typeof r.gameplay === "number") parts.push("G:" + r.gameplay);
-      if (typeof r.performance === "number") parts.push("P:" + r.performance);
-      if (typeof r.graphics === "number") parts.push("Gr:" + r.graphics);
-      if (typeof r.overall === "number") parts.push("O:" + r.overall);
-      return parts.length ? parts.join(" ") : "—";
-    };
-
-    this.menuContent.innerHTML = `
-      <div class="menu-screen feedback-dashboard-screen">
-        <div class="feedback-dashboard-header">
-          <button class="back-btn" id="feedback-dashboard-back">← BACK</button>
-          <h2>FEEDBACK DASHBOARD</h2>
-        </div>
-        <div class="feedback-dashboard-toolbar">
-          <label class="feedback-dashboard-label">Key: <input type="password" id="feedback-dashboard-key" placeholder="Optional dashboard key" class="feedback-dashboard-input" /></label>
-          <button type="button" class="menu-btn" id="feedback-dashboard-load">LOAD</button>
-          <label class="feedback-dashboard-label">Type: <select id="feedback-dashboard-filter" class="menu-select feedback-dashboard-select"><option value="">All</option><option value="feedback">Feedback</option><option value="bug">Bug Report</option></select></label>
-          <button type="button" class="menu-btn secondary" id="feedback-dashboard-export">EXPORT CSV</button>
-        </div>
-        <div id="feedback-dashboard-error" class="feedback-dashboard-error" style="display:none;"></div>
-        <div id="feedback-dashboard-table-wrap" class="feedback-dashboard-table-wrap"></div>
-      </div>
-    `;
-
-    const renderTable = () => {
-      const filterType = document.getElementById("feedback-dashboard-filter").value;
-      const list = !filterType ? this.feedbackDashboardData : this.feedbackDashboardData.filter((r) => r.type === filterType);
-      const wrap = document.getElementById("feedback-dashboard-table-wrap");
-      if (list.length === 0) {
-        wrap.innerHTML = "<p class=\"feedback-dashboard-empty\">No feedback entries.</p>";
-        return;
-      }
-      wrap.innerHTML = "<table class=\"feedback-dashboard-table\"><thead><tr><th>Date</th><th>Type</th><th>Name</th><th>Email</th><th>Message</th><th>Ratings</th><th></th></tr></thead><tbody>" +
-        list.map((row, i) => {
-          const msg = row.message || "";
-          const shortMsg = msg.slice(0, 60) + (msg.length > 60 ? "…" : "");
-          return "<tr data-i=\"" + i + "\"><td>" + new Date(row.createdAt).toLocaleString() + "</td><td>" + (row.type || "") + "</td><td>" + escapeHtml(row.name || "") + "</td><td>" + escapeHtml(row.email || "") + "</td><td class=\"feedback-dashboard-msg\" title=\"" + escapeHtml(msg).replace(/"/g, "&quot;") + "\">" + escapeHtml(shortMsg) + "</td><td>" + formatRatings(row.ratings) + "</td><td><span class=\"feedback-dashboard-expand\" data-i=\"" + i + "\">Details</span></td></tr><tr data-detail=\"" + i + "\" style=\"display:none;\"><td colspan=\"7\"><div class=\"feedback-dashboard-system-info\">" + escapeHtml(JSON.stringify(row.systemInfo || {}, null, 2)) + "</div><div class=\"feedback-dashboard-system-info\" style=\"margin-top:0.5rem;\"><strong>Full message:</strong><br/>" + escapeHtml(msg) + "</div></td></tr>";
-        }).join("") +
-        "</tbody></table>";
-      wrap.querySelectorAll(".feedback-dashboard-expand").forEach((el) => {
-        el.addEventListener("click", () => {
-          const i = el.dataset.i;
-          const detail = wrap.querySelector("tr[data-detail=\"" + i + "\"]");
-          detail.style.display = detail.style.display === "none" ? "table-row" : "none";
-        });
-      });
-    };
-
-    document.getElementById("feedback-dashboard-back").addEventListener("click", () => {
-      this.showScreen(SCREENS.MAIN_MENU);
-    });
-
-    document.getElementById("feedback-dashboard-load").addEventListener("click", async () => {
-      const key = document.getElementById("feedback-dashboard-key").value.trim();
-      const base = this.getFeedbackApiBase();
-      const url = key ? base + "/api/feedback?key=" + encodeURIComponent(key) : base + "/api/feedback";
-      const errEl = document.getElementById("feedback-dashboard-error");
-      try {
-        const res = await fetch(url);
-        if (!res.ok) {
-          if (res.status === 401) throw new Error("Invalid or missing key");
-          throw new Error(res.statusText || "Load failed");
-        }
-        this.feedbackDashboardData = await res.json();
-        errEl.style.display = "none";
-        errEl.textContent = "";
-        renderTable();
-      } catch (e) {
-        errEl.textContent = e.message;
-        errEl.style.display = "block";
-        this.feedbackDashboardData = [];
-        renderTable();
-      }
-    });
-
-    document.getElementById("feedback-dashboard-filter").addEventListener("change", () => renderTable());
-
-    document.getElementById("feedback-dashboard-export").addEventListener("click", () => {
-      const filterType = document.getElementById("feedback-dashboard-filter").value;
-      const list = !filterType ? this.feedbackDashboardData : this.feedbackDashboardData.filter((r) => r.type === filterType);
-      if (list.length === 0) return;
-      const headers = ["createdAt", "type", "name", "email", "message", "gameplay", "performance", "graphics", "overall"];
-      const rows = list.map((r) => {
-        const ratings = r.ratings || {};
-        return [r.createdAt, r.type, r.name || "", r.email || "", (r.message || "").replace(/"/g, '""'), ratings.gameplay ?? "", ratings.performance ?? "", ratings.graphics ?? "", ratings.overall ?? ""].map((c) => "\"" + String(c).replace(/"/g, '""') + "\"").join(",");
-      });
-      const csv = [headers.join(",")].concat(rows).join("\n");
-      const a = document.createElement("a");
-      a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
-      a.download = "feedback-" + new Date().toISOString().slice(0, 10) + ".csv";
-      a.click();
-    });
-
-    renderTable();
-
-    setTimeout(() => {
-      this.updateFocusableElements();
-      const loadIdx = this.focusableElements.findIndex((el) => el.id === "feedback-dashboard-load");
-      if (loadIdx >= 0) {
-        this.focusIndex = loadIdx;
-        this.updateFocus();
-      }
-    }, 60);
+    feedbackDashboardScreen.renderFeedbackDashboard(this);
   }
 
   renderOptions(returnScreen = null) {
@@ -2475,12 +1328,6 @@ class MenuManager {
     });
   }
 
-  async joinByCode(code) {
-    this.showLoading("Joining...");
-    await NetworkManager.connect();
-    await NetworkManager.joinRoom(code, { playerName: this.playerName });
-  }
-
   async quickMatch() {
     this.showLoading("Finding match...");
     await NetworkManager.connect();
@@ -2503,104 +1350,6 @@ class MenuManager {
         autoStart: true,
       });
     }
-  }
-
-  async refreshRoomList() {
-    const listEl = document.getElementById("room-list");
-    if (!listEl) return;
-
-    if (!NetworkManager.connected) {
-      await NetworkManager.connect();
-    }
-
-    const rooms = await NetworkManager.getAvailableRooms();
-    this.roomList = rooms;
-
-    if (rooms.length === 0) {
-      listEl.innerHTML = `<div class="empty">No public matches found. Create one!</div>`;
-      return;
-    }
-
-    listEl.innerHTML = rooms
-      .map(
-        (room) => `
-      <div class="room-item" data-room-id="${room.roomId}">
-        <div class="room-details">
-          <span class="room-name">${room.metadata?.roomName || "Match"}</span>
-          <span class="room-mode ${room.metadata?.mode || "ffa"}">${room.metadata?.mode === "team" ? "TEAM" : "FFA"}</span>
-        </div>
-        <div class="room-players">${room.clients}/${room.maxClients}</div>
-        <button class="join-btn">JOIN</button>
-      </div>
-    `,
-      )
-      .join("");
-
-    listEl.querySelectorAll(".room-item").forEach((item) => {
-      item.querySelector(".join-btn").addEventListener("click", () => {
-        this.joinByCode(item.dataset.roomId);
-      });
-    });
-  }
-
-  startRefreshing() {
-    this.refreshInterval = setInterval(() => this.refreshRoomList(), 5000);
-  }
-
-  stopRefreshing() {
-    if (this.refreshInterval) {
-      clearInterval(this.refreshInterval);
-      this.refreshInterval = null;
-    }
-  }
-
-  showLoading(message) {
-    this.lastScreen = this.currentScreen;
-    this.menuContent.innerHTML = `
-      <div class="menu-screen loading-screen">
-        <div class="loading-spinner"></div>
-        <p>${message}</p>
-      </div>
-    `;
-  }
-
-  showKickedModal() {
-    this.showScreen(SCREENS.MAIN_MENU);
-
-    const overlay = document.createElement("div");
-    overlay.className = "kicked-modal";
-    overlay.innerHTML = `
-      <div class="kicked-modal-content">
-        <p>You were kicked out of a multiplayer lobby.</p>
-        <button class="menu-btn" id="kicked-modal-ok">OK</button>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-
-    const dismiss = () => {
-      overlay.remove();
-      document.removeEventListener("keydown", onKey);
-    };
-
-    const onKey = (e) => {
-      if (e.code === "Enter" || e.code === "Escape") dismiss();
-    };
-    document.addEventListener("keydown", onKey);
-
-    overlay
-      .querySelector("#kicked-modal-ok")
-      .addEventListener("click", dismiss);
-    overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) dismiss();
-    });
-  }
-
-  showError(message) {
-    const errorEl = document.createElement("div");
-    errorEl.className = "error-toast";
-    errorEl.textContent = message;
-    document.body.appendChild(errorEl);
-    setTimeout(() => errorEl.remove(), 3000);
   }
 
   show() {

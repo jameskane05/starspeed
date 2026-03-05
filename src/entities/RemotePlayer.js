@@ -245,17 +245,16 @@ export class RemotePlayer {
       mat.emissiveIntensity = boostGlow > 0 ? 2.2 : (0.05 + 0.25 * this.engineGlowT);
     }
 
-    if (this.engineTrails.length >= 2 && this.isBoosting) {
+    if (this.engineTrails.length >= 2) {
       const t = performance.now() / 1000;
-      for (let i = 0; i < this.engineMarkers.length && i < 2; i++) {
-        this.engineMarkers[i].getWorldPosition(_enginePos);
-        this.engineTrails[i].addPoint(_enginePos, t);
+      if (this.isBoosting) {
+        for (let i = 0; i < this.engineMarkers.length && i < 2; i++) {
+          this.engineMarkers[i].getWorldPosition(_enginePos);
+          this.engineTrails[i].addPoint(_enginePos, t);
+        }
       }
       this.engineTrails[0].update(t);
       this.engineTrails[1].update(t);
-    } else if (this.engineTrails.length >= 2) {
-      this.engineTrails[0].clear();
-      this.engineTrails[1].clear();
     }
 
     const gunRecover = 1 - Math.exp(-GUN_RETRACT_RECOVERY * delta);

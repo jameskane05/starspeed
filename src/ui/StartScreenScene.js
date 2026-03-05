@@ -15,8 +15,8 @@ import LightManager from "../managers/LightManager.js";
 
 const STAR_COUNT = 1500;
 const SPARKLE_COUNT = 250;
-const SPREAD_X = 300; // Wider spread to fill screen
-const SPREAD_Y = 200;
+const SPREAD_X = 900;
+const SPREAD_Y = 600;
 const STAR_SPEED = 60;
 const FORWARD_SPEED = 12;
 // Stars spawn between Z_MIN (far) and Z_MAX (near camera / in front of ship)
@@ -83,6 +83,13 @@ export class StartScreenScene {
     this.orbitSmoothing = 3;
     this.cameraBasePos = new THREE.Vector3(-12, 2.5, 6);
     this.cameraLookTarget = new THREE.Vector3(-6, -0.3, 0);
+    this.cameraDriftZ = 0;
+    this._portraitBasePos = new THREE.Vector3(-18, 1.5, 14);
+    this._portraitLookTarget = new THREE.Vector3(-8, 5, 0);
+    this._desktopBasePos = new THREE.Vector3(-12, 3, 6);
+    this._desktopLookTarget = new THREE.Vector3(-6, 0, 0);
+    this._landscapeBasePos = new THREE.Vector3(-12, 1, 6);
+    this._landscapeLookTarget = new THREE.Vector3(-6, 0.5, 0);
     this._forwardVec = new THREE.Vector3();
     this.backgroundDistance = 800;
     this.moveGroup = null;
@@ -103,9 +110,25 @@ export class StartScreenScene {
     this._weaponSpawnPos = new THREE.Vector3();
     this._shipForward = new THREE.Vector3(0, 0, -1);
     this.dynamicLights = null;
+
+    this.shipIntroDuration = 3.2;
+    this.shipIntroElapsed = 0;
+    this.shipStartY = 6;
+
+    this.defaultCameraDistance = 0;
+    this.zoomDistanceOffset = 0;
+    this.zoomDistanceTarget = 0;
+    this.zoomInMax = 0.7;
+    this.zoomOutMax = 2.2;
+    this.zoomWheelSpeed = 0.02;
+    this.zoomLerpSpeed = 4;
+    this._cameraToTargetDir = new THREE.Vector3();
   }
 
-  async init(container) {
+  async init(container, onProgress) {
+    const report = (pct) => onProgress && onProgress(Math.min(1, pct));
+    report(0);
+
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x020208);
 
@@ -113,6 +136,7 @@ export class StartScreenScene {
       new THREE.TextureLoader().load(
         "/images/ui/galaxy_background.jpg",
         (tex) => {
+          report(0.35);
           tex.colorSpace = THREE.SRGBColorSpace;
           tex.minFilter = THREE.LinearFilter;
           tex.magFilter = THREE.LinearFilter;
@@ -151,17 +175,42 @@ export class StartScreenScene {
     this.camera = new THREE.PerspectiveCamera(50, initAspect, 0.1, 5000);
     this.dynamicLights = new DynamicLightPool(this.scene, { size: 6 });
     // Camera in front of ship, looking back at it
-    this.camera.position.copy(this.cameraBasePos);
-    this.camera.lookAt(
-      this.cameraLookTarget.x,
-      this.cameraLookTarget.y,
-      this.cameraLookTarget.z,
+    this.defaultCameraDistance = this._portraitBasePos.distanceTo(
+      this._portraitLookTarget,
+    );
+    this.defaultCameraDistanceDesktop = this._desktopBasePos.distanceTo(
+      this._desktopLookTarget,
+    );
+    this.defaultCameraDistanceLandscape = this._landscapeBasePos.distanceTo(
+      this._landscapeLookTarget,
     );
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     const vp = window.visualViewport;
     const initW = vp ? Math.round(vp.width) : window.innerWidth;
     const initH = vp ? Math.round(vp.height) : window.innerHeight;
+    const initLandscape = initW > initH;
+    const initDesktop = initW > 900;
+    this.cameraBasePos.copy(
+      initLandscape && initDesktop
+        ? this._desktopBasePos
+        : initLandscape
+          ? this._landscapeBasePos
+          : this._portraitBasePos,
+    );
+    this.cameraLookTarget.copy(
+      initLandscape && initDesktop
+        ? this._desktopLookTarget
+        : initLandscape
+          ? this._landscapeLookTarget
+          : this._portraitLookTarget,
+    );
+    this.camera.position.copy(this.cameraBasePos);
+    this.camera.lookAt(
+      this.cameraLookTarget.x,
+      this.cameraLookTarget.y,
+      this.cameraLookTarget.z,
+    );
     this.renderer.setSize(initW, initH);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.domElement.id = "start-scene-canvas";
@@ -210,18 +259,21 @@ export class StartScreenScene {
     gm?.on("antialiasing:changed", this._onAntialiasingChanged);
 
     this.moveGroup = new THREE.Group();
-    this.moveGroup.position.z = this.shipBaseZ;
+    this.moveGroup.position.set(0, this.shipStartY, this.shipBaseZ);
     this.scene.add(this.moveGroup);
 
     this.createStarfield();
     this.createAmbientLighting();
-    await this.loadShip();
+    await this.loadShip((shipProgress) => report(0.35 + 0.65 * shipProgress));
 
+    report(1);
     this._onResize = this.onResize.bind(this);
     this._onMouseMove = this.onMouseMove.bind(this);
+    this._onWheel = this.onWheel.bind(this);
     window.addEventListener("resize", this._onResize);
     window.visualViewport?.addEventListener("resize", this._onResize);
     window.addEventListener("mousemove", this._onMouseMove);
+    window.addEventListener("wheel", this._onWheel, { passive: false });
 
     this.animate();
   }
@@ -258,22 +310,32 @@ export class StartScreenScene {
 
   getMissileSpawnPoint() {
     if (this.shipMissileL && this.shipMissileR) {
-      const launcher = this.missileFromLeft ? this.shipMissileL : this.shipMissileR;
+      const launcher = this.missileFromLeft
+        ? this.shipMissileL
+        : this.shipMissileR;
       this.missileFromLeft = !this.missileFromLeft;
       const out = new THREE.Vector3();
       launcher.getWorldPosition(out);
       return out;
     }
-    if (!this.ship) return new THREE.Vector3(this.shipBaseX, this.shipBaseY, this.shipBaseZ - 1);
+    if (!this.ship)
+      return new THREE.Vector3(
+        this.shipBaseX,
+        this.shipBaseY,
+        this.shipBaseZ - 1,
+      );
     this.ship.getWorldDirection(this._shipForward);
-    return this.ship.position.clone().add(this._shipForward.clone().multiplyScalar(1.5));
+    return this.ship.position
+      .clone()
+      .add(this._shipForward.clone().multiplyScalar(1.5));
   }
 
   triggerFire() {
     if (!this.ship || this.disposed) return;
     const gunThatFires = this.fireFromLeft ? this.shipGunL : this.shipGunR;
     if (gunThatFires) {
-      if (gunThatFires === this.shipGunL) this.gunRetractionL = GUN_RETRACT_AMOUNT;
+      if (gunThatFires === this.shipGunL)
+        this.gunRetractionL = GUN_RETRACT_AMOUNT;
       else this.gunRetractionR = GUN_RETRACT_AMOUNT;
     }
     const spawnPos = this.getWeaponSpawnPoint().addScaledVector(
@@ -440,13 +502,14 @@ export class StartScreenScene {
     this.engineLight = this.lightManager.getLight("engine");
   }
 
-  async loadShip() {
+  async loadShip(onProgress) {
     const loader = new GLTFLoader();
 
     return new Promise((resolve) => {
       loader.load(
         "./Heavy_EXT_02.glb",
         (gltf) => {
+          if (onProgress) onProgress(1);
           this.ship = gltf.scene;
           this.ship.scale.setScalar(0.8);
           this.ship.position.set(this.shipBaseX, this.shipBaseY, 0);
@@ -480,14 +543,16 @@ export class StartScreenScene {
                 maxPoints: 160,
                 trailTime: 6,
                 width: 1.2,
-                color: 0xb8ddff,
+                colorStart: 0xff4500,
+                colorEnd: 0xffcc99,
                 emissiveIntensity: 2.8,
               }),
               new EngineTrail(this.scene, {
                 maxPoints: 160,
                 trailTime: 6,
                 width: 1.2,
-                color: 0xb8ddff,
+                colorStart: 0xff4500,
+                colorEnd: 0xffcc99,
                 emissiveIntensity: 2.8,
               }),
             ];
@@ -508,9 +573,14 @@ export class StartScreenScene {
           console.log("[StartScreen] Ship loaded successfully");
           resolve();
         },
-        undefined,
+        (event) => {
+          if (onProgress && event.total > 0) {
+            onProgress(event.loaded / event.total);
+          }
+        },
         (error) => {
           console.error("[StartScreen] Failed to load ship:", error);
+          if (onProgress) onProgress(1);
           const geo = new THREE.ConeGeometry(0.8, 2.5, 8);
           geo.rotateX(Math.PI / 2);
           const mat = new THREE.MeshStandardMaterial({
@@ -582,6 +652,16 @@ export class StartScreenScene {
 
     const time = this.clock.elapsedTime;
 
+    if (this.shipIntroElapsed < this.shipIntroDuration) {
+      this.shipIntroElapsed = Math.min(
+        this.shipIntroElapsed + delta,
+        this.shipIntroDuration,
+      );
+      const t = this.shipIntroElapsed / this.shipIntroDuration;
+      const easeOut = 1 - (1 - t) ** 3;
+      this.moveGroup.position.y = this.shipStartY * (1 - easeOut);
+    }
+
     // Gentle roll oscillation
     this.rollPhase += delta * 0.4;
     const roll = Math.sin(this.rollPhase) * 0.12;
@@ -597,8 +677,7 @@ export class StartScreenScene {
     const pitch = Math.sin(time * 0.5) * 0.03;
 
     this.moveGroup.position.z += FORWARD_SPEED * delta;
-    this.cameraBasePos.z += FORWARD_SPEED * delta;
-    this.cameraLookTarget.z += FORWARD_SPEED * delta;
+    this.cameraDriftZ += FORWARD_SPEED * delta;
 
     this.ship.position.x = this.shipBaseX + strafe;
     this.ship.position.y = this.shipBaseY + bob;
@@ -608,12 +687,18 @@ export class StartScreenScene {
 
     const recover = 1 - Math.exp(-GUN_RETRACT_RECOVERY * delta);
     if (this.shipGunL?.userData.restPosition) {
-      this.gunRetractionL = Math.max(0, this.gunRetractionL - this.gunRetractionL * recover);
+      this.gunRetractionL = Math.max(
+        0,
+        this.gunRetractionL - this.gunRetractionL * recover,
+      );
       this.shipGunL.position.copy(this.shipGunL.userData.restPosition);
       this.shipGunL.position.z -= this.gunRetractionL;
     }
     if (this.shipGunR?.userData.restPosition) {
-      this.gunRetractionR = Math.max(0, this.gunRetractionR - this.gunRetractionR * recover);
+      this.gunRetractionR = Math.max(
+        0,
+        this.gunRetractionR - this.gunRetractionR * recover,
+      );
       this.shipGunR.position.copy(this.shipGunR.userData.restPosition);
       this.shipGunR.position.z -= this.gunRetractionR;
     }
@@ -682,6 +767,31 @@ export class StartScreenScene {
   }
 
   updateOrbit(delta) {
+    const w = window.visualViewport?.width ?? window.innerWidth;
+    const h = window.visualViewport?.height ?? window.innerHeight;
+    const isLandscape = w > h;
+    const isDesktop = w > 900;
+
+    const useDesktop = isLandscape && isDesktop;
+    const useLandscapeMobile = isLandscape && !isDesktop;
+
+    this.cameraBasePos.copy(
+      useDesktop
+        ? this._desktopBasePos
+        : useLandscapeMobile
+          ? this._landscapeBasePos
+          : this._portraitBasePos,
+    );
+    this.cameraBasePos.z += this.cameraDriftZ;
+    this.cameraLookTarget.copy(
+      useDesktop
+        ? this._desktopLookTarget
+        : useLandscapeMobile
+          ? this._landscapeLookTarget
+          : this._portraitLookTarget,
+    );
+    this.cameraLookTarget.z += this.cameraDriftZ;
+
     const targetX = -this.mouseX * this.orbitRange;
     const targetY = -this.mouseY * this.orbitRange;
 
@@ -689,7 +799,22 @@ export class StartScreenScene {
     this.orbitX += (targetX - this.orbitX) * t;
     this.orbitY += (targetY - this.orbitY) * t;
 
-    this.camera.position.copy(this.cameraBasePos);
+    const zoomT = 1 - Math.exp(-this.zoomLerpSpeed * delta);
+    this.zoomDistanceOffset +=
+      (this.zoomDistanceTarget - this.zoomDistanceOffset) * zoomT;
+
+    const defaultDist = useDesktop
+      ? this.defaultCameraDistanceDesktop
+      : useLandscapeMobile
+        ? this.defaultCameraDistanceLandscape
+        : this.defaultCameraDistance;
+    this._cameraToTargetDir
+      .subVectors(this.cameraBasePos, this.cameraLookTarget)
+      .normalize();
+    const dist = Math.max(0.5, defaultDist + this.zoomDistanceOffset);
+    this.camera.position
+      .copy(this.cameraLookTarget)
+      .addScaledVector(this._cameraToTargetDir, dist);
     this.camera.lookAt(this.cameraLookTarget);
     this.camera.rotateY(this.orbitX);
     this.camera.rotateX(this.orbitY);
@@ -709,6 +834,15 @@ export class StartScreenScene {
   onMouseMove(e) {
     this.mouseX = (e.clientX / window.innerWidth) * 2 - 1;
     this.mouseY = (e.clientY / window.innerHeight) * 2 - 1;
+  }
+
+  onWheel(e) {
+    e.preventDefault();
+    this.zoomDistanceTarget -= e.deltaY * this.zoomWheelSpeed;
+    this.zoomDistanceTarget = Math.max(
+      -this.zoomInMax,
+      Math.min(this.zoomOutMax, this.zoomDistanceTarget),
+    );
   }
 
   pause() {
@@ -757,6 +891,7 @@ export class StartScreenScene {
     window.removeEventListener("resize", this._onResize);
     window.visualViewport?.removeEventListener("resize", this._onResize);
     window.removeEventListener("mousemove", this._onMouseMove);
+    window.removeEventListener("wheel", this._onWheel);
 
     this.projectiles.forEach((p) => {
       if (!p.disposed) p.dispose(this.scene);

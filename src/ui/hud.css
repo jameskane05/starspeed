@@ -110,6 +110,10 @@ canvas {
   display: flex;
 }
 
+#mobile-controls.active ~ #game-top-buttons {
+  display: none;
+}
+
 #game-top-buttons img {
   width: 2.2rem;
   height: 2.2rem;
@@ -139,7 +143,7 @@ canvas {
 }
 
 @media (max-width: 768px) {
-  #game-top-buttons {
+  #hud.active ~ #game-top-buttons {
     display: none;
   }
 }

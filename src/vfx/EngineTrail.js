@@ -11,10 +11,19 @@ export class EngineTrail {
     this.maxPoints = options.maxPoints ?? 64;
     this.trailTime = options.trailTime ?? 2;
     this.width = options.width ?? 0.8;
-    this.color = new THREE.Color(options.color ?? 0xb8ddff);
+    const hasGradient =
+      options.colorStart != null && options.colorEnd != null;
+    this.color = new THREE.Color(
+      hasGradient ? 0xffffff : (options.color ?? 0xb8ddff)
+    );
+    this.colorStart = hasGradient
+      ? new THREE.Color(options.colorStart)
+      : null;
+    this.colorEnd = hasGradient ? new THREE.Color(options.colorEnd) : null;
     this.emissiveIntensity = options.emissiveIntensity ?? 2.8;
     this.fakeTail = options.fakeTail ?? null;
     this._backDir = new THREE.Vector3(0, 0, 1);
+    this._lerpColor = new THREE.Color();
 
     this.points = [];
     this.mesh = null;
@@ -153,9 +162,7 @@ export class EngineTrail {
     const positions = this._positions;
     const uvs = this._uvs;
     const colors = this._colors;
-    const r = this.color.r;
-    const g = this.color.g;
-    const b = this.color.b;
+    const useGradient = this.colorStart !== null && this.colorEnd !== null;
 
     for (let i = 0; i < n; i++) {
       const p = list[i];
@@ -167,6 +174,15 @@ export class EngineTrail {
       const t = i / (n - 1);
       const w = this.width * (0.2 + 0.8 * t);
       const half = w * 0.5;
+
+      if (useGradient) {
+        const tGrad = Math.pow(t, 0.65);
+        this._lerpColor.lerpColors(this.colorStart, this.colorEnd, tGrad);
+      }
+
+      const r = useGradient ? this._lerpColor.r : this.color.r;
+      const g = useGradient ? this._lerpColor.g : this.color.g;
+      const b = useGradient ? this._lerpColor.b : this.color.b;
 
       const i2 = i * 2;
       const i2_3 = i2 * 3;

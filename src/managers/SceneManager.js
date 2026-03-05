@@ -224,21 +224,21 @@ class SceneManager {
             }
             if (options.physicsCollider) {
               const skipPrefixes = ["Cube", ...(dynConfig?.meshNamePrefix ? [dynConfig.meshNamePrefix] : [])];
-              const bodies = this._createPhysicsCollider(id, geometryRoot, {
-                x: container.position.x,
-                y: container.position.y,
-                z: container.position.z,
-              }, skipPrefixes);
-              if (dynamicElements.length > 0) {
-                container.updateMatrixWorld(true);
-                for (const el of dynamicElements) {
-                  el.container = container;
-                  el.mesh.getWorldPosition(el.basePos);
-                  el.mesh.getWorldQuaternion(el.baseQuat);
-                  el.body = this._createDynamicElementKinematicCollider(el, container);
-                  if (el.body) bodies.push(el.body);
-                }
-              }
+              const pos = { x: container.position.x, y: container.position.y, z: container.position.z };
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  container.updateMatrixWorld(true);
+                  let bodies = [];
+                  for (const el of dynamicElements) {
+                    el.container = container;
+                    el.mesh.getWorldPosition(el.basePos);
+                    el.mesh.getWorldQuaternion(el.baseQuat);
+                    el.body = this._createDynamicElementKinematicCollider(el, container);
+                    if (el.body) bodies.push(el.body);
+                  }
+                  this._createPhysicsCollider(id, geometryRoot, pos, skipPrefixes, bodies);
+                });
+              });
             }
 
             this.scene.add(container);
@@ -482,7 +482,7 @@ class SceneManager {
     }
   }
 
-  _createPhysicsCollider(id, model, position, skipPrefixes = ["Cube"]) {
+  _createPhysicsCollider(id, model, position, skipPrefixes = ["Cube"], existingBodies = null) {
     const vertices = [];
     const indices = [];
     let indexOffset = 0;
@@ -534,7 +534,7 @@ class SceneManager {
     const py = position?.y || 0;
     const pz = position?.z || 0;
     const body = createTrimeshCollider(vertices, indices, px, py, pz);
-    const bodies = this._physicsBodies.get(id) || [];
+    const bodies = existingBodies ?? this._physicsBodies.get(id) ?? [];
     bodies.push(body);
     this._physicsBodies.set(id, bodies);
     console.log(

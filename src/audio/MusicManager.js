@@ -56,11 +56,11 @@ class MusicManager {
     this._playCurrent(fadeTime);
   }
 
-  _playCurrent(fadeTime = 0) {
+  _playCurrent(fadeTime = 0, forceTry = false) {
     const path = this.playlist[this.playlistIndex];
     if (!path) return;
 
-    if (!this.hasUserInteracted) {
+    if (!forceTry && !this.hasUserInteracted) {
       this.pendingPlay = true;
       return;
     }
@@ -122,12 +122,16 @@ class MusicManager {
     }
   }
 
+  tryAutoplay() {
+    this._playCurrent(2.0, true);
+  }
+
   _setupInteractionListeners() {
     const handleInteraction = () => {
       if (this.hasUserInteracted) return;
       this.hasUserInteracted = true;
 
-      if (this.pendingPlay) {
+      if (this.pendingPlay && !this.currentTrack?.playing()) {
         this.pendingPlay = false;
         this._playCurrent(0);
       }
