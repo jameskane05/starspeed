@@ -1594,6 +1594,7 @@ class MenuManager {
       ? getPerformanceProfile(currentProfile).rendering?.bloom
       : true;
     const bloomEnabled = bloomUserSetting ?? profileBloom ?? true;
+    const antialiasingEnabled = gm?.getSetting("antialiasingEnabled") !== false;
 
     return `
       <div class="options-section graphics-section">
@@ -1613,6 +1614,13 @@ class MenuManager {
           <label class="toggle-switch">
             <input type="checkbox" id="bloom-toggle" ${bloomEnabled ? "checked" : ""}>
             <span class="toggle-label">${bloomEnabled ? "ON" : "OFF"}</span>
+          </label>
+        </div>
+        <div class="keybind-row" style="grid-template-columns: 1fr 1fr;">
+          <span class="keybind-action">ANTIALIASING (FXAA)</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="antialiasing-toggle" ${antialiasingEnabled ? "checked" : ""}>
+            <span class="toggle-label" id="antialiasing-toggle-label">${antialiasingEnabled ? "ON" : "OFF"}</span>
           </label>
         </div>
       </div>
@@ -1867,6 +1875,19 @@ class MenuManager {
         if (window.gameManager) {
           window.gameManager.setSetting("bloomEnabled", enabled);
           window.gameManager.emit("bloom:changed", enabled);
+        }
+      });
+    }
+
+    const antialiasingToggle = document.getElementById("antialiasing-toggle");
+    if (antialiasingToggle) {
+      antialiasingToggle.addEventListener("change", () => {
+        const enabled = antialiasingToggle.checked;
+        const label = document.getElementById("antialiasing-toggle-label");
+        if (label) label.textContent = enabled ? "ON" : "OFF";
+        if (window.gameManager) {
+          window.gameManager.setSetting("antialiasingEnabled", enabled);
+          window.gameManager.emit("antialiasing:changed", enabled);
         }
       });
     }

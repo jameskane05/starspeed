@@ -221,16 +221,16 @@ export class Game {
       this.renderer.toneMappingExposure = renderSettings.toneMappingExposure;
     }
 
-    // Bloom post-processing (FXAA before bloom to reduce firefly flicker from aliased bright pixels)
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.fxaaPass = new FXAAPass();
+    this.fxaaPass.enabled =
+      this.gameManager.getSetting("antialiasingEnabled") !== false;
     this.composer.addPass(this.fxaaPass);
 
     const bloomStrength = this.gameManager.getSetting("bloomStrength") ?? 0.15;
     const bloomRadius = this.gameManager.getSetting("bloomRadius") ?? 0.4;
     const bloomThreshold = this.gameManager.getSetting("bloomThreshold") ?? 0.8;
-
     this.bloomPass = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
       bloomStrength,
@@ -238,9 +238,8 @@ export class Game {
       bloomThreshold,
     );
     this.composer.addPass(this.bloomPass);
-    // OutputPass handles color space conversion + tone mapping that the renderer
-    // normally does automatically but EffectComposer bypasses
     this.composer.addPass(new OutputPass());
+
     const bloomUserSetting = this.gameManager.getSetting("bloomEnabled");
     this.bloomEnabled = bloomUserSetting ?? renderSettings.bloom ?? true;
     this._updateBloomActive();
@@ -258,6 +257,10 @@ export class Game {
       if (settings.threshold !== undefined)
         this.bloomPass.threshold = settings.threshold;
       this._updateBloomActive();
+    });
+
+    this.gameManager.on("antialiasing:changed", (enabled) => {
+      this.fxaaPass.enabled = enabled;
     });
 
     this.particles = new ParticleSystem(this.scene, perfProfile);
@@ -2673,5 +2676,6 @@ export class Game {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
     this.composer?.setSize(w, h);
+    this.bloomPass?.resolution?.set(w, h);
   }
 }

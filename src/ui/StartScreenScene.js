@@ -175,6 +175,7 @@ export class StartScreenScene {
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.fxaaPass = new FXAAPass();
+    this.fxaaPass.enabled = gm?.getSetting("antialiasingEnabled") !== false;
     this.composer.addPass(this.fxaaPass);
     this.bloomPass = new UnrealBloomPass(
       new THREE.Vector2(initW, initH),
@@ -193,13 +194,20 @@ export class StartScreenScene {
       this._updateStartScreenBloomActive();
     };
     this._onBloomSettings = (settings) => {
-      if (settings.strength !== undefined) this.bloomPass.strength = settings.strength;
-      if (settings.radius !== undefined) this.bloomPass.radius = settings.radius;
-      if (settings.threshold !== undefined) this.bloomPass.threshold = settings.threshold;
+      if (settings.strength !== undefined)
+        this.bloomPass.strength = settings.strength;
+      if (settings.radius !== undefined)
+        this.bloomPass.radius = settings.radius;
+      if (settings.threshold !== undefined)
+        this.bloomPass.threshold = settings.threshold;
       this._updateStartScreenBloomActive();
+    };
+    this._onAntialiasingChanged = (enabled) => {
+      this.fxaaPass.enabled = enabled;
     };
     gm?.on("bloom:changed", this._onBloomChanged);
     gm?.on("bloom:settings", this._onBloomSettings);
+    gm?.on("antialiasing:changed", this._onAntialiasingChanged);
 
     this.moveGroup = new THREE.Group();
     this.moveGroup.position.z = this.shipBaseZ;
@@ -729,7 +737,7 @@ export class StartScreenScene {
     this.renderer.setSize(w, h);
     this.composer.setSize(w, h);
     this.composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.composer.passes[2].resolution.set(w, h);
+    this.bloomPass?.resolution?.set(w, h);
   }
 
   dispose() {
@@ -744,6 +752,7 @@ export class StartScreenScene {
     const gm = window.gameManager;
     gm?.off("bloom:changed", this._onBloomChanged);
     gm?.off("bloom:settings", this._onBloomSettings);
+    gm?.off("antialiasing:changed", this._onAntialiasingChanged);
 
     window.removeEventListener("resize", this._onResize);
     window.visualViewport?.removeEventListener("resize", this._onResize);

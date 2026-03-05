@@ -37,6 +37,7 @@
     "@gltf-transform/extensions": "^4.3.0",
     "@sparkjsdev/spark": "github:sparkjsdev/spark#v2.0.0-preview",
     "howler": "^2.2.4",
+    "postprocessing": "^6.38.3",
     "three": "^0.182.0"
   }
 }
