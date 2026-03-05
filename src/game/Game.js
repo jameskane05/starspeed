@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { FXAAPass } from "three/addons/postprocessing/FXAAPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import {
@@ -220,9 +221,11 @@ export class Game {
       this.renderer.toneMappingExposure = renderSettings.toneMappingExposure;
     }
 
-    // Bloom post-processing
+    // Bloom post-processing (FXAA before bloom to reduce firefly flicker from aliased bright pixels)
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.fxaaPass = new FXAAPass();
+    this.composer.addPass(this.fxaaPass);
 
     const bloomStrength = this.gameManager.getSetting("bloomStrength") ?? 0.15;
     const bloomRadius = this.gameManager.getSetting("bloomRadius") ?? 0.4;

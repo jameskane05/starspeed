@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { FXAAPass } from "three/addons/postprocessing/FXAAPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { EngineTrail } from "../vfx/EngineTrail.js";
@@ -173,6 +174,8 @@ export class StartScreenScene {
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.fxaaPass = new FXAAPass();
+    this.composer.addPass(this.fxaaPass);
     this.bloomPass = new UnrealBloomPass(
       new THREE.Vector2(initW, initH),
       bloomStrength,
@@ -726,7 +729,7 @@ export class StartScreenScene {
     this.renderer.setSize(w, h);
     this.composer.setSize(w, h);
     this.composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.composer.passes[1].resolution.set(w, h);
+    this.composer.passes[2].resolution.set(w, h);
   }
 
   dispose() {

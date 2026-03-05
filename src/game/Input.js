@@ -55,7 +55,11 @@ export class Input {
     document.addEventListener('keyup', (e) => this.onKeyUp(e));
     document.addEventListener('mousemove', (e) => this.onMouseMove(e));
     document.addEventListener('mousedown', (e) => this.onMouseDown(e));
-    document.addEventListener('contextmenu', (e) => e.preventDefault());
+    document.addEventListener('contextmenu', (e) => {
+      const onLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const hitCanvas = e.target instanceof HTMLCanvasElement;
+      if (!onLocalhost || hitCanvas) e.preventDefault();
+    });
     document.addEventListener('pointerlockchange', () => this.onPointerLockChange());
 
     this.mobile = new MobileControls(game);

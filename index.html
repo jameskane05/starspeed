@@ -18,7 +18,11 @@
     <title>STARSPEED by James C. Kane</title>
     <link rel="stylesheet" href="/src/ui/hud.css" />
     <script>
-      document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+      document.addEventListener('contextmenu', function (e) {
+        var onLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+        var hitCanvas = e.target instanceof HTMLCanvasElement;
+        if (!onLocalhost || hitCanvas) e.preventDefault();
+      });
     </script>
   </head>
   <body>

@@ -154,14 +154,15 @@
 .main-menu .menu-title {
   text-align: right;
   margin-bottom: 1.25rem;
+  width: 100%;
 }
 
 .main-menu .menu-title .menu-title-logo {
   display: block;
-  width: 42vw;
+  width: 60%;
   max-width: 100%;
   height: auto;
-  margin: 0 auto 0 0;
+  margin: 0 0 0 auto;
   object-fit: contain;
 }
 
@@ -3178,6 +3179,9 @@
 
 /* Tablet / small desktop */
 @media (max-width: 900px) {
+  .main-menu .menu-title .menu-title-logo {
+    width: 85%;
+  }
   .main-menu .menu-title h1 {
     font-size: 3.5rem;
   }
@@ -3214,6 +3218,7 @@
     font-size: 2.2rem;
   }
   .main-menu .menu-title .menu-title-logo {
+    width: 85%;
     margin-left: auto;
     margin-right: auto;
   }
