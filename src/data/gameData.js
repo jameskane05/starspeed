@@ -44,12 +44,6 @@ export const LEVELS = {
     ambientColor: 0xc8b8a8,
     ambientIntensity: 3,
   },
-  icetest: {
-    id: "icetest",
-    name: "Ice Test",
-    description: "Ice Crystal Mining Facility",
-    preview: "/hull_lights_emit.png",
-  },
   charon: {
     id: "charon",
     name: "Charon",

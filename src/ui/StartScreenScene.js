@@ -87,7 +87,7 @@ export class StartScreenScene {
     this._portraitBasePos = new THREE.Vector3(-18, 1.5, 14);
     this._portraitLookTarget = new THREE.Vector3(-8, 5, 0);
     this._desktopBasePos = new THREE.Vector3(-12, 3, 6);
-    this._desktopLookTarget = new THREE.Vector3(-6, 0, 0);
+    this._desktopLookTarget = new THREE.Vector3(-6, 0.6, 0);
     this._landscapeBasePos = new THREE.Vector3(-12, 1, 6);
     this._landscapeLookTarget = new THREE.Vector3(-6, 0.5, 0);
     this._forwardVec = new THREE.Vector3();

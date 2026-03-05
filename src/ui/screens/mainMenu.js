@@ -59,7 +59,6 @@ export function renderMainMenu(manager) {
             <label>MAP</label>
             <select id="level-select-solo" class="menu-select">
               ${Object.values(LEVELS)
-                .filter((level) => level.id !== "icetest")
                 .map(
                   (level) => `
                 <option value="${level.id}">${level.name}</option>

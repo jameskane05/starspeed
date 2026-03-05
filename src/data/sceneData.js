@@ -224,8 +224,6 @@ export const LEVEL_OBJECT_IDS = [
   "redarenaLevelData",
   "arenatechLevel",
   "arenatechLevelData",
-  "icetestLevel",
-  "icetestLevelData",
 ];
 
 /**
