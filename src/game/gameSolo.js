@@ -1,3 +1,22 @@
+/**
+ * gameSolo.js - SOLO PLAY MODE SETUP AND ENTRY
+ * =============================================================================
+ *
+ * ROLE: Enters solo (single-player) play: loads level, spawns player, enemies,
+ * and missile pickups; shows game canvas and hides menu. Optional VR entry.
+ *
+ * KEY RESPONSIBILITIES:
+ * - startSoloDebug(game): set isMultiplayer false, update lights for level, init engine audio
+ * - Optional XR enter; preload level and enemy ship assets; create local Player
+ * - Spawn enemies (gameEnemies), missile pickups; start game loop in PLAYING state
+ * - Used when starting from menu or debug; multiplayer flow is in gameMultiplayer.js
+ *
+ * RELATED: gameLevel.js, gameEnemies.js, Player.js, Enemy.js, ShipDestruction.js,
+ * EngineAudio.js, MenuManager.js, LightManager.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { Player } from "../entities/Player.js";
 import {

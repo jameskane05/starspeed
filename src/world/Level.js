@@ -1,3 +1,21 @@
+/**
+ * Level.js - PROCEDURAL LEVEL GEOMETRY AND BOUNDS
+ * =============================================================================
+ *
+ * ROLE: Builds procedural level meshes and physics (rooms, corridors, walls).
+ * Provides bounds and spawn/occlusion logic. Optional use; main levels come
+ * from sceneData/SceneManager (splats and GLTF). createWallCollider for physics.
+ *
+ * KEY RESPONSIBILITIES:
+ * - constructor(scene): materials, rooms, corridors; createPixelatedTexture
+ * - Wall/corridor geometry and colliders; green/red strip, panel materials
+ * - Used when game uses procedural level instead of GLTF level data
+ *
+ * RELATED: Physics.js, SceneManager.js, sceneData.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { createWallCollider } from "../physics/Physics.js";
 

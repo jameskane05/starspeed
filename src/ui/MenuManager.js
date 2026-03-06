@@ -1,3 +1,23 @@
+/**
+ * MenuManager.js - MENU SCREENS AND NAVIGATION
+ * =============================================================================
+ *
+ * ROLE: Owns menu DOM container and screen flow. Renders screens (main menu,
+ * create/join game, lobby, loading, playing, results, options, feedback).
+ * Handles showScreen(), gamepad/keyboard focus, keybind/volume UI, network events.
+ *
+ * KEY RESPONSIBILITIES:
+ * - showScreen(screenId): swap content via screen render functions; hide/show game canvas
+ * - renderMainMenu, renderCreateGame, renderJoinGame, renderLobby, renderLoading, etc.
+ * - Focus management (menuFocus); network listeners (menuNetwork); StartScreenScene for 3D menu
+ * - KeyBindings/Gamepad rebind UI; AudioSettings sliders; getPerformanceProfile, systemInfo
+ *
+ * RELATED: constants.js (SCREENS), StartScreenScene.js, screens/*.js, menuFocus.js, menuNetwork.js,
+ * NetworkManager.js, KeyBindings.js, Gamepad.js, AudioSettings.js.
+ *
+ * =============================================================================
+ */
+
 import NetworkManager from "../network/NetworkManager.js";
 import { LEVELS } from "../data/gameData.js";
 import {

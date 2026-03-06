@@ -1,3 +1,16 @@
+/**
+ * feedbackModal.js - FEEDBACK SUBMISSION MODAL
+ * =============================================================================
+ *
+ * ROLE: Modal form for submitting feedback: name, email, ratings (gameplay,
+ * performance, graphics, overall), comment. Submits to feedback API; getSystemInfo
+ * and getFeedbackApiBase from feedbackDashboard. Used from menu or results.
+ *
+ * RELATED: feedbackDashboard.js, NetworkManager.js, systemInfo.js.
+ *
+ * =============================================================================
+ */
+
 import NetworkManager from "../../network/NetworkManager.js";
 import { getSystemInfo } from "../../utils/systemInfo.js";
 import { getFeedbackApiBase } from "./feedbackDashboard.js";

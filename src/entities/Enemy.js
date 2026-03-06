@@ -1,3 +1,22 @@
+/**
+ * Enemy.js - AI ENEMY SHIP AND SHARED SHIP ASSETS
+ * =============================================================================
+ *
+ * ROLE: AI-controlled enemy ships: movement (wander/waypoints), aim, fire,
+ * and death. Loads and shares ship GLTF models and materials. Exports
+ * loadShipModels, shipModels, reapplyShipMaterials for SceneManager/combat.
+ *
+ * KEY RESPONSIBILITIES:
+ * - update(delta, gameTime, playerPos, fireCallback): move, face player, fire
+ * - takeDamage(amount); on death: spawn destruction (ShipDestruction), remove from game
+ * - loadSharedShipMaterials(), loadShipModels(): shared materials and model cache
+ * - Optional point light and trails effect; culling by distance
+ *
+ * RELATED: Physics.js, ShipDestruction.js, gameCombat.js, gameEnemies.js, TrailsEffect.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { castSphere, castRay } from "../physics/Physics.js";

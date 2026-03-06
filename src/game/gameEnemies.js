@@ -1,3 +1,22 @@
+/**
+ * gameEnemies.js - ENEMY AND MISSILE PICKUP SPAWNING
+ * =============================================================================
+ *
+ * ROLE: Spawns enemies at level-authored positions and missile pickups for
+ * solo play. Updates game state (enemiesRemaining) and HUD. Handles enemy
+ * respawn queue and missile pickup respawn timers.
+ *
+ * KEY RESPONSIBILITIES:
+ * - spawnEnemies(game): create Enemy instances at game.spawnPoints; set enemiesRemaining
+ * - spawnMissilePickups(game): create Collectible missile pickups at missileSpawnPoints
+ * - processEnemyRespawnQueue(game, delta): respawn dead enemies after delay
+ * - processMissilePickupRespawns(game, delta): respawn collected missile pickups
+ *
+ * RELATED: Enemy.js, Collectible.js, gameData.js, ShipDestruction (trails), GameManager.
+ *
+ * =============================================================================
+ */
+
 import { Enemy } from "../entities/Enemy.js";
 import { Collectible } from "../entities/Collectible.js";
 

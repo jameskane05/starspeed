@@ -1,3 +1,21 @@
+/**
+ * KeyBindings.js - KEYBOARD BINDING DEFINITIONS AND PERSISTENCE
+ * =============================================================================
+ *
+ * ROLE: Defines default keyboard keys for movement, look, fire, missile, boost,
+ * pause, leaderboard, headlight. Persists and loads custom bindings from
+ * localStorage. Exposes key codes and display names for UI.
+ *
+ * KEY RESPONSIBILITIES:
+ * - DEFAULT_BINDINGS, ACTION_LABELS, KEY_DISPLAY_NAMES; getKeyDisplayName(code)
+ * - load() / save() bindings; rebind action and apply to listeners
+ * - Used by Input.js for keyboard state; by gameInGameUI for controls help/rebind UI
+ *
+ * RELATED: Input.js, Gamepad.js, gameInGameUI.js.
+ *
+ * =============================================================================
+ */
+
 const STORAGE_KEY = 'starspeed_keybindings';
 const PRESETS_KEY = 'starspeed_keybinding_presets';
 

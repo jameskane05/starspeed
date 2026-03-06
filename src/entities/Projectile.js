@@ -1,3 +1,20 @@
+/**
+ * Projectile.js - LASER BOLT PROJECTILE
+ * =============================================================================
+ *
+ * ROLE: Straight-flying laser bolt (player or enemy). Cylinder mesh, optional
+ * splat light; lifetime and collision; damage applied in gameCombat on hit.
+ *
+ * KEY RESPONSIBILITIES:
+ * - update(delta): move along direction; decrement lifetime; dispose when expired
+ * - isPlayerOwned, speed, visual config; collision handled by gameCombat (sphere cast)
+ * - Player vs enemy geometry/material and color; no homing
+ *
+ * RELATED: gameCombat.js, Physics.js, Explosion.js, LaserImpact.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 
 const playerGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1.5, 6);
@@ -40,7 +57,7 @@ export class Projectile {
     } else {
       this.direction.set(0, 0, -1);
     }
-    this.speed = speed !== null ? speed : isPlayerOwned ? 200 : 15;
+    this.speed = speed !== null ? speed : isPlayerOwned ? 240 : 18;
     this.isPlayerOwned = isPlayerOwned;
     this.lifetime = 3;
     this.disposed = false;

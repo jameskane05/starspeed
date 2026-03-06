@@ -1,3 +1,15 @@
+/**
+ * joinGame.js - JOIN MATCH SCREEN
+ * =============================================================================
+ *
+ * ROLE: Renders join screen: room code input and public room list. Binds join
+ * by code, refresh list, join room from list, back. Used by MenuManager for JOIN_GAME.
+ *
+ * RELATED: MenuManager.js, constants.js, NetworkManager.js.
+ *
+ * =============================================================================
+ */
+
 import { SCREENS } from "../constants.js";
 
 export function renderJoinGame(manager) {

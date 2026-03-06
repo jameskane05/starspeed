@@ -1,3 +1,23 @@
+/**
+ * gameCombat.js - WEAPONS, HITS, AND COMBAT RESOLUTION
+ * =============================================================================
+ *
+ * ROLE: Handles firing (player and enemy), projectile/missile creation, hit
+ * detection, damage, explosions, and laser impacts. Optional SplatEdit layer
+ * for projectile lights. Network-aware for multiplayer (broadcast hits, sync).
+ *
+ * KEY RESPONSIBILITIES:
+ * - initProjectileSplatLayer(game), createProjectileSplatLight (optional splat lights)
+ * - firePlayerWeapon / fireEnemyWeapon: create Projectile or Missile, add to game
+ * - Hit detection (sphere cast/collision); apply damage, spawn Explosion/LaserImpact
+ * - Ship destruction (ShipDestruction), SFX and procedural audio, HUD kill updates
+ *
+ * RELATED: Projectile.js, Missile.js, Explosion.js, LaserImpact.js, Physics.js,
+ * ShipDestruction.js, NetworkManager.js, sfxManager.js, ProceduralAudio.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import {
   SplatEdit,

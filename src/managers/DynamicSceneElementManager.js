@@ -1,3 +1,21 @@
+/**
+ * DynamicSceneElementManager.js - KINEMATIC FLOATING ELEMENTS
+ * =============================================================================
+ *
+ * ROLE: Updates kinematic physics bodies and meshes for floating/bobbing scene
+ * elements (e.g. collectibles or props). Applies sine-wave vertical motion and
+ * rotation; used when game provides a list of elements with body/mesh/basePos.
+ *
+ * KEY RESPONSIBILITIES:
+ * - setElements(elements): accept list of { body, mesh, basePos, baseQuat, container }
+ * - update(): each frame set kinematic translation (y + rise) and rotation
+ * - getGameTime from options for animation; destroy() clears elements
+ *
+ * RELATED: Physics.js (getRapier, kinematic bodies), SceneManager (dynamic element creation).
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { getRapier } from "../physics/Physics.js";
 

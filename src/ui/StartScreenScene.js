@@ -1,3 +1,21 @@
+/**
+ * StartScreenScene.js - 3D MENU BACKGROUND AND DEMO
+ * =============================================================================
+ *
+ * ROLE: Renders the 3D menu background: starfield, ship, projectiles, lights.
+ * Optional playable demo (fly/shoot). Used when main menu or start screen is visible.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Scene, camera, renderer, bloom; starfield and sparkle particles
+ * - Load and animate menu ship; optional EngineTrail, Projectile, Missile visuals
+ * - LightManager (startScreenLights); update(delta), resize; dispose
+ * - MenuManager shows/hides renderer.domElement by screen
+ *
+ * RELATED: MenuManager.js, LightManager.js, lightData.js, EngineTrail.js, ProceduralAudio.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";

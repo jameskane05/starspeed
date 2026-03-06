@@ -1,3 +1,21 @@
+/**
+ * gameInGameUI.js - IN-GAME HUD, ESC MENU, AND LEADERBOARD
+ * =============================================================================
+ *
+ * ROLE: Sets up and controls in-play UI: HUD elements (health, kills, missiles,
+ * boost), ESC pause menu, leaderboard overlay, and controls help. Binds DOM
+ * elements and keyboard (KeyBindings) for menu toggle and resume.
+ *
+ * KEY RESPONSIBILITIES:
+ * - setup(game): bind HUD refs, game menu and leaderboard buttons to DOM
+ * - updateHUD(game), toggleEscMenu(game), showEscMenu / resumeGame
+ * - showLeaderboard / hideLeaderboard; controls help visibility
+ *
+ * RELATED: MenuManager.js, KeyBindings.js, gameData.js, ShipDestruction.js.
+ *
+ * =============================================================================
+ */
+
 import MenuManager from "../ui/MenuManager.js";
 import NetworkManager from "../network/NetworkManager.js";
 import { KeyBindings, getKeyDisplayName } from "./KeyBindings.js";

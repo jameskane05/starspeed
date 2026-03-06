@@ -1,3 +1,21 @@
+/**
+ * gameNetworkProjectiles.js - MULTIPLAYER COLLECTIBLES AND PICKUPS
+ * =============================================================================
+ *
+ * ROLE: Spawns and removes network-driven collectibles (missiles, laser upgrade).
+ * Handles pickup events from server: play effects, update local player state,
+ * show pickup messages. Also used by gameMultiplayer for collectible lifecycle.
+ *
+ * KEY RESPONSIBILITIES:
+ * - spawnCollectible(game, id, data), removeCollectible(game, id)
+ * - handleCollectiblePickup(game, data): play effect, update player (missiles/laser)
+ * - showPickupMessage(game, text); integrate with particles (sparks) and procedural audio
+ *
+ * RELATED: Collectible.js, gameMultiplayer.js, NetworkManager.js, ProceduralAudio.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { Projectile } from "../entities/Projectile.js";
 import { Missile } from "../entities/Missile.js";

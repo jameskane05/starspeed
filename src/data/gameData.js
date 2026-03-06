@@ -2,12 +2,16 @@
  * gameData.js - GAME STATE DEFINITIONS AND INITIAL VALUES
  * =============================================================================
  *
- * Centralized definition of game state enums and the initial state object.
+ * ROLE: Centralized definition of game state enums, level config, ship classes,
+ * and the initial state object used by GameManager at startup.
  *
- * KEY EXPORTS:
- * - GAME_STATES: Enum of all game states
- * - SHIP_CLASSES: Ship class definitions with stats
+ * KEY RESPONSIBILITIES:
+ * - GAME_STATES: Enum of all game states (LOADING, MENU, PLAYING, PAUSED, etc.)
+ * - LEVELS: Level id, name, description, preview; used by LightManager and menu
+ * - SHIP_CLASSES: Ship class definitions with stats for player and enemies
  * - initialState: Initial state object applied at game start
+ *
+ * RELATED: GameManager.js, sceneData.js, LightManager.js, gameLevel.js.
  *
  * =============================================================================
  */
@@ -56,9 +60,9 @@ export const SHIP_CLASSES = {
   fighter: {
     name: "Fighter",
     description: "Balanced combat vessel",
-    speed: 1.0,
+    speed: 1.2,
     acceleration: 0.5,
-    maxSpeed: 1.0,
+    maxSpeed: 1.2,
     health: 100,
     missiles: 6,
     maxMissiles: 6,
@@ -71,9 +75,9 @@ export const SHIP_CLASSES = {
   tank: {
     name: "Tank",
     description: "Heavy armor, devastating missiles",
-    speed: 0.7,
+    speed: 0.84,
     acceleration: 0.35,
-    maxSpeed: 0.7,
+    maxSpeed: 0.84,
     health: 150,
     missiles: 8,
     maxMissiles: 8,
@@ -86,9 +90,9 @@ export const SHIP_CLASSES = {
   rogue: {
     name: "Rogue",
     description: "Fast and agile interceptor",
-    speed: 1.4,
+    speed: 1.68,
     acceleration: 0.7,
-    maxSpeed: 1.4,
+    maxSpeed: 1.68,
     health: 70,
     missiles: 4,
     maxMissiles: 4,

@@ -1,12 +1,24 @@
+/**
+ * SparksEffect.js - HIT SPARKS AND ELECTRICAL SPARKS
+ * =============================================================================
+ *
+ * ROLE: Emits spark particles for impacts and pickup effects. Uses ParticleSystem
+ * sparks pool. Used by gameCombat (hits) and gameNetworkProjectiles (pickup).
+ *
+ * KEY RESPONSIBILITIES:
+ * - emitHitSparks(position, color, count): burst of sparks at position
+ * - Other spark variants as needed; delegates to particleSystem.sparks
+ *
+ * RELATED: ParticleSystem.js, gameCombat.js, gameNetworkProjectiles.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 
 const _dir = new THREE.Vector3();
 const _tmp = new THREE.Vector3();
 
-/**
- * Sparks effects - electrical sparks and hit sparks.
- * Uses ParticleSystem pools to emit particles.
- */
 export class SparksEffect {
   constructor(particleSystem) {
     this.particles = particleSystem;

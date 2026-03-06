@@ -1,3 +1,19 @@
+/**
+ * LaserImpact.js - LASER HIT DECAL AND LIGHT FLASH
+ * =============================================================================
+ *
+ * ROLE: Brief decal at laser hit position: oriented circle with noise texture
+ * and optional dynamic light flash. Fades out and disposes.
+ *
+ * KEY RESPONSIBILITIES:
+ * - constructor(scene, position, normal, color, lightPool): create decal mesh, optional flash
+ * - update(delta): fade opacity; dispose when done
+ *
+ * RELATED: DynamicLightPool.js, gameCombat.js, Projectile.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from 'three';
 
 const impactGeometry = new THREE.CircleGeometry(0.3, 12);

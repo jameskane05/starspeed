@@ -1,3 +1,22 @@
+/**
+ * Player.js - LOCAL PLAYER SHIP AND COCKPIT
+ * =============================================================================
+ *
+ * ROLE: First-person player ship: movement, look, roll, boost, health/missiles,
+ * cockpit model and headlight. Physics-based movement and collision; engine trail
+ * and gun retract visuals. Used in solo and as local ship in multiplayer.
+ *
+ * KEY RESPONSIBILITIES:
+ * - update(delta, gameTime): apply input to velocity, drag, collision (level sphere cast)
+ * - Boost fuel drain/regen; shield regen after damage; roll from input
+ * - Cockpit GLTF, headlight toggle; engine trail and retract-on-fire
+ * - takeDamage(amount), setXRMode(xrManager); prefracture for destruction (ShipDestruction)
+ *
+ * RELATED: Input.js, Physics.js, ShipDestruction.js, gameCombat.js, EngineTrail.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { checkSphereCollision, castSphere } from "../physics/Physics.js";
@@ -44,7 +63,7 @@ export class Player {
     this.isBoosting = false;
 
     this.acceleration = options.acceleration || 0.75;
-    this.maxSpeed = options.maxSpeed || 2.25;
+    this.maxSpeed = options.maxSpeed || 2.7;
 
     this.velocity = new THREE.Vector3();
     this.drag = 0.97;

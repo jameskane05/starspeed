@@ -1,17 +1,17 @@
 /**
- * sceneData.js - SCENE OBJECT DEFINITIONS
+ * sceneData.js - SCENE OBJECT DEFINITIONS AND RESOLUTION
  * =============================================================================
  *
- * Defines all scene objects (splats, GLTFs, etc.) with their properties.
+ * ROLE: Defines all scene objects (splats, GLTFs) and provides state-driven
+ * resolution for which objects to load. SceneManager loads by these configs.
  *
- * Each object contains:
- * - id: Unique identifier
- * - type: "splat" | "gltf"
- * - path: Asset file path
- * - position, rotation, scale: Transform
- * - priority: Loading priority (higher = first)
- * - preload: If true, load during initial loading screen
- * - criteria: Optional state conditions for loading/unloading
+ * KEY RESPONSIBILITIES:
+ * - sceneObjects: Map of id to config (id, type, path, position, rotation, scale,
+ *   priority, preload, criteria, options for physics/LOD/occluder)
+ * - getSceneObjectsForState(state): return list of objects matching state/criteria
+ * - getSceneObject(id), LEVEL_OBJECT_IDS; checkCriteria(state, criteria) for filtering
+ *
+ * RELATED: SceneManager.js, gameData.js, gameLevel.js, LightManager.js (checkCriteria).
  *
  * =============================================================================
  */

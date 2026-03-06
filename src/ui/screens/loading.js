@@ -1,3 +1,15 @@
+/**
+ * loading.js - LOADING SCREENS
+ * =============================================================================
+ *
+ * ROLE: Renders initial loading and in-game loading screen DOM (progress bar,
+ * message). Used by MenuManager for INITIAL_LOADING and LOADING screens.
+ *
+ * RELATED: MenuManager.js, constants.js.
+ *
+ * =============================================================================
+ */
+
 export function renderInitialLoading(manager) {
   manager.container.classList.remove("hidden");
   manager.menuContent.innerHTML = `

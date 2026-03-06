@@ -1,3 +1,20 @@
+/**
+ * DynamicLightPool.js - POOLED POINT LIGHTS FOR FLASHES
+ * =============================================================================
+ *
+ * ROLE: Pool of reusable PointLights for short-lived effects (explosions, impacts).
+ * flash(position, color, options) allocates a light; update(delta) fades and releases.
+ *
+ * KEY RESPONSIBILITIES:
+ * - flash(): set position, color, intensity, ttl, fade; mark active
+ * - update(delta): decrease ttl, scale intensity by fade curve; release when ttl <= 0
+ * - warmupShaders(renderer, camera) for compile; used by Explosion, LaserImpact, Collectible
+ *
+ * RELATED: Explosion.js, LaserImpact.js, Collectible.js, gameInit.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 
 export class DynamicLightPool {

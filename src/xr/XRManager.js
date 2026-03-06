@@ -1,3 +1,21 @@
+/**
+ * XRManager.js - WEBXR VR SESSION AND INPUT
+ * =============================================================================
+ *
+ * ROLE: Optional VR support: check immersive-vr, request session, run loop
+ * with getViewerPose. Exposes look and move input from controllers for Player.
+ * enterVR(scene, camera) called from gameSolo when starting play.
+ *
+ * KEY RESPONSIBILITIES:
+ * - _checkSupport(); enterVR(scene, camera): set reference space, enable XR on renderer
+ * - update(timestamp, frame): getViewerPose, update camera; read controller input -> lookInput, moveInput
+ * - endSession(); Player.setXRMode(xrManager) to consume look/move
+ *
+ * RELATED: Game.js, gameSolo.js, Player.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 
 const _dir = new THREE.Vector3();

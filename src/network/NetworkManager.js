@@ -1,3 +1,21 @@
+/**
+ * NetworkManager.js - MULTIPLAYER CLIENT AND ROOM MANAGEMENT
+ * =============================================================================
+ *
+ * ROLE: Colyseus client and room lifecycle. Connect, create/join/leave room;
+ * send input and receive state; emit roomJoined, playerJoin/Leave/Update,
+ * stateChange, etc. Used by MenuManager, gameMultiplayer, gameUpdate.
+ *
+ * KEY RESPONSIBILITIES:
+ * - connect(serverUrl); createRoom(options), joinById(code), joinOrCreate; leave()
+ * - getState(), getPlayers(), getLocalPlayer(); send input with sequence numbers
+ * - Event emitter (on/off/emit); sessionId, serverUrl (local vs cloud)
+ *
+ * RELATED: gameMultiplayer.js, menuNetwork.js, MenuManager.js, Prediction.js.
+ *
+ * =============================================================================
+ */
+
 import * as Colyseus from "@colyseus/sdk";
 
 // Production multiplayer endpoint (override with VITE_SERVER_URL if needed)

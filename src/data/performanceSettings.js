@@ -1,3 +1,21 @@
+/**
+ * performanceSettings.js - PERFORMANCE PROFILES AND DETECTION
+ * =============================================================================
+ *
+ * ROLE: Defines performance profiles (low, medium, high) for splat, particles,
+ * and rendering options. Provides getPerformanceProfile() for device-based
+ * default and profile merge into game state.
+ *
+ * KEY RESPONSIBILITIES:
+ * - PERFORMANCE_PROFILES: low/medium/high with splat, particles, rendering, enemyCullDistance
+ * - getPerformanceProfile(): return profile key from device/heuristic; DEFAULT_PROFILE
+ * - GameManager and SceneManager read settings via getPerformanceSetting(category, key)
+ *
+ * RELATED: GameManager.js, gameInit.js, SceneManager.js.
+ *
+ * =============================================================================
+ */
+
 export const PERFORMANCE_PROFILES = {
   low: {
     label: "Low",

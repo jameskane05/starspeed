@@ -1,3 +1,22 @@
+/**
+ * MusicManager.js - BACKGROUND MUSIC PLAYBACK AND CROSSFADE
+ * =============================================================================
+ *
+ * ROLE: Plays background music from musicData.js via Howler. Builds shuffled
+ * playlist, crossfades between tracks, respects AudioSettings volume and
+ * game state (e.g. play in MENU/PLAYING, pause in LOADING).
+ *
+ * KEY RESPONSIBILITIES:
+ * - Load tracks on demand; build playlist from shuffled(musicTracks)
+ * - play(), pause(), stop(); crossfade and fade out
+ * - React to user interaction (unlock audio); subscribe to AudioSettings
+ * - State-driven play/pause via GameManager state:changed
+ *
+ * RELATED: musicData.js, AudioSettings.js, gameData.js, gameInit.js.
+ *
+ * =============================================================================
+ */
+
 import { Howl } from "howler";
 import { musicTracks, shuffled } from "./musicData.js";
 import { AudioSettings } from "../game/AudioSettings.js";

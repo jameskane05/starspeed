@@ -1,3 +1,22 @@
+/**
+ * MobileControls.js - TOUCH STICKS AND MOBILE HUD CONTROLS
+ * =============================================================================
+ *
+ * ROLE: On-screen virtual sticks and buttons for touch devices. Move and look
+ * sticks, boost/fire/missile buttons. Shown only during PLAYING/PAUSED; hidden
+ * on menu. Feeds into Input when active.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Detect touch device; init DOM elements (move/look sticks, action buttons)
+ * - setGameplayVisible(visible): show/hide mobile controls by game state
+ * - Expose moveStick, lookStick, boostHeld for Input to read
+ * - State-driven visibility via GameManager state:changed
+ *
+ * RELATED: KeyBindings.js, gameData.js, Input.js.
+ *
+ * =============================================================================
+ */
+
 import { KeyBindings } from './KeyBindings.js';
 import { GAME_STATES } from '../data/gameData.js';
 

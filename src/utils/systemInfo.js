@@ -1,3 +1,19 @@
+/**
+ * systemInfo.js - BROWSER AND GPU INFO
+ * =============================================================================
+ *
+ * ROLE: Returns object with userAgent, platform, language, screen size,
+ * deviceMemory, GPU and vendor from WebGL. Used for feedback submission and diagnostics.
+ *
+ * KEY RESPONSIBILITIES:
+ * - getSystemInfo(): { userAgent, platform, language, screenWidth, screenHeight,
+ *   deviceMemory, gpu, gpuVendor, vram }
+ *
+ * RELATED: feedbackModal.js, MenuManager.js.
+ *
+ * =============================================================================
+ */
+
 export function getSystemInfo() {
   const info = {
     userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",

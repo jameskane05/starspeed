@@ -2,8 +2,17 @@
  * GameManager.js - CENTRAL GAME STATE AND EVENT MANAGEMENT
  * =============================================================================
  *
- * Central state store and event bus. All game state flows through here,
+ * ROLE: Central state store and event bus. All game state flows through here,
  * and systems react to state changes via the event emitter pattern.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Store and update state (currentState, currentLevel, performanceProfile, etc.)
+ * - getState(), setState(partial); emit state:changed for subscribers
+ * - getSceneObjectsForState() for SceneManager; getPerformanceSetting(category, key)
+ * - Persist and load settings (performance profile) from localStorage
+ * - isPlaying() (state === PLAYING); get references to scene, camera, renderer (set at init)
+ *
+ * RELATED: gameData.js, sceneData.js, performanceSettings.js, SceneManager.js, gameLevel.js.
  *
  * =============================================================================
  */

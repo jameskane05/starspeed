@@ -1,3 +1,19 @@
+/**
+ * musicData.js - MUSIC TRACK LIST AND SHUFFLE
+ * =============================================================================
+ *
+ * ROLE: Defines paths to music tracks and shuffled() helper for playlist order.
+ * Used by MusicManager to build playlists.
+ *
+ * KEY RESPONSIBILITIES:
+ * - musicTracks: array of track paths
+ * - shuffled(arr): return copy of array in random order
+ *
+ * RELATED: MusicManager.js.
+ *
+ * =============================================================================
+ */
+
 export const musicTracks = [
   "./audio/music/STARSPEED OST - GUIDEBOOK - 24 HR Diner.mp3",
   "./audio/music/STARSPEED OST - GUIDEBOOK - Biff's Auto Detailing..mp3",

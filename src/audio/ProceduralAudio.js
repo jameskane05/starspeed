@@ -1,10 +1,19 @@
 /**
- * ProceduralAudio.js - Web Audio API procedural sound synthesis
+ * ProceduralAudio.js - PROCEDURAL SOUND SYNTHESIS
+ * =============================================================================
  *
- * Generates sounds programmatically without audio files:
- * - UI sounds (beeps, clicks, hover)
- * - Combat sounds (laser fire, shield hit, explosions)
- * - Ambient/feedback (boost, low health warning)
+ * ROLE: Web Audio API procedural sound synthesis. Generates UI, combat, and
+ * feedback sounds without audio files. Singleton used by game and sfxManager.
+ *
+ * KEY RESPONSIBILITIES:
+ * - init(): create AudioContext, master gain; subscribe to AudioSettings
+ * - UI: beeps, clicks, hover; combat: laser, shield hit, explosion, collect pickup
+ * - setListenerPosition/Forward/Up for spatial audio
+ * - shieldRechargeStart/Stop, low health warning; volume from AudioSettings
+ *
+ * RELATED: AudioSettings.js, sfxManager.js, gameCombat.js, gameUpdate.js.
+ *
+ * =============================================================================
  */
 
 import { AudioSettings } from "../game/AudioSettings.js";

@@ -1,3 +1,21 @@
+/**
+ * Prediction.js - CLIENT-SIDE PREDICTION AND RECONCILIATION
+ * =============================================================================
+ *
+ * ROLE: Holds server position/rotation and compares to local predicted state.
+ * When delta exceeds threshold, applies smooth correction to avoid snaps.
+ * Used by Game (player) in multiplayer for responsive movement.
+ *
+ * KEY RESPONSIBILITIES:
+ * - applyServerState(position, rotation, lastProcessedInput): store server state
+ * - checkReconciliation(localPosition, localRotation): return needsReconciliation and delta
+ * - applySmoothCorrection(position, delta): lerp toward server, clear correction when done
+ *
+ * RELATED: Game.js, gameUpdate.js, gameMultiplayer.js, NetworkManager.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 
 export class Prediction {

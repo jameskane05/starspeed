@@ -1,3 +1,20 @@
+/**
+ * ExplosionEffect.js - EXPLOSION PARTICLE EMISSION
+ * =============================================================================
+ *
+ * ROLE: Emits fire, smoke, and debris particles for big and small explosions.
+ * Uses ParticleSystem pools; emission shapes (sphere, hemisphere) match Unity prefab.
+ *
+ * KEY RESPONSIBILITIES:
+ * - emitBigExplosion(position, options): fire/smoke/debris; configurable counts from performance
+ * - emitSmallExplosion(position, options): smaller burst
+ * - Delegates to particleSystem.fire, smoke, debris, lineSparks
+ *
+ * RELATED: ParticleSystem.js, gameCombat.js, ShipDestruction.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 
 // ── Emission shape helpers ──
@@ -39,10 +56,6 @@ function emitHemisphere(center, radius) {
   };
 }
 
-/**
- * Explosion effect - matches Unity BigExplosionEffect prefab.
- * Uses ParticleSystem pools to emit particles.
- */
 export class ExplosionEffect {
   constructor(particleSystem) {
     this.particles = particleSystem;

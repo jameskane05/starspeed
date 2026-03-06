@@ -1,3 +1,21 @@
+/**
+ * menuNetwork.js - MENU NETWORK EVENT HANDLERS
+ * =============================================================================
+ *
+ * ROLE: Connects MenuManager to NetworkManager events: roomJoined, stateChange,
+ * roomLeft, etc. Drives screen transitions (lobby, playing, results) and
+ * countdown/chat/kick modals.
+ *
+ * KEY RESPONSIBILITIES:
+ * - setupNetworkListeners(manager): subscribe to roomJoined, stateChange, roomLeft
+ * - Show lobby/playing/results screens; renderLobby on countdown/lobby; procedural countdown beep
+ * - showKickedModal, chat message handling
+ *
+ * RELATED: MenuManager.js, NetworkManager.js, constants.js, ProceduralAudio.js.
+ *
+ * =============================================================================
+ */
+
 import NetworkManager from "../network/NetworkManager.js";
 import { SCREENS } from "./constants.js";
 import proceduralAudio from "../audio/ProceduralAudio.js";

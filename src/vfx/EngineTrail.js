@@ -1,3 +1,20 @@
+/**
+ * EngineTrail.js - SHIP ENGINE TRAIL MESH
+ * =============================================================================
+ *
+ * ROLE: Renders a ribbon trail behind a ship (player or remote). Points updated
+ * from world position/rotation; gradient color and width configurable.
+ *
+ * KEY RESPONSIBILITIES:
+ * - update(worldPos, worldQuat, backDir): push point, trim old; update mesh geometry
+ * - _createMesh(): indexed ribbon geometry; dispose()
+ * - Used by Player, RemotePlayer, Missile for exhaust trail
+ *
+ * RELATED: Player.js, RemotePlayer.js, Missile.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 
 const _up = new THREE.Vector3(0, 1, 0);

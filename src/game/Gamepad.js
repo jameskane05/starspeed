@@ -1,3 +1,21 @@
+/**
+ * Gamepad.js - GAMEPAD AND HOTAS INPUT MAPPING
+ * =============================================================================
+ *
+ * ROLE: Maps gamepad (and HOTAS) axes and buttons to game actions. Supports
+ * standard gamepad preset and T-Flight HOTAS preset. Polls navigator.getGamepads(),
+ * applies deadzone and sensitivity, exposes GamepadInput for Input.js.
+ *
+ * KEY RESPONSIBILITIES:
+ * - DEFAULT_GAMEPAD_BINDINGS, HOTAS_BINDINGS; load/save active preset from localStorage
+ * - GamepadInput class: poll(), get move/look/fire/missile/boost state
+ * - Map sticks, triggers, d-pad, buttons to movement, look, roll, fire, missile, boost
+ *
+ * RELATED: Input.js, KeyBindings.js.
+ *
+ * =============================================================================
+ */
+
 const STORAGE_KEY = 'starspeed_gamepad_bindings';
 const PRESETS_KEY = 'starspeed_gamepad_presets';
 const ACTIVE_PRESET_KEY = 'starspeed_gamepad_active_preset';

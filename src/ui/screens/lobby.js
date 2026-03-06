@@ -1,3 +1,16 @@
+/**
+ * lobby.js - LOBBY SCREEN AND CHAT
+ * =============================================================================
+ *
+ * ROLE: Renders lobby screen: room info, player list, ready/kick, level select,
+ * chat messages. Handles addChatMessage, updateChatDisplay, mute; bindings
+ * for start match, leave, ready. Used by MenuManager and menuNetwork.
+ *
+ * RELATED: MenuManager.js, menuNetwork.js, NetworkManager.js, constants.js, gameData.js.
+ *
+ * =============================================================================
+ */
+
 import NetworkManager from "../../network/NetworkManager.js";
 import { LEVELS } from "../../data/gameData.js";
 import { SCREENS } from "../constants.js";

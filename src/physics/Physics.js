@@ -1,3 +1,21 @@
+/**
+ * Physics.js - RAPIER PHYSICS WORLD AND COLLISION
+ * =============================================================================
+ *
+ * ROLE: Rapier 3D physics world singleton. Init, step, create colliders (ball,
+ * cuboid, trimesh, kinematic). Sphere cast and shape cast for hit detection;
+ * isInsideMesh for spawn point filtering.
+ *
+ * KEY RESPONSIBILITIES:
+ * - initPhysics(), stepWorld(), getWorld(), getRapier()
+ * - createWallCollider, createTrimeshCollider, createKinematicTrimeshCollider, removeRigidBody
+ * - checkSphereCollision(x, y, z, radius); castSphere, castRay; isInsideMesh for level bounds
+ *
+ * RELATED: gameInit.js, gameUpdate.js, SceneManager.js, Player.js, Enemy.js, gameCombat.js.
+ *
+ * =============================================================================
+ */
+
 const RAPIER = await import("@dimforge/rapier3d");
 
 let world = null;

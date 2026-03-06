@@ -1,3 +1,15 @@
+/**
+ * feedbackDashboard.js - FEEDBACK LIST AND API BASE
+ * =============================================================================
+ *
+ * ROLE: Renders feedback dashboard screen (list of submitted feedback) and
+ * provides getFeedbackApiBase() for modal submit URL. Fetches feedback from API.
+ *
+ * RELATED: MenuManager.js, feedbackModal.js, NetworkManager.js, constants.js.
+ *
+ * =============================================================================
+ */
+
 import NetworkManager from "../../network/NetworkManager.js";
 import { SCREENS } from "../constants.js";
 

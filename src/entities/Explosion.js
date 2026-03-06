@@ -1,9 +1,21 @@
-import * as THREE from 'three';
-
 /**
- * Explosion – dynamic light flash + subtle shockwave distortion.
- * All particle effects come from ParticleSystem.emitBigExplosion().
+ * Explosion.js - EXPLOSION LIGHT FLASH AND SHOCKWAVE
+ * =============================================================================
+ *
+ * ROLE: Short-lived explosion visual: dynamic light flash (via DynamicLightPool)
+ * and optional shockwave mesh for big explosions. Particle effects come from
+ * ParticleSystem.emitBigExplosion() elsewhere.
+ *
+ * KEY RESPONSIBILITIES:
+ * - constructor(scene, position, color, lightPool, options): flash light; big = shockwave mesh
+ * - update(delta): advance elapsed; scale shockwave; dispose when duration exceeded
+ *
+ * RELATED: DynamicLightPool.js, ParticleSystem (emitBigExplosion), gameCombat.js.
+ *
+ * =============================================================================
  */
+
+import * as THREE from 'three';
 
 const sharedSphere = new THREE.SphereGeometry(1, 12, 8);
 

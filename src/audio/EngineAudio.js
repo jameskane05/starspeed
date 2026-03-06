@@ -1,3 +1,21 @@
+/**
+ * EngineAudio.js - PLAYER ENGINE AND AFTERBURNER SOUND
+ * =============================================================================
+ *
+ * ROLE: Plays engine loop (file-based) and afterburner (procedural noise) tied
+ * to player speed and boost. Pitch/volume vary with thrust; spatialized from
+ * player position. Singleton used by gameUpdate.
+ *
+ * KEY RESPONSIBILITIES:
+ * - init(): load engine buffer, create afterburner noise node
+ * - update(delta, player): set target volume/pitch from velocity and boost
+ * - Smooth ramping; listener position from camera for spatial
+ *
+ * RELATED: ProceduralAudio.js (shared ctx), Player.js, gameUpdate.js.
+ *
+ * =============================================================================
+ */
+
 class EngineAudio {
   constructor() {
     this.ctx = null;

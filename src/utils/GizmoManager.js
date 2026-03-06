@@ -1,3 +1,20 @@
+/**
+ * GizmoManager.js - DEBUG TRANSFORM GIZMOS
+ * =============================================================================
+ *
+ * ROLE: Optional debug UI: TransformControls for scene objects. Enabled via
+ * ?gizmo URL param or enable(). Register objects to translate/rotate/scale in editor-like way.
+ *
+ * KEY RESPONSIBILITIES:
+ * - enable()/disable(); registerObject(object, id, type)
+ * - Translate/rotate/scale mode; world/local space; event listeners for drag
+ * - Used in gameInit when gizmo param present; for level/ship placement debugging
+ *
+ * RELATED: gameInit.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
 

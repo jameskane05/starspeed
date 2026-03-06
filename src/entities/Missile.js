@@ -1,3 +1,20 @@
+/**
+ * Missile.js - HOMING MISSILE PROJECTILE
+ * =============================================================================
+ *
+ * ROLE: Homing missile with optional target. Moves toward target within cone;
+ * collision and explosion handled in gameCombat. Optional trails effect.
+ *
+ * KEY RESPONSIBILITIES:
+ * - update(delta): advance position; steer toward target (homingConeAngle, homingStrength)
+ * - collisionRadius, damage, explosionRadius; disposed on hit or lifetime
+ * - Player and enemy missiles; server sync of homing target in multiplayer
+ *
+ * RELATED: gameCombat.js, Physics.js, Explosion.js, gameNetworkProjectiles.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { checkSphereCollision } from "../physics/Physics.js";
 
@@ -35,7 +52,7 @@ const _exhaustOffset = new THREE.Vector3();
 export class Missile {
   constructor(scene, position, direction, options = {}) {
     this.direction = direction.clone().normalize();
-    this.speed = options.speed ?? 60;
+    this.speed = options.speed ?? 72;
     this.lifetime = 5;
     this.disposed = false;
     this.damage = 50;

@@ -1,13 +1,26 @@
+/**
+ * TrailsEffect.js - MISSILE AND ENGINE TRAIL PARTICLES
+ * =============================================================================
+ *
+ * ROLE: Emits particle effects for missile exhaust and engine trails using
+ * ParticleSystem pools (fire, sparks). Used by Missile, Enemy, Player/RemotePlayer.
+ *
+ * KEY RESPONSIBILITIES:
+ * - emitMissileExhaust(worldPos, worldQuat, dir): fire puffs and sparks behind missile
+ * - emitEngineTrail(worldPos, worldQuat, dir, isBoost): engine trail particles
+ * - Delegates to particleSystem.fire, particleSystem.sparks
+ *
+ * RELATED: ParticleSystem.js, Missile.js, Enemy.js, Player.js, RemotePlayer.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 
 const _exhaust = new THREE.Vector3();
 const _tmp = new THREE.Vector3();
 const _tmp2 = new THREE.Vector3();
 
-/**
- * Trail effects - missile exhaust, engine trails, etc.
- * Uses ParticleSystem pools to emit particles.
- */
 export class TrailsEffect {
   constructor(particleSystem) {
     this.particles = particleSystem;

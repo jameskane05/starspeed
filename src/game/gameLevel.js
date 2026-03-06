@@ -1,3 +1,22 @@
+/**
+ * gameLevel.js - LEVEL LOADING AND SCENE OBJECT RESOLUTION
+ * =============================================================================
+ *
+ * ROLE: Preloads level content for play (solo or multiplayer). Resolves which
+ * scene objects to load from sceneData.js for PLAYING state and delegates
+ * loading to SceneManager. Extracts spawn points and bounds from level meshes.
+ *
+ * KEY RESPONSIBILITIES:
+ * - preloadLevel(game): get scene objects for PLAYING, load via SceneManager
+ * - getLevelOcclusion(game): resolve level occlusion / level data object for rendering
+ * - Export getSceneObjectsForState, getSceneObject, LEVEL_OBJECT_IDS (re-exports from sceneData)
+ * - Used by gameInit, gameSolo, gameMultiplayer for level setup
+ *
+ * RELATED: sceneData.js, SceneManager.js, GameManager.js, gameData.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { GAME_STATES } from "../data/gameData.js";
 import {

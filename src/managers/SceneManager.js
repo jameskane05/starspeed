@@ -2,8 +2,16 @@
  * SceneManager.js - SCENE OBJECT LOADING AND MANAGEMENT
  * =============================================================================
  *
- * Loads and manages 3D scene content including Gaussian splats (via SparkRenderer)
- * and GLTF models (via Three.js GLTFLoader).
+ * ROLE: Loads and manages 3D scene content: Gaussian splats (SparkRenderer/SplatMesh)
+ * and GLTF models (Three.js GLTFLoader). Creates physics colliders for level geometry.
+ *
+ * KEY RESPONSIBILITIES:
+ * - loadObject(objectData, onProgress): load splat or GLTF by id; cache in objects Map
+ * - hasObject(id), getObject(id); create trimesh/kinematic colliders via Physics.js
+ * - Support for level meshes, occlusion, spawn points; shared ship materials (Enemy.js)
+ * - Used by gameInit, gameLevel for preloading; by DynamicSceneElementManager for dynamic elements
+ *
+ * RELATED: sceneData.js, Physics.js, Enemy.js, gameLevel.js, lightData.js (criteria).
  *
  * =============================================================================
  */

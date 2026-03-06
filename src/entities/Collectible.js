@@ -1,3 +1,21 @@
+/**
+ * Collectible.js - PICKUP OBJECTS (MISSILE REFILL, LASER UPGRADE)
+ * =============================================================================
+ *
+ * ROLE: Scene objects for collectibles: missile refill and laser upgrade.
+ * Bobbing/floating visuals; pickup effect and disposal. Used in solo (missile
+ * pickups) and multiplayer (network-spawned collectibles).
+ *
+ * KEY RESPONSIBILITIES:
+ * - constructor(scene, data, lightPool): create group, createMissilePickup or createLaserUpgrade
+ * - update(delta): optional bobbing; playPickupEffect(), dispose()
+ * - gameNetworkProjectiles spawn/remove and handle pickup; DynamicLightPool for glow
+ *
+ * RELATED: gameEnemies.js, gameNetworkProjectiles.js, DynamicLightPool.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 
 const MISSILE_COLOR = 0xff6600;

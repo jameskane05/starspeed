@@ -1,3 +1,20 @@
+/**
+ * gamePlayerLifecycle.js - DAMAGE INDICATORS AND PLAYER DEATH/RESPAWN
+ * =============================================================================
+ *
+ * ROLE: Visual and flow handling for player damage (direction indicators) and
+ * death: respawn overlay, countdown, and respawn execution for solo and multiplayer.
+ *
+ * KEY RESPONSIBILITIES:
+ * - showDamageIndicator(game, hitWorldPos): flash screen-edge indicators by hit direction
+ * - handleLocalPlayerDeath(game): hide cockpit, show respawn overlay
+ * - Respawn countdown and respawn execution; sync with NetworkManager in multiplayer
+ *
+ * RELATED: gameInGameUI.js (HUD/ESC menu), NetworkManager.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import NetworkManager from "../network/NetworkManager.js";
 

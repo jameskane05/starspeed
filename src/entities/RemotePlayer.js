@@ -1,3 +1,21 @@
+/**
+ * RemotePlayer.js - NETWORK-SYNCHED REMOTE PLAYER SHIP
+ * =============================================================================
+ *
+ * ROLE: Represents another player in multiplayer. Interpolates position and
+ * rotation from server updates; renders exterior ship model and engine trail.
+ *
+ * KEY RESPONSIBILITIES:
+ * - updateFromServer(playerState): push position/rotation/health/boost into interpolator
+ * - update(delta): interpolate position and rotation; update engine trail and gun retract
+ * - Shared exterior GLTF (Heavy_EXT_02.glb); team/ship class colors
+ * - dispose(); used by gameMultiplayer for addRemotePlayer/removeRemotePlayer
+ *
+ * RELATED: Interpolation.js, EngineTrail.js, gameMultiplayer.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { Interpolation } from "../network/Interpolation.js";
@@ -20,7 +38,7 @@ let exteriorLoading = null;
 async function loadExteriorModel() {
   if (exteriorModel) return exteriorModel;
   if (exteriorLoading) return exteriorLoading;
-  
+
   exteriorLoading = new Promise((resolve) => {
     const loader = new GLTFLoader();
     loader.load(
@@ -32,10 +50,10 @@ async function loadExteriorModel() {
       undefined,
       () => {
         resolve(null);
-      }
+      },
     );
   });
-  
+
   return exteriorLoading;
 }
 
@@ -81,23 +99,27 @@ export class RemotePlayer {
     });
 
     this.mesh = new THREE.Group();
-    this.mesh.position.set(playerData.x || 0, playerData.y || 0, playerData.z || 0);
+    this.mesh.position.set(
+      playerData.x || 0,
+      playerData.y || 0,
+      playerData.z || 0,
+    );
     this.mesh.quaternion.set(
       playerData.qx || 0,
       playerData.qy || 0,
       playerData.qz || 0,
-      playerData.qw || 1
+      playerData.qw || 1,
     );
-    
+
     this.createShipMesh();
     this.createNameLabel();
-    
+
     scene.add(this.mesh);
   }
 
   async createShipMesh() {
     const model = await loadExteriorModel();
-    
+
     if (model) {
       const clone = model.clone();
       clone.scale.setScalar(0.5);
@@ -113,9 +135,11 @@ export class RemotePlayer {
           child.userData.restPosition = child.position.clone();
         } else if (n === "Missile_L") this.missileL = child;
         else if (n === "Missile_R") this.missileR = child;
-        if (n === "Engine_L" || n === "Engine_R") this.engineMarkers.push(child);
+        if (n === "Engine_L" || n === "Engine_R")
+          this.engineMarkers.push(child);
         if (n === "Engine_Center" || n === "Engine_L" || n === "Engine_R") {
-          if (child.isMesh && child.material) this.engineMaterials.push(child.material);
+          if (child.isMesh && child.material)
+            this.engineMaterials.push(child.material);
           else if (child.children) {
             child.traverse((c) => {
               if (c.isMesh && c.material) this.engineMaterials.push(c.material);
@@ -124,14 +148,29 @@ export class RemotePlayer {
         }
       });
       if (this.engineMarkers.length < 2) {
-        console.warn("[RemotePlayer] Ship model missing Engine_L and/or Engine_R; trail VFX disabled.");
+        console.warn(
+          "[RemotePlayer] Ship model missing Engine_L and/or Engine_R; trail VFX disabled.",
+        );
       } else {
-        const trailColor = this.teamMode && this.team > 0
-          ? TEAM_COLORS[this.team]
-          : (SHIP_COLORS[this.shipClass] ?? 0x00f0ff);
+        const trailColor =
+          this.teamMode && this.team > 0
+            ? TEAM_COLORS[this.team]
+            : (SHIP_COLORS[this.shipClass] ?? 0x00f0ff);
         this.engineTrails = [
-          new EngineTrail(this.scene, { maxPoints: 64, trailTime: 1.8, width: 1, color: trailColor, emissiveIntensity: 2.8 }),
-          new EngineTrail(this.scene, { maxPoints: 64, trailTime: 1.8, width: 1, color: trailColor, emissiveIntensity: 2.8 }),
+          new EngineTrail(this.scene, {
+            maxPoints: 64,
+            trailTime: 1.8,
+            width: 1,
+            color: trailColor,
+            emissiveIntensity: 2.8,
+          }),
+          new EngineTrail(this.scene, {
+            maxPoints: 64,
+            trailTime: 1.8,
+            width: 1,
+            color: trailColor,
+            emissiveIntensity: 2.8,
+          }),
         ];
       }
 
@@ -140,11 +179,12 @@ export class RemotePlayer {
     } else {
       const geo = new THREE.ConeGeometry(0.5, 1.5, 8);
       geo.rotateX(Math.PI / 2);
-      
-      const color = this.teamMode && this.team > 0
-        ? TEAM_COLORS[this.team]
-        : SHIP_COLORS[this.shipClass] || 0x00f0ff;
-      
+
+      const color =
+        this.teamMode && this.team > 0
+          ? TEAM_COLORS[this.team]
+          : SHIP_COLORS[this.shipClass] || 0x00f0ff;
+
       const mat = new THREE.MeshStandardMaterial({
         color: color,
         emissive: color,
@@ -152,15 +192,17 @@ export class RemotePlayer {
         metalness: 0.8,
         roughness: 0.2,
       });
-      
+
       this.shipMesh = new THREE.Mesh(geo, mat);
       this.mesh.add(this.shipMesh);
     }
-    
+
     const engineGlow = new THREE.PointLight(
-      this.teamMode && this.team > 0 ? TEAM_COLORS[this.team] : SHIP_COLORS[this.shipClass],
+      this.teamMode && this.team > 0
+        ? TEAM_COLORS[this.team]
+        : SHIP_COLORS[this.shipClass],
       2,
-      8
+      8,
     );
     engineGlow.position.set(0, 0, 0.8);
     this.mesh.add(engineGlow);
@@ -172,24 +214,27 @@ export class RemotePlayer {
     canvas.width = 256;
     canvas.height = 64;
     const ctx = canvas.getContext("2d");
-    
+
     ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
     ctx.fillRect(0, 0, 256, 64);
-    
+
     ctx.font = "bold 24px Rajdhani, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillStyle = this.teamMode && this.team > 0
-      ? (this.team === 1 ? "#ff4455" : "#4488ff")
-      : "#00f0ff";
+    ctx.fillStyle =
+      this.teamMode && this.team > 0
+        ? this.team === 1
+          ? "#ff4455"
+          : "#4488ff"
+        : "#00f0ff";
     ctx.fillText(this.name, 128, 40);
-    
+
     const texture = new THREE.CanvasTexture(canvas);
     const spriteMat = new THREE.SpriteMaterial({
       map: texture,
       transparent: true,
       depthTest: true,
     });
-    
+
     this.nameSprite = new THREE.Sprite(spriteMat);
     this.nameSprite.scale.set(4, 1, 1);
     this.nameSprite.position.set(0, 2, 0);
@@ -203,15 +248,20 @@ export class RemotePlayer {
     this.shipClass = playerData.shipClass;
     this.team = playerData.team;
     this.isBoosting = playerData.isBoosting ?? false;
-    
+
     if (this.alive) {
       this.interpolation.pushState(
         { x: playerData.x, y: playerData.y, z: playerData.z },
-        { x: playerData.qx, y: playerData.qy, z: playerData.qz, w: playerData.qw },
-        timestamp
+        {
+          x: playerData.qx,
+          y: playerData.qy,
+          z: playerData.qz,
+          w: playerData.qw,
+        },
+        timestamp,
       );
     }
-    
+
     this.mesh.visible = this.alive;
   }
 
@@ -221,8 +271,14 @@ export class RemotePlayer {
     const { position, rotation } = this.interpolation.getInterpolatedState();
 
     _velocity.set(0, 0, 0);
-    if (this._lastPosition.x !== position.x || this._lastPosition.y !== position.y || this._lastPosition.z !== position.z) {
-      _velocity.subVectors(position, this._lastPosition).divideScalar(Math.max(delta, 0.001));
+    if (
+      this._lastPosition.x !== position.x ||
+      this._lastPosition.y !== position.y ||
+      this._lastPosition.z !== position.z
+    ) {
+      _velocity
+        .subVectors(position, this._lastPosition)
+        .divideScalar(Math.max(delta, 0.001));
     }
     this._lastPosition.copy(position);
 
@@ -236,13 +292,23 @@ export class RemotePlayer {
     const speed = _velocity.length();
     const maxSpeed = 2.5;
     this.engineGlowTarget = this.isBoosting ? 1 : Math.min(1, speed / maxSpeed);
-    this.engineGlowT += (this.engineGlowTarget - this.engineGlowT) * Math.min(1, delta * 4);
+    this.engineGlowT +=
+      (this.engineGlowTarget - this.engineGlowT) * Math.min(1, delta * 4);
     const boostGlow = this.isBoosting ? 1 : 0;
     for (const mat of this.engineMaterials) {
       if (!mat.color || !mat.emissive) continue;
-      mat.color.lerpColors(_engineColorBlack, boostGlow > 0 ? _engineColorBoost : _engineColorGlow, this.engineGlowT);
-      mat.emissive.lerpColors(_engineColorBlack, boostGlow > 0 ? _engineColorBoost : _engineColorGlow, this.engineGlowT);
-      mat.emissiveIntensity = boostGlow > 0 ? 2.2 : (0.05 + 0.25 * this.engineGlowT);
+      mat.color.lerpColors(
+        _engineColorBlack,
+        boostGlow > 0 ? _engineColorBoost : _engineColorGlow,
+        this.engineGlowT,
+      );
+      mat.emissive.lerpColors(
+        _engineColorBlack,
+        boostGlow > 0 ? _engineColorBoost : _engineColorGlow,
+        this.engineGlowT,
+      );
+      mat.emissiveIntensity =
+        boostGlow > 0 ? 2.2 : 0.05 + 0.25 * this.engineGlowT;
     }
 
     if (this.engineTrails.length >= 2) {
@@ -259,12 +325,18 @@ export class RemotePlayer {
 
     const gunRecover = 1 - Math.exp(-GUN_RETRACT_RECOVERY * delta);
     if (this.gunL?.userData.restPosition) {
-      this.gunRetractionL = Math.max(0, this.gunRetractionL - this.gunRetractionL * gunRecover);
+      this.gunRetractionL = Math.max(
+        0,
+        this.gunRetractionL - this.gunRetractionL * gunRecover,
+      );
       this.gunL.position.copy(this.gunL.userData.restPosition);
       this.gunL.position.z -= this.gunRetractionL;
     }
     if (this.gunR?.userData.restPosition) {
-      this.gunRetractionR = Math.max(0, this.gunRetractionR - this.gunRetractionR * gunRecover);
+      this.gunRetractionR = Math.max(
+        0,
+        this.gunRetractionR - this.gunRetractionR * gunRecover,
+      );
       this.gunR.position.copy(this.gunR.userData.restPosition);
       this.gunR.position.z -= this.gunRetractionR;
     }
@@ -298,7 +370,7 @@ export class RemotePlayer {
 
   takeDamage(amount) {
     this.health = Math.max(0, this.health - amount);
-    
+
     if (this.shipMesh) {
       this.shipMesh.traverse((child) => {
         if (child.isMesh && child.material.emissive) {
@@ -314,7 +386,7 @@ export class RemotePlayer {
   setAlive(alive) {
     this.alive = alive;
     this.mesh.visible = alive;
-    
+
     if (alive) {
       this.interpolation.reset();
     }

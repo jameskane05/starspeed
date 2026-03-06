@@ -1,3 +1,24 @@
+/**
+ * gameInit.js - GAME BOOTSTRAP AND SCENE SETUP
+ * =============================================================================
+ *
+ * ROLE: One-time initialization of physics, Three.js scene, camera, renderer,
+ * Spark renderer, managers, effects, and input. Creates GameManager, SceneManager,
+ * LightManager, ParticleSystem, etc., and wires them to the Game instance.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Call initPhysics(); create scene, camera, WebGLRenderer, SparkRenderer
+ * - Instantiate GameManager, SceneManager, LightManager, DynamicSceneElementManager
+ * - Set up post-processing (bloom, FXAA), particle effects, engine trails, dynamic lights
+ * - Create Input, MenuManager, NetworkManager; load menu/start screen; optional XR
+ * - Platform detection and performance profile application
+ *
+ * RELATED: Physics.js, GameManager.js, SceneManager.js, LightManager.js, Input.js,
+ * MenuManager.js, NetworkManager.js, ParticleSystem, gameData.js, performanceSettings.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";

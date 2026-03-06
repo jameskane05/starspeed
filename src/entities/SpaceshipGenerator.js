@@ -1,3 +1,21 @@
+/**
+ * SpaceshipGenerator.js - PROCEDURAL SPACESHIP MESH GENERATION
+ * =============================================================================
+ *
+ * ROLE: Generates procedural spaceship meshes from a seed. Hull segments,
+ * exhausts, optional cockpit; used for variety or placeholder ships. Seeded
+ * RNG for deterministic output.
+ *
+ * KEY RESPONSIBILITIES:
+ * - generate(): return THREE.Group with hull, exhausts, materials
+ * - createRNG(seed), random(), uniform(), randInt() for procedural build
+ * - buildHullSegments(), segmentsToGeometry(), addExhausts()
+ *
+ * RELATED: Enemy.js (ship models), SceneManager (if used for dynamic ships).
+ *
+ * =============================================================================
+ */
+
 import * as THREE from 'three';
 
 const _v = new THREE.Vector3();

@@ -2,7 +2,16 @@
  * LightManager.js - SCENE LIGHTING
  * =============================================================================
  *
- * Manages Three.js lights. SplatEdit lights removed for performance.
+ * ROLE: Manages Three.js lights for the scene. Loads definitions from lightData.js;
+ * supports ambient and per-level ambient; optional start-screen-only mode for menu.
+ *
+ * KEY RESPONSIBILITIES:
+ * - loadLightsFromData(defs, gameState): create lights from lightData; criteria-based visibility
+ * - createLight(config, parent): AmbientLight, DirectionalLight, PointLight, etc.
+ * - updateAmbientForLevel(levelId): adjust ambient by LEVELS config from gameData
+ * - loadStartScreenLights(moveGroup): apply startScreenLights for menu/start screen
+ *
+ * RELATED: lightData.js, gameData.js (LEVELS), sceneData.js (checkCriteria).
  *
  * =============================================================================
  */

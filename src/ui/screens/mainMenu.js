@@ -1,3 +1,16 @@
+/**
+ * mainMenu.js - MAIN MENU SCREEN
+ * =============================================================================
+ *
+ * ROLE: Renders the main menu DOM: title, callsign, Solo/Create/Join/Options.
+ * Binds button handlers and gamepad indicator. Used by MenuManager when
+ * currentScreen is MAIN_MENU.
+ *
+ * RELATED: MenuManager.js, constants.js, gameData.js (LEVELS), Gamepad.js.
+ *
+ * =============================================================================
+ */
+
 import { LEVELS } from "../../data/gameData.js";
 import { GamepadInput } from "../../game/Gamepad.js";
 import { SCREENS } from "../constants.js";

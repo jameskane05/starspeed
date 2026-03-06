@@ -1,3 +1,21 @@
+/**
+ * sfxManager.js - SAMPLE-BASED SFX PLAYBACK
+ * =============================================================================
+ *
+ * ROLE: Loads and plays SFX from sfxData (or passed sounds data). Uses
+ * ProceduralAudio context and gain. Supports round-robin, spatial, volume/pitch
+ * variation. Singleton; init(soundsData) called from gameInit.
+ *
+ * KEY RESPONSIBILITIES:
+ * - _loadAll() from data; play(id, position) for spatial or non-spatial
+ * - Round-robin for laser; volume/pitch ranges per def
+ * - get ctx, masterGain, sfxVolume from proceduralAudio
+ *
+ * RELATED: ProceduralAudio.js, sfxData.js, gameCombat.js, gameInit.js.
+ *
+ * =============================================================================
+ */
+
 import proceduralAudio from './ProceduralAudio.js';
 
 class SFXManager {

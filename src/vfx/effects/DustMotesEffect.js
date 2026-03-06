@@ -1,12 +1,23 @@
+/**
+ * DustMotesEffect.js - AMBIENT DUST PARTICLE VOLUME
+ * =============================================================================
+ *
+ * ROLE: Continuously emits dust motes from a large box volume for ambient
+ * atmosphere. Particles fade in/out over lifetime; no velocity. Matches Unity
+ * DustMotesEffect prefab.
+ *
+ * KEY RESPONSIBILITIES:
+ * - update(delta): emit at emissionRate; advance particle lifetimes
+ * - emitDustMote(): random position in box, size, color from prefab
+ * - Uses ParticleSystem dust mote pool; box center/size configurable
+ *
+ * RELATED: ParticleSystem.js, gameInit.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 
-/**
- * DustMotesEffect - Global ambient dust particles
- * Matches Unity DustMotesEffect.prefab
- * 
- * Emits particles from a large box volume continuously.
- * Particles have no velocity, just fade in/out over lifetime.
- */
 export class DustMotesEffect {
   constructor(particleSystem) {
     this.particles = particleSystem;

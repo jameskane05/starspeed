@@ -1,3 +1,21 @@
+/**
+ * menuFocus.js - MENU KEYBOARD AND GAMEPAD FOCUS
+ * =============================================================================
+ *
+ * ROLE: Manages focusable elements and navigation in menu screens. Arrow keys
+ * and gamepad d-pad move focus; Enter/A selects; Escape/B backs. Polls gamepad
+ * for menu navigation when not in PLAYING.
+ *
+ * KEY RESPONSIBILITIES:
+ * - init(manager): keydown listener, gamepad polling
+ * - updateFocus(manager), getFocusableElements(container); handleMenuKeydown
+ * - startGamepadPolling / stopGamepadPolling; FOCUS_SELECTOR for focusable items
+ *
+ * RELATED: MenuManager.js, Gamepad.js, constants.js, ProceduralAudio.js.
+ *
+ * =============================================================================
+ */
+
 import { GamepadInput } from "../game/Gamepad.js";
 import { SCREENS } from "./constants.js";
 import proceduralAudio from "../audio/ProceduralAudio.js";

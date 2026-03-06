@@ -2,8 +2,15 @@
  * lightData.js - LIGHT DEFINITIONS
  * =============================================================================
  *
- * Standard Three.js lights only - SplatLights removed for performance.
- * SplatEdit layers cause significant per-frame overhead in SparkJS.
+ * ROLE: Centralized definitions for Three.js lights. In-game ambient and
+ * start-screen lights (ambient, directional). SplatEdit lights removed for performance.
+ *
+ * KEY RESPONSIBILITIES:
+ * - lights: Default ambient (and any in-play) light configs
+ * - startScreenLights: Array of light defs for menu/start screen (LightManager.loadStartScreenLights)
+ * - Each def: id, type (AmbientLight, DirectionalLight, etc.), color, intensity, position
+ *
+ * RELATED: LightManager.js, gameData.js (LEVELS for per-level ambient).
  *
  * =============================================================================
  */

@@ -1,3 +1,24 @@
+/**
+ * Game.js - MAIN GAME CONTAINER AND LOOP ORCHESTRATOR
+ * =============================================================================
+ *
+ * ROLE: Central game object that holds scene, camera, renderer, managers, and
+ * entity state. Coordinates init (via gameInit.js), update loop, and mode
+ * switching between menu and play (solo/multiplayer).
+ *
+ * KEY RESPONSIBILITIES:
+ * - Own references to GameManager, SceneManager, LightManager, input, player, level
+ * - Delegate init to gameInit.js; run requestAnimationFrame loop with gameUpdate.tick
+ * - Start solo play via gameSolo; multiplayer via gameMultiplayer (NetworkManager)
+ * - Hold local state: enemies, projectiles, missiles, explosions, remote players
+ * - Integrate Prediction for client-side prediction in multiplayer
+ *
+ * RELATED: gameInit.js, gameUpdate.js, gameSolo.js, gameMultiplayer.js, GameManager,
+ * SceneManager, LightManager, NetworkManager, MenuManager.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { GAME_STATES } from "../data/gameData.js";
 import NetworkManager from "../network/NetworkManager.js";

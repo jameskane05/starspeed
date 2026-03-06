@@ -1,10 +1,19 @@
 /**
- * Detects platform capabilities (mobile, iOS, Safari, fullscreen support)
- * and sets corresponding flags in gameManager state via setState().
+ * platformDetection.js - PLATFORM CAPABILITY FLAGS
+ * =============================================================================
  *
- * Usage: Call detectPlatform(gameManager) early in initialization.
- * Other systems check gameState.isIOS, gameState.isMobile, etc.
+ * ROLE: Detects mobile, iOS, Vision Pro, Safari, fullscreen support and sets
+ * flags on GameManager state. Call early in init; other systems read state.isIOS,
+ * state.isMobile, etc.
+ *
+ * KEY RESPONSIBILITIES:
+ * - detectPlatform(gameManager): setState({ isMobile, isIOS, isVisionPro, isSafari, isFullscreenSupported })
+ *
+ * RELATED: gameInit.js, GameManager.js.
+ *
+ * =============================================================================
  */
+
 export function detectPlatform(gameManager) {
   if (!gameManager) return;
 

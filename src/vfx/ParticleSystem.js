@@ -1,3 +1,21 @@
+/**
+ * ParticleSystem.js - PARTICLE POOLS AND EMITTERS
+ * =============================================================================
+ *
+ * ROLE: Central particle system with pools (fire, smoke, sparks, debris, etc.).
+ * Emit helpers (sphere, hemisphere, cone); update(delta) advances all pools.
+ * Used by ExplosionEffect, SparksEffect, TrailsEffect, DustMotesEffect.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Pools: fire, smoke, sparks, lineSparks, debris; configurable capacities from performance
+ * - emitBigExplosion(position, options), emitSmallExplosion; emitHitSparks, etc. via effect classes
+ * - update(delta): tick all particles; integrate velocity, drag, rise; recycle expired
+ *
+ * RELATED: ExplosionEffect.js, SparksEffect.js, TrailsEffect.js, DustMotesEffect.js, gameInit.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 
 const textureLoader = new THREE.TextureLoader();

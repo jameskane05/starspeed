@@ -1,3 +1,23 @@
+/**
+ * gameMultiplayer.js - MULTIPLAYER MODE SETUP AND NETWORK HANDLERS
+ * =============================================================================
+ *
+ * ROLE: Connects game to NetworkManager for multiplayer. Registers room/player
+ * join/leave/update listeners, spawns local player and remote players, syncs
+ * projectiles and collectibles, and handles game start from room state.
+ *
+ * KEY RESPONSIBILITIES:
+ * - setupNetworkListeners(game): roomJoined, playerJoin, playerLeave, playerUpdate
+ * - addRemotePlayer / removeRemotePlayer; sync local player stats from server
+ * - startMultiplayerGame(game): create local Player, spawn remotes, preload level
+ * - Handle projectile and collectible spawn/remove/pickup from network events
+ *
+ * RELATED: NetworkManager.js, Player.js, RemotePlayer.js, gameLevel.js,
+ * gameNetworkProjectiles.js, gamePlayerLifecycle.js, ShipDestruction.js, gameData.js.
+ *
+ * =============================================================================
+ */
+
 import { Player } from "../entities/Player.js";
 import { RemotePlayer } from "../entities/RemotePlayer.js";
 import { Explosion } from "../entities/Explosion.js";

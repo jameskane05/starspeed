@@ -1,3 +1,19 @@
+/**
+ * sfxData.js - SFX DEFINITIONS
+ * =============================================================================
+ *
+ * ROLE: Defines sample-based SFX: src paths, volume/pitch ranges, spatial
+ * settings (refDistance, maxDistance, rolloff), roundRobin. Consumed by sfxManager.
+ *
+ * KEY RESPONSIBILITIES:
+ * - sfxSounds: map of id to { id, src[], volume, pitch, spatial, refDistance, etc. }
+ * - Default export for sfxManager.init(soundsData)
+ *
+ * RELATED: sfxManager.js.
+ *
+ * =============================================================================
+ */
+
 export const sfxSounds = {
   "laser": {
     id: "laser",

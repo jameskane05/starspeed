@@ -1,3 +1,15 @@
+/**
+ * results.js - MATCH RESULTS SCREEN
+ * =============================================================================
+ *
+ * ROLE: Renders post-match scoreboard: rank, pilot, kills, deaths, K/D; team
+ * scores for team mode. Data from NetworkManager.getState() and getPlayers().
+ *
+ * RELATED: MenuManager.js, menuNetwork.js, NetworkManager.js, constants.js.
+ *
+ * =============================================================================
+ */
+
 import NetworkManager from "../../network/NetworkManager.js";
 import { SCREENS } from "../constants.js";
 

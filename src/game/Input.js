@@ -1,3 +1,23 @@
+/**
+ * Input.js - UNIFIED KEYBOARD, MOUSE, GAMEPAD AND TOUCH INPUT
+ * =============================================================================
+ *
+ * ROLE: Single input abstraction for the game. Aggregates keyboard (KeyBindings),
+ * mouse look, gamepad (Gamepad.js), and touch (MobileControls). Exposes movement,
+ * look, fire, missile, boost, and menu actions to the game loop.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Poll keyboard state from KeyBindings; mouse delta for look
+ * - Poll gamepad via GamepadInput; merge with or override keyboard
+ * - Delegate touch to MobileControls when active; pointer lock for desktop
+ * - update(delta): apply movement/look to player; fire/missile/boost flags
+ * - Rebinding support and input mode change callbacks
+ *
+ * RELATED: KeyBindings.js, Gamepad.js, MobileControls.js, Player.js.
+ *
+ * =============================================================================
+ */
+
 import { KeyBindings } from './KeyBindings.js';
 import { GamepadInput } from './Gamepad.js';
 import { MobileControls } from './MobileControls.js';

@@ -1,3 +1,21 @@
+/**
+ * AudioSettings.js - MUSIC, SFX AND MASTER VOLUME PERSISTENCE
+ * =============================================================================
+ *
+ * ROLE: Singleton that loads/saves music, SFX, and master volume to localStorage.
+ * Exposes getMusicVolume(), getSfxVolume() (scaled by master) for MusicManager
+ * and sfxManager. Used by menu/settings UI to change and persist volume.
+ *
+ * KEY RESPONSIBILITIES:
+ * - load() / save() settings; get(key), set(key, value)
+ * - getMusicVolume(), getSfxVolume() return 0..1 scaled by master
+ * - subscribe(listener) / notifyListeners() for UI updates
+ *
+ * RELATED: MusicManager.js, sfxManager.js, menu/settings screens.
+ *
+ * =============================================================================
+ */
+
 const STORAGE_KEY = 'starspeed_audio_settings';
 
 const DEFAULT_SETTINGS = {

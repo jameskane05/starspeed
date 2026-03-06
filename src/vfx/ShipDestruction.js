@@ -1,3 +1,21 @@
+/**
+ * ShipDestruction.js - SHIP FRACTURE AND DEBRIS
+ * =============================================================================
+ *
+ * ROLE: Pre-fractures ship GLTF models (three-pinata) and spawns destructible
+ * mesh instances on death. Ejects debris with physics; cleanup after lifetime.
+ *
+ * KEY RESPONSIBILITIES:
+ * - prefractureModels(shipModels), prefracturePlayerShip(model): cache fragment geometry
+ * - spawnDestruction(scene, model, position, quat, options): spawn DestructibleMesh, debris
+ * - updateDestruction(delta): advance active debris, remove expired; cleanupDestruction()
+ * - PLAYER_SHIP_MODEL_INDEX for player prefracture; used by gameCombat, gameMultiplayer
+ *
+ * RELATED: Enemy.js, Player.js, gameCombat.js, gameMultiplayer.js, gameInGameUI.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import {
   DestructibleMesh,

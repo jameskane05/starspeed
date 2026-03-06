@@ -1,3 +1,20 @@
+/**
+ * Interpolation.js - REMOTE ENTITY STATE INTERPOLATION
+ * =============================================================================
+ *
+ * ROLE: Buffers position/rotation samples with timestamps; returns interpolated
+ * state at render time (with delay) for smooth remote player movement. Used by
+ * RemotePlayer to smooth network updates.
+ *
+ * KEY RESPONSIBILITIES:
+ * - pushState(position, rotation, timestamp): add sample; keep buffer size bounded
+ * - getInterpolatedState(renderTime): interpolate between two samples for smooth display
+ *
+ * RELATED: RemotePlayer.js, gameMultiplayer.js, NetworkManager.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 
 export class Interpolation {

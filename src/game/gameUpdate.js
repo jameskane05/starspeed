@@ -1,3 +1,24 @@
+/**
+ * gameUpdate.js - PER-FRAME GAME LOOP AND PLAY STATE UPDATE
+ * =============================================================================
+ *
+ * ROLE: Drives the main tick. Updates physics, player, enemies, projectiles,
+ * missiles, explosions, network sync, HUD, and audio. Only runs when game state
+ * is PLAYING; menu/loading are handled elsewhere.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Export tick(game, delta, timestamp, frame) called from Game requestAnimationFrame
+ * - Step physics (stepWorld), update player and engine audio, handle fire input
+ * - Update enemies, projectiles, missiles; collision and combat resolution
+ * - Sync remote players and network projectiles in multiplayer; update prediction
+ * - Update HUD (health, kills, missiles, boost), damage indicators, depth-of-field
+ *
+ * RELATED: Physics.js, gameCombat.js, gameEnemies.js, gameNetworkProjectiles.js,
+ * gamePlayerLifecycle.js, gameInGameUI.js, EngineAudio.js, ProceduralAudio.js.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { stepWorld } from "../physics/Physics.js";
 import { updateDestruction } from "../vfx/ShipDestruction.js";
@@ -165,11 +186,7 @@ export function tick(game, delta, timestamp, frame) {
       } else if (data.type === "missile") {
         const serverProj = NetworkManager.getState()?.projectiles?.get(id);
         if (serverProj) {
-          data.obj.group.position.set(
-            serverProj.x,
-            serverProj.y,
-            serverProj.z,
-          );
+          data.obj.group.position.set(serverProj.x, serverProj.y, serverProj.z);
           data.obj.direction
             .set(serverProj.dx, serverProj.dy, serverProj.dz)
             .normalize();
