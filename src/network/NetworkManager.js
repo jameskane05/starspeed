@@ -179,6 +179,7 @@ class NetworkManager {
     // Track known entities to detect new ones via state changes (fallback)
     this._knownProjectiles = this._knownProjectiles || new Set();
     this._knownPlayers = this._knownPlayers || new Set();
+    this._knownCollectibles = this._knownCollectibles || new Set();
     
     this.room.onStateChange((state) => {
       this.emit("stateChange", state);
@@ -223,6 +224,24 @@ class NetworkManager {
           }
         });
       }
+
+      // Authoritative collectibles: sync spawn/remove from state (respawn handled by server)
+      if (state.collectibles) {
+        const currentIds = new Set();
+        state.collectibles.forEach((collectible, id) => {
+          currentIds.add(id);
+          if (!this._knownCollectibles.has(id)) {
+            this._knownCollectibles.add(id);
+            this.emit("collectibleSpawn", { collectible, id });
+          }
+        });
+        this._knownCollectibles.forEach((id) => {
+          if (!currentIds.has(id)) {
+            this._knownCollectibles.delete(id);
+            this.emit("collectibleRemove", { id });
+          }
+        });
+      }
     });
 
     this.room.onMessage("hit", (data) => {
@@ -243,6 +262,10 @@ class NetworkManager {
 
     this.room.onMessage("chat", (data) => {
       this.emit("chat", data);
+    });
+
+    this.room.onMessage("collectiblePickup", (data) => {
+      this.emit("collectiblePickup", data);
     });
 
     this.room.onLeave((code) => {

@@ -224,13 +224,13 @@
 
 .main-menu .menu-title {
   text-align: right;
-  margin-bottom: 1.25rem;
+  margin-bottom: 2.75rem;
   width: 100%;
 }
 
 .main-menu .menu-title .menu-title-logo {
   display: block;
-  width: 60%;
+  width: 75%;
   max-width: 100%;
   height: auto;
   margin: 0 0 0 auto;
@@ -238,7 +238,7 @@
 }
 
 .main-menu .menu-title .subtitle:first-of-type {
-  width: 60%;
+  width: 75%;
   max-width: 100%;
   margin-left: auto;
   margin-right: 0;
@@ -248,7 +248,7 @@
 
 .main-menu .menu-title h1 {
   font-family: "Orbitron", sans-serif;
-  font-size: 5rem;
+  font-size: 5.75rem;
   font-weight: 900;
   color: var(--accent-cyan);
   text-shadow:
@@ -280,7 +280,7 @@
   font-family: "Science", "Orbitron", sans-serif;
   font-style: normal;
   font-weight: bolder;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   color: var(--text-secondary);
   letter-spacing: 0.5em;
   margin-top: 0.5rem;
@@ -3542,6 +3542,32 @@
   .settings-section {
     width: 100%;
     flex: none;
+  }
+}
+
+/* Mobile portrait – same compact button sizing as landscape so more room frames the ship */
+@media (max-width: 600px) and (orientation: portrait) {
+  .main-menu .menu-title {
+    margin-top: 1rem;
+  }
+  .main-menu .menu-panel {
+    padding: 0.75rem 1rem;
+    margin-top: 2rem;
+  }
+  .main-menu .menu-content {
+    gap: 0.4rem;
+  }
+  .main-menu .menu-buttons {
+    gap: 0.3rem;
+  }
+  .main-menu .menu-buttons > label {
+    margin-top: 0.2rem;
+    font-size: 0.75rem;
+  }
+  .main-menu .menu-btn,
+  .main-menu .menu-buttons-row .menu-btn {
+    padding: 0.5rem 0.9rem;
+    font-size: 0.9rem;
   }
 }
 

@@ -29,13 +29,19 @@ import sfxManager from "../audio/sfxManager.js";
 export function spawnCollectible(game, id, data) {
   if (game.collectibles.has(id)) return;
 
+  const payload = {
+    id: id ?? data?.id,
+    type: data?.type ?? "missile",
+    x: data?.x ?? 0,
+    y: data?.y ?? 0,
+    z: data?.z ?? 0,
+  };
   const collectible = new Collectible(
     game.scene,
-    data,
+    payload,
     game.dynamicLights,
   );
   game.collectibles.set(id, collectible);
-  console.log(`[Game] Spawned collectible: ${id} (${data.type})`);
 }
 
 export function removeCollectible(game, id) {

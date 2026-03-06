@@ -7,16 +7,18 @@ Zero-G aerial combat multiplayer game built with Three.js and Colyseus.
 ```
 starspeed/
 ├── src/                    # Client (Three.js game)
-│   ├── audio/              # Music manager & data
-│   ├── data/               # Game constants, levels, scene definitions
-│   ├── entities/           # Game objects (Player, Enemy, Projectile, Missile, etc.)
-│   ├── game/               # Core game loop, input handling, keybindings
-│   ├── managers/           # GameManager, SceneManager, LightManager
-│   ├── network/            # NetworkManager, client prediction, interpolation
-│   ├── physics/            # Rapier3D physics wrapper
-│   ├── ui/                 # MenuManager, StartScreenScene, CSS
-│   ├── vfx/                # Particle systems, dynamic lights
-│   ├── world/              # Level generation
+│   ├── audio/              # Music, procedural SFX, engine/afterburner, sfx data
+│   ├── data/               # Game state, scene/light definitions, performance profiles
+│   ├── entities/           # Player, RemotePlayer, Enemy, Projectile, Missile, Collectible, Explosion, etc.
+│   ├── game/               # Core loop, init, update, solo/multiplayer entry, input, keybindings
+│   ├── managers/           # GameManager, SceneManager, LightManager, DynamicSceneElementManager
+│   ├── network/            # Colyseus client, Prediction, Interpolation
+│   ├── physics/            # Rapier3D wrapper
+│   ├── ui/                 # MenuManager, StartScreenScene, screen modules, focus/network helpers
+│   ├── vfx/                # ParticleSystem, DynamicLightPool, ShipDestruction, trail/explosion effects
+│   ├── world/              # Procedural Level (optional; main levels from sceneData)
+│   ├── xr/                 # Optional WebXR VR (XRManager)
+│   ├── utils/              # systemInfo, platformDetection, GizmoManager
 │   └── main.js             # Entry point
 │
 ├── server/                 # Colyseus multiplayer server
@@ -36,6 +38,15 @@ starspeed/
 │
 └── dist/                   # Built client (generated)
 ```
+
+### Client flow and key scripts
+
+- **Bootstrap:** `main.js` creates `Game`, then `game.init()` (in `gameInit.js`) sets up physics, scene, camera, renderer, Spark, managers (GameManager, SceneManager, LightManager, DynamicSceneElementManager), particles, input, MenuManager, and optional XR. Menu or start screen is shown first.
+- **Game loop:** `Game` runs a requestAnimationFrame loop; when state is PLAYING, `gameUpdate.tick(game, delta, ...)` runs each frame (physics step, player/enemies/projectiles/missiles, combat, network sync, HUD).
+- **Mode entry:** Solo: `gameSolo.startSoloDebug(game)`. Multiplayer: `gameMultiplayer.setupNetworkListeners(game)` and `startMultiplayerGame(game)` when room starts; NetworkManager drives room/player/state events.
+- **State and data:** GameManager holds state and emits `state:changed`. Data modules: `gameData.js` (GAME_STATES, LEVELS, SHIP_CLASSES, initialState), `sceneData.js` (scene objects + `getSceneObjectsForState`), `lightData.js`, `performanceSettings.js`. SceneManager loads objects from sceneData; gameLevel.preloadLevel() resolves PLAYING-state objects and loads them.
+- **Audio:** MusicManager (Howler + musicData); ProceduralAudio (Web Audio synthesis for UI/combat/feedback); EngineAudio (engine + afterburner tied to player); sfxManager + sfxData (sample playback). AudioSettings persists volume to localStorage.
+- **Optional VR:** XRManager.enterVR(scene, camera) is called from gameSolo when starting play; controller input feeds Player via lookInput/moveInput.
 
 ## Tech Stack
 
@@ -222,14 +233,17 @@ Particle effects use a modular composition pattern:
 ```
 src/vfx/
 ├── ParticleSystem.js          # Pool manager (sparks, fire, smoke, debrisFire, lineSparks)
-├── DynamicLightPool.js        # Pooled point light flashes
+├── DynamicLightPool.js        # Pooled point light flashes (explosions, impacts)
+├── EngineTrail.js             # Ribbon trail behind player/remote/missile
+├── ShipDestruction.js         # Pre-fracture (three-pinata) + spawn debris on death
 └── effects/
-    ├── ExplosionEffect.js     # Big explosions, small explosions (uses pools)
+    ├── ExplosionEffect.js     # Big/small explosions (uses pools)
     ├── SparksEffect.js        # Hit sparks, electrical sparks (uses pools)
-    └── TrailsEffect.js        # Missile exhaust trails (uses pools)
+    ├── TrailsEffect.js        # Missile exhaust, engine trail particles (uses pools)
+    └── DustMotesEffect.js     # Ambient dust volume (box emission, no velocity)
 ```
 
-`ParticleSystem` owns the GPU pools (billboard quads, point sprites, line segments). Effect classes are pure logic that emit into the pools. New effects are added by creating a new file in `effects/` and calling `particles.fire.emit(...)` etc.
+`ParticleSystem` owns the GPU pools (billboard quads, point sprites, line segments). Effect classes are pure logic that emit into the pools. ShipDestruction prefractures ship GLTFs at load (Enemy, Player); on death it spawns a DestructibleMesh and ejects debris. New effects: add a file in `effects/` and call `particles.fire.emit(...)` etc.
 
 Pool types:
 - **BillboardParticlePool** — Instanced quads, camera-facing, sprite sheet animation. For fire, smoke, debris fire.

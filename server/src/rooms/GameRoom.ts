@@ -135,7 +135,8 @@ export class GameRoom extends Room {
 
   private handleSetSpawnPoints(client: Client, data: any) {
     if (client.sessionId !== this.state.hostId) return;
-    if (this.state.phase !== "playing") return;
+    const canSet = this.state.phase === "countdown" || this.state.phase === "playing";
+    if (!canSet) return;
 
     const parse = (arr: any) =>
       (Array.isArray(arr) ? arr : [])
@@ -151,7 +152,9 @@ export class GameRoom extends Room {
     if (playerSpawns.length > 0) this.levelPlayerSpawns = playerSpawns;
     if (missileSpawns.length > 0) {
       this.levelMissileSpawns = missileSpawns;
-      this.respawnCollectiblesAtLevelPoints();
+      if (this.state.phase === "playing") {
+        this.respawnCollectiblesAtLevelPoints();
+      }
     }
 
     console.log(`[GameRoom] Spawn points from host: ${enemySpawns.length} enemy, ${playerSpawns.length} player, ${missileSpawns.length} missile`);
