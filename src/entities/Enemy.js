@@ -83,36 +83,36 @@ export async function loadSharedShipMaterials() {
     let hullLightsDiffuse = null;
     let hullLightsEmit = null;
     try {
-      normalMap = await _textureLoader.loadAsync(texUrl("hull_normal.png"));
+      normalMap = await _textureLoader.loadAsync(texUrl("ships/hull_normal.png"));
       normalMap.colorSpace = THREE.NoColorSpace;
       normalMap.wrapS = normalMap.wrapT = THREE.RepeatWrapping;
       normalMap.repeat.set(3, 3);
       normalMap.anisotropy = 4;
     } catch (err) {
       normalMap = null;
-      console.warn("[Enemy] Failed to load ./hull_normal.png", err);
+      console.warn("[Enemy] Failed to load ./ships/hull_normal.png", err);
     }
 
     try {
-      hullLightsDiffuse = await _textureLoader.loadAsync(texUrl("hull_lights_diffuse.png"));
+      hullLightsDiffuse = await _textureLoader.loadAsync(texUrl("ships/hull_lights_diffuse.png"));
       hullLightsDiffuse.colorSpace = THREE.SRGBColorSpace;
       hullLightsDiffuse.wrapS = hullLightsDiffuse.wrapT = THREE.RepeatWrapping;
       hullLightsDiffuse.repeat.set(3, 3);
       hullLightsDiffuse.anisotropy = 4;
     } catch (err) {
       hullLightsDiffuse = null;
-      console.warn("[Enemy] Failed to load ./hull_lights_diffuse.png", err);
+      console.warn("[Enemy] Failed to load ./ships/hull_lights_diffuse.png", err);
     }
 
     try {
-      hullLightsEmit = await _textureLoader.loadAsync(texUrl("hull_lights_emit.png"));
+      hullLightsEmit = await _textureLoader.loadAsync(texUrl("ships/hull_lights_emit.png"));
       hullLightsEmit.colorSpace = THREE.SRGBColorSpace;
       hullLightsEmit.wrapS = hullLightsEmit.wrapT = THREE.RepeatWrapping;
       hullLightsEmit.repeat.set(3, 3);
       hullLightsEmit.anisotropy = 4;
     } catch (err) {
       hullLightsEmit = null;
-      console.warn("[Enemy] Failed to load ./hull_lights_emit.png", err);
+      console.warn("[Enemy] Failed to load ./ships/hull_lights_emit.png", err);
     }
 
     sharedShipMaterials = { normalMap, hullLightsDiffuse, hullLightsEmit };

@@ -185,7 +185,18 @@ export function tick(game, delta, timestamp, frame) {
         data.obj.update(delta);
       } else if (data.type === "missile") {
         const serverProj = NetworkManager.getState()?.projectiles?.get(id);
-        if (serverProj) {
+        if (serverProj && data.targetPosition && data.targetDirection) {
+          data.targetPosition.set(serverProj.x, serverProj.y, serverProj.z);
+          data.targetDirection.set(serverProj.dx, serverProj.dy, serverProj.dz).normalize();
+          const smooth = 1 - Math.exp(-18 * delta);
+          data.obj.group.position.lerp(data.targetPosition, smooth);
+          data.obj.direction.lerp(data.targetDirection, smooth).normalize();
+          _unitForward.set(0, 0, 1);
+          data.obj.group.quaternion.setFromUnitVectors(
+            _unitForward,
+            data.obj.direction,
+          );
+        } else if (serverProj) {
           data.obj.group.position.set(serverProj.x, serverProj.y, serverProj.z);
           data.obj.direction
             .set(serverProj.dx, serverProj.dy, serverProj.dz)

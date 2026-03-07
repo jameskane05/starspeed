@@ -30,13 +30,13 @@ export const LEVELS = {
     id: "newworld",
     name: "New World",
     description: "Open planetary environment",
-    preview: "/hull_lights_emit.png",
+    preview: "/ships/hull_lights_emit.png",
   },
   redarena: {
     id: "redarena",
     name: "Red Arena",
     description: "Sci-fi arena environment",
-    preview: "/hull_lights_emit.png",
+    preview: "/ships/hull_lights_emit.png",
     ambientColor: 0xff4444,
     ambientIntensity: 4,
   },
@@ -44,7 +44,7 @@ export const LEVELS = {
     id: "arenatech",
     name: "Tech Arena",
     description: "Same arena, warm industrial lighting",
-    preview: "/hull_lights_emit.png",
+    preview: "/ships/hull_lights_emit.png",
     ambientColor: 0xc8b8a8,
     ambientIntensity: 3,
   },
@@ -52,7 +52,7 @@ export const LEVELS = {
     id: "charon",
     name: "Charon",
     description: "Charon environment",
-    preview: "/hull_lights_emit.png",
+    preview: "/ships/hull_lights_emit.png",
   },
 };
 

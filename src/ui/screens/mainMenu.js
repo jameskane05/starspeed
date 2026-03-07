@@ -6,14 +6,14 @@
  * Binds button handlers and gamepad indicator. Used by MenuManager when
  * currentScreen is MAIN_MENU.
  *
- * RELATED: MenuManager.js, constants.js, gameData.js (LEVELS), Gamepad.js.
+ * RELATED: MenuManager.js, gameData.js (LEVELS), Gamepad.js.
  *
  * =============================================================================
  */
 
 import { LEVELS } from "../../data/gameData.js";
 import { GamepadInput } from "../../game/Gamepad.js";
-import { SCREENS } from "../constants.js";
+import { SCREENS } from "../MenuManager.js";
 
 function updateGamepadIndicator() {
   const indicator = document.getElementById("gamepad-indicator");
@@ -38,7 +38,7 @@ export function renderMainMenu(manager) {
     <div class="menu-screen main-menu">
       <div class="main-menu-right">
         <div class="menu-title">
-          <p class="subtitle">JAMES C KANE'S</p>
+          <p class="subtitle"><a href="https://jamesckane.com" target="_blank" rel="noopener noreferrer" class="subtitle-link">JAMES C KANE</a>'S</p>
           <img class="menu-title-logo" src="/images/ui/Starspeed_WordMark.png" alt="Starspeed game title: metallic silver wordmark with stylized wing on the S and a glowing orange line through the text ending in a starburst." />
           <p class="subtitle">ZERO-G AERIAL COMBAT</p>
         </div>

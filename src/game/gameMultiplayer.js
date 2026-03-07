@@ -139,6 +139,15 @@ export function setupNetworkListeners(game) {
       const remote = game.remotePlayers.get(data.victimId);
       if (remote && remote.mesh) {
         victimPos = remote.mesh.position.clone();
+        const deathQuat = remote.mesh.quaternion.clone();
+        const remoteScale = remote.shipMesh?.scale?.x ?? 0.5;
+        spawnDestruction(
+          game.scene,
+          victimPos,
+          deathQuat,
+          PLAYER_SHIP_MODEL_INDEX,
+          remoteScale,
+        );
       }
       if (data.killerId === NetworkManager.sessionId) {
         proceduralAudio.killConfirm();

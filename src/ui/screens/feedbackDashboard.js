@@ -5,13 +5,13 @@
  * ROLE: Renders feedback dashboard screen (list of submitted feedback) and
  * provides getFeedbackApiBase() for modal submit URL. Fetches feedback from API.
  *
- * RELATED: MenuManager.js, feedbackModal.js, NetworkManager.js, constants.js.
+ * RELATED: MenuManager.js, feedbackModal.js, NetworkManager.js.
  *
  * =============================================================================
  */
 
 import NetworkManager from "../../network/NetworkManager.js";
-import { SCREENS } from "../constants.js";
+import { SCREENS } from "../MenuManager.js";
 
 export function getFeedbackApiBase() {
   const base = (NetworkManager.serverUrl || "")

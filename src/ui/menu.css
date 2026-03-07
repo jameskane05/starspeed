@@ -290,6 +290,16 @@
     0 0 20px rgba(0, 240, 255, 0.25);
 }
 
+.main-menu .subtitle .subtitle-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.main-menu .subtitle .subtitle-link:hover {
+  color: inherit;
+  text-decoration: none;
+}
+
 .menu-content {
   display: flex;
   flex-direction: column;

@@ -11,13 +11,13 @@
  * - Show lobby/playing/results screens; renderLobby on countdown/lobby; procedural countdown beep
  * - showKickedModal, chat message handling
  *
- * RELATED: MenuManager.js, NetworkManager.js, constants.js, ProceduralAudio.js.
+ * RELATED: MenuManager.js, NetworkManager.js, ProceduralAudio.js.
  *
  * =============================================================================
  */
 
 import NetworkManager from "../network/NetworkManager.js";
-import { SCREENS } from "./constants.js";
+import { SCREENS } from "./MenuManager.js";
 import proceduralAudio from "../audio/ProceduralAudio.js";
 
 export function setupNetworkListeners(manager) {

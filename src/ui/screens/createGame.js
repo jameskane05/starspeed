@@ -5,13 +5,13 @@
  * ROLE: Renders create-game form: room name, map (LEVELS), game mode, player
  * limit. Binds create and back; used by MenuManager when currentScreen is CREATE_GAME.
  *
- * RELATED: MenuManager.js, constants.js, gameData.js.
+ * RELATED: MenuManager.js, gameData.js.
  *
  * =============================================================================
  */
 
 import { LEVELS } from "../../data/gameData.js";
-import { SCREENS } from "../constants.js";
+import { SCREENS } from "../MenuManager.js";
 
 export function renderCreateGame(manager) {
   manager.menuContent.innerHTML = `

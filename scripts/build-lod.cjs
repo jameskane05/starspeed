@@ -2,38 +2,28 @@ const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
-const basename = process.argv[2];
-if (!basename) {
-  console.error("Usage: npm run build-lod -- <basename>");
-  console.error("Example: npm run build-lod -- splats/charon-final");
-  process.exit(1);
-}
-
-const publicDir = path.join(process.cwd(), "public");
-const inputPath = path.join(publicDir, basename + ".spz");
-if (!fs.existsSync(inputPath)) {
-  console.error("Input not found:", inputPath);
+const argv = process.argv.slice(2);
+if (argv.length === 0) {
+  console.error("Usage: npm run build-lod -- <args...>");
+  console.error("Example: npm run build-lod -- public/splats/spaceship/spaceship.spz --chunked --quality");
   process.exit(1);
 }
 
 const exeName = "build-lod" + (process.platform === "win32" ? ".exe" : "");
-const buildLodPath =
-  process.env.BUILD_LOD_PATH ||
-  path.join(process.cwd(), "spark-lod", "rust", "target", "release", exeName);
-if (!fs.existsSync(buildLodPath)) {
-  console.error("build-lod binary not found.");
-  console.error("Set BUILD_LOD_PATH to your build-lod executable (e.g. spark-lod/rust/target/release/" + exeName + ").");
+const candidates = [
+  process.env.BUILD_LOD_PATH,
+  path.join(process.cwd(), "spark-lod", "rust", "build-lod", "target", "release", exeName),
+  path.join(process.cwd(), "spark-lod", "rust", "target", "release", exeName),
+  path.join(process.cwd(), "..", "spark-lod", "rust", "build-lod", "target", "release", exeName),
+  path.join(process.cwd(), "..", "spark-lod", "rust", "target", "release", exeName),
+].filter(Boolean);
+const buildLodPath = candidates.find((p) => fs.existsSync(p));
+if (!buildLodPath) {
+  console.error("build-lod binary not found. Set BUILD_LOD_PATH or build from spark-lod.");
   process.exit(1);
 }
 
-const outDir = path.dirname(inputPath);
-const outBase = path.basename(basename);
-const outputPath = path.join(outDir, outBase + "-lod.rad");
-
-console.log("[build-lod] input:", inputPath);
-console.log("[build-lod] output:", outputPath);
-
-const child = spawn(buildLodPath, [inputPath, "-o", outputPath], {
+const child = spawn(buildLodPath, argv, {
   stdio: "inherit",
   cwd: process.cwd(),
 });

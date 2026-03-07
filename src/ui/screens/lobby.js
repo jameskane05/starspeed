@@ -6,14 +6,14 @@
  * chat messages. Handles addChatMessage, updateChatDisplay, mute; bindings
  * for start match, leave, ready. Used by MenuManager and menuNetwork.
  *
- * RELATED: MenuManager.js, menuNetwork.js, NetworkManager.js, constants.js, gameData.js.
+ * RELATED: MenuManager.js, menuNetwork.js, NetworkManager.js, gameData.js.
  *
  * =============================================================================
  */
 
 import NetworkManager from "../../network/NetworkManager.js";
 import { LEVELS } from "../../data/gameData.js";
-import { SCREENS } from "../constants.js";
+import { SCREENS } from "../MenuManager.js";
 
 export function escapeHtml(text) {
   const div = document.createElement("div");
@@ -185,7 +185,7 @@ export function renderLobby(manager) {
         
         <div class="settings-section">
           <div class="lobby-map-info">
-            <img class="map-preview" src="${LEVELS[state.level]?.preview || "/hull_lights_emit.png"}" alt="" />
+            <img class="map-preview" src="${LEVELS[state.level]?.preview || "/ships/hull_lights_emit.png"}" alt="" />
             <div class="map-details">
               <h3>MAP</h3>
               ${

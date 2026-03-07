@@ -11,13 +11,13 @@
  * - updateFocus(manager), getFocusableElements(container); handleMenuKeydown
  * - startGamepadPolling / stopGamepadPolling; FOCUS_SELECTOR for focusable items
  *
- * RELATED: MenuManager.js, Gamepad.js, constants.js, ProceduralAudio.js.
+ * RELATED: MenuManager.js, Gamepad.js, ProceduralAudio.js.
  *
  * =============================================================================
  */
 
 import { GamepadInput } from "../game/Gamepad.js";
-import { SCREENS } from "./constants.js";
+import { SCREENS } from "./MenuManager.js";
 import proceduralAudio from "../audio/ProceduralAudio.js";
 import NetworkManager from "../network/NetworkManager.js";
 

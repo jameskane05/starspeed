@@ -12,11 +12,24 @@
  * - Focus management (menuFocus); network listeners (menuNetwork); StartScreenScene for 3D menu
  * - KeyBindings/Gamepad rebind UI; AudioSettings sliders; getPerformanceProfile, systemInfo
  *
- * RELATED: constants.js (SCREENS), StartScreenScene.js, screens/*.js, menuFocus.js, menuNetwork.js,
+ * RELATED: StartScreenScene.js, screens/*.js, menuFocus.js, menuNetwork.js,
  * NetworkManager.js, KeyBindings.js, Gamepad.js, AudioSettings.js.
  *
  * =============================================================================
  */
+
+export const SCREENS = {
+  INITIAL_LOADING: "initialLoading",
+  MAIN_MENU: "mainMenu",
+  CREATE_GAME: "createGame",
+  JOIN_GAME: "joinGame",
+  LOBBY: "lobby",
+  LOADING: "loading",
+  PLAYING: "playing",
+  RESULTS: "results",
+  OPTIONS: "options",
+  FEEDBACK_DASHBOARD: "feedbackDashboard",
+};
 
 import NetworkManager from "../network/NetworkManager.js";
 import { LEVELS } from "../data/gameData.js";
@@ -38,7 +51,6 @@ import sfxManager from "../audio/sfxManager.js";
 import sfxSounds from "../audio/sfxData.js";
 import { getPerformanceProfile } from "../data/performanceSettings.js";
 import { getSystemInfo } from "../utils/systemInfo.js";
-import { SCREENS } from "./constants.js";
 import * as menuFocus from "./menuFocus.js";
 import * as menuNetwork from "./menuNetwork.js";
 import * as mainMenuScreen from "./screens/mainMenu.js";

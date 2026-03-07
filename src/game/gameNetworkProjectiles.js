@@ -124,7 +124,14 @@ export function spawnNetworkProjectile(game, id, data) {
     const missile = new Missile(game.scene, position, direction, {
       trailsEffect: game.trailsEffect,
     });
-    game.networkProjectiles.set(id, { type: "missile", obj: missile });
+    const targetPosition = new THREE.Vector3(data.x, data.y, data.z);
+    const targetDirection = direction.clone().normalize();
+    game.networkProjectiles.set(id, {
+      type: "missile",
+      obj: missile,
+      targetPosition,
+      targetDirection,
+    });
 
     game.dynamicLights?.flash(position, 0xffaa33, {
       intensity: 14,
@@ -180,16 +187,10 @@ export function updateNetworkProjectile(game, id, projectile) {
   const data = game.networkProjectiles.get(id);
   if (!data) return;
 
-  console.log(
-    "[Game] Updating network projectile:",
-    id,
-    "pos:",
-    projectile.x.toFixed(1),
-    projectile.y.toFixed(1),
-    projectile.z.toFixed(1),
-  );
-
-  if (data.type === "missile") {
+  if (data.type === "missile" && data.targetPosition && data.targetDirection) {
+    data.targetPosition.set(projectile.x, projectile.y, projectile.z);
+    data.targetDirection.set(projectile.dx, projectile.dy, projectile.dz).normalize();
+  } else if (data.type === "missile") {
     data.obj.group.position.set(projectile.x, projectile.y, projectile.z);
     data.obj.direction
       .set(projectile.dx, projectile.dy, projectile.dz)
