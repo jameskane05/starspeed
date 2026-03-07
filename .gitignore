@@ -25,3 +25,12 @@ dist-ssr
 
 # Cursor context
 context/
+
+# Windows reserved device names (break git add)
+nul
+NUL
+
+# Large splat sources / old chunk formats (serving .rad/.radc only)
+public/splats/charon/charon-final.ply
+public/splats/charon/charon-final.spz
+public/splats/spaceship/spaceship.spz
