@@ -233,12 +233,13 @@ export function showControlsHelp(game, visible) {
       ["Strafe", "strafeUp", "strafeDown"],
       ["Boost", "boost"],
       ["Fire", null],
-      ["Missile", null],
+      ["Homing missile", "missile"],
+      ["Kinetic missile", "kineticMissile"],
       ["Headlight", "toggleHeadlight"],
       ["Leaderboard", "leaderboard"],
       ["Pause", "pause"],
     ];
-    const rowLabels = { Fire: "Left Click", Missile: "Right Click" };
+    const rowLabels = { Fire: "Left Click" };
     const html = rows
       .map(([label, ...actions]) => {
         const keys = actions

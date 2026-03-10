@@ -75,6 +75,7 @@ export class Game {
     this.isMultiplayer = false;
     this.remotePlayers = new Map();
     this.networkProjectiles = new Map();
+    this.networkBots = new Map();
     this.collectibles = new Map();
     this.isEscMenuOpen = false;
     this.escMenu = null;
@@ -317,10 +318,8 @@ export class Game {
     if (gp.fire) {
       this.firePlayerWeapon();
     }
-    // Missiles fire on button press, not hold
-    if (gp.missileJustPressed) {
-      this.firePlayerMissile();
-    }
+    if (gp.missileJustPressed) this.firePlayerMissile();
+    if (gp.kineticMissileJustPressed) this.firePlayerKineticMissile();
   }
 
   firePlayerWeapon() {
@@ -329,6 +328,10 @@ export class Game {
 
   firePlayerMissile() {
     gameCombat.firePlayerMissile(this);
+  }
+
+  firePlayerKineticMissile() {
+    gameCombat.firePlayerKineticMissile(this);
   }
 
   fireEnemyWeapon(position, direction, style = null) {

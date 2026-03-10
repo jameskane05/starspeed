@@ -17,10 +17,7 @@
  */
 
 import * as THREE from "three";
-import {
-  DestructibleMesh,
-  FractureOptions,
-} from "@dgreenheck/three-pinata";
+import { DestructibleMesh, FractureOptions } from "@dgreenheck/three-pinata";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 const fragmentCache = new Map();
@@ -35,9 +32,10 @@ const DRAG_PER_SEC = 0.3;
 const innerMaterial = new THREE.MeshStandardMaterial({
   color: 0x111111,
   emissive: 0xff4400,
-  emissiveIntensity: 3.0,
+  emissiveIntensity: 4.0,
   metalness: 0.9,
   roughness: 0.3,
+  toneMapped: false,
 });
 
 export const PLAYER_SHIP_MODEL_INDEX = 100;
@@ -50,7 +48,9 @@ export function prefractureModels(shipModels) {
       console.warn(`Failed to pre-fracture model ${i}:`, e);
     }
   }
-  console.log(`Pre-fractured ${fragmentCache.size}/${shipModels.length} ship models`);
+  console.log(
+    `Pre-fractured ${fragmentCache.size}/${shipModels.length} ship models`,
+  );
 }
 
 export function prefracturePlayerShip(model) {
@@ -73,7 +73,9 @@ function prefractureModel(index, model) {
     const n = child.name?.toLowerCase?.() || "";
     if (n.startsWith("thruster_") || n.startsWith("weapon_")) return;
 
-    const src = child.geometry.index ? child.geometry.toNonIndexed() : child.geometry;
+    const src = child.geometry.index
+      ? child.geometry.toNonIndexed()
+      : child.geometry;
     const geo = src.clone();
     if (!geo.attributes?.position || geo.attributes.position.count < 3) {
       geo.dispose();
@@ -135,7 +137,13 @@ function prefractureModel(index, model) {
 const _center = new THREE.Vector3();
 const _ejectDir = new THREE.Vector3();
 
-export function spawnDestruction(scene, position, quaternion, modelIndex, scale = 2.0) {
+export function spawnDestruction(
+  scene,
+  position,
+  quaternion,
+  modelIndex,
+  scale = 2.0,
+) {
   const cached = fragmentCache.get(modelIndex);
   if (!cached || cached.length === 0) return;
 
@@ -155,7 +163,11 @@ export function spawnDestruction(scene, position, quaternion, modelIndex, scale 
 
     _ejectDir.copy(_center);
     if (_ejectDir.lengthSq() < 0.001) {
-      _ejectDir.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5);
+      _ejectDir.set(
+        Math.random() - 0.5,
+        Math.random() - 0.5,
+        Math.random() - 0.5,
+      );
     }
     _ejectDir.normalize();
 

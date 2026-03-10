@@ -121,6 +121,18 @@ export async function init(game) {
   game.sparkRenderer.renderOrder = -100;
   game.scene.add(game.sparkRenderer);
 
+  const state = game.gameManager.state;
+  console.log("[Init] Splat & platform:", {
+    maxPagedSplats,
+    maxPagedSplatsHuman: `${maxPagedSplats / 65536}×65536`,
+    useLowSplatLOD,
+    isIOS: state.isIOS,
+    isVisionPro: state.isVisionPro,
+    isMobile: state.isMobile,
+    isSafari: state.isSafari,
+    perfProfile: perfProfile?.label ?? "default",
+  });
+
   const renderSettings = perfProfile.rendering;
   game.renderer.setSize(window.innerWidth, window.innerHeight);
   game.renderer.setPixelRatio(renderSettings.pixelRatio);
@@ -162,8 +174,7 @@ export async function init(game) {
   game.gameManager.on("bloom:settings", (settings) => {
     if (settings.strength !== undefined)
       game.bloomPass.strength = settings.strength;
-    if (settings.radius !== undefined)
-      game.bloomPass.radius = settings.radius;
+    if (settings.radius !== undefined) game.bloomPass.radius = settings.radius;
     if (settings.threshold !== undefined)
       game.bloomPass.threshold = settings.threshold;
     gameUpdate.updateBloomActive(game);
@@ -198,11 +209,7 @@ export async function init(game) {
   ];
   game.dynamicLights = new DynamicLightPool(game.scene, { size: 12 });
 
-  game.gizmoManager = new GizmoManager(
-    game.scene,
-    game.camera,
-    game.renderer,
-  );
+  game.gizmoManager = new GizmoManager(game.scene, game.camera, game.renderer);
   window.gizmoManager = game.gizmoManager;
 
   game.sceneManager = new SceneManager(game.scene, {

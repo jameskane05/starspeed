@@ -36,6 +36,8 @@ export const DEFAULT_BINDINGS = {
   leaderboard: 'Tab',
   pause: 'Escape',
   toggleHeadlight: 'KeyL',
+  missile: 'Digit1',
+  kineticMissile: 'Digit2',
 };
 
 export const ACTION_LABELS = {
@@ -55,6 +57,8 @@ export const ACTION_LABELS = {
   leaderboard: 'Show Leaderboard',
   pause: 'Escape Menu',
   toggleHeadlight: 'Toggle Headlight',
+  missile: 'Homing Missile (1)',
+  kineticMissile: 'Kinetic Missile (2)',
 };
 
 export const KEY_DISPLAY_NAMES = {

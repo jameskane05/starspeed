@@ -141,18 +141,19 @@ export function spawnNetworkProjectile(game, id, data) {
     });
     proceduralAudio.missileFire();
   } else {
+    const isPlayerOwned = data.ownerId === NetworkManager.sessionId;
     const remote = game.remotePlayers.get(data.ownerId);
     const gunPos = remote?.getWeaponSpawnPoint?.();
     if (gunPos) {
       position.copy(gunPos).addScaledVector(direction, -1);
     }
 
-    const splatLight = game._createProjectileSplatLight(true, null);
+    const splatLight = game._createProjectileSplatLight?.(isPlayerOwned, null);
     const projectile = new Projectile(
       game.scene,
       position,
       direction,
-      true,
+      isPlayerOwned,
       data.speed,
       null,
       splatLight,
@@ -161,7 +162,8 @@ export function spawnNetworkProjectile(game, id, data) {
 
     if (remote?.triggerGunRecoil) remote.triggerGunRecoil();
 
-    game.dynamicLights?.flash(position, 0x00ffff, {
+    const flashColor = isPlayerOwned ? 0x00ffff : 0xff8800;
+    game.dynamicLights?.flash(position, flashColor, {
       intensity: 10,
       distance: 16,
       ttl: 0.05,

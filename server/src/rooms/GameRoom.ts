@@ -1,5 +1,5 @@
 import { Room, Client, matchMaker } from "colyseus";
-import { GameState, Player, Projectile, Collectible } from "./schema/GameState.js";
+import { GameState, Player, Projectile, Collectible, Bot } from "./schema/GameState.js";
 
 const SHIP_CLASSES = {
   fighter: { speed: 1.0, health: 100, missiles: 6, maxMissiles: 6, laserSpeed: 200, missileSpeed: 56, missileDamage: 75 },
@@ -30,6 +30,15 @@ const COLLECTIBLE_SPAWN_RADIUS = 25;
 const COLLECTIBLE_COLLECT_RADIUS = 3;
 const COLLECTIBLE_RESPAWN_TIME = 15;
 
+const BOT_MAX_COUNT = 8;
+const BOT_SPEED = 12;
+const BOT_LASER_SPEED = 180;
+const BOT_LASER_DAMAGE = 25;
+const BOT_FIRE_INTERVAL = 1.2;
+const BOT_ATTACK_RANGE_SQ = 625;
+const BOT_HIT_RADIUS = 2.5;
+const BOT_RESPAWN_TIME = 15;
+
 export class GameRoom extends Room {
   // State is typed via setState()
   declare state: GameState;
@@ -40,6 +49,9 @@ export class GameRoom extends Room {
   private collectibleRespawnTimers: Map<string, number> = new Map();
   private lastBoostInput: Map<string, boolean> = new Map();
   private lastBoostTime: Map<string, number> = new Map();
+  private botIdCounter = 0;
+  private botFireCooldowns: Map<string, number> = new Map();
+  private botRespawnQueue: { botId: string; timer: number; x: number; y: number; z: number }[] = [];
 
   async onCreate(options: any) {
     this.setState(new GameState());
@@ -68,6 +80,7 @@ export class GameRoom extends Room {
     this.state.killLimit = options.killLimit || 20;
     this.state.maxMatchTime = options.maxMatchTime || 480;
     this.state.maxPlayers = this.maxClients;
+    this.state.botsEnabled = options.botsEnabled === true;
 
     // Set room metadata for listing
     this.setMetadata({
@@ -75,6 +88,7 @@ export class GameRoom extends Room {
       mode: this.state.mode,
       isPublic: this.state.isPublic,
       maxPlayers: this.maxClients,
+      botsEnabled: this.state.botsEnabled,
     });
 
     this.registerMessageHandlers();
@@ -384,21 +398,152 @@ export class GameRoom extends Room {
     this.state.matchTime = 0;
     this.state.team1Score = 0;
     this.state.team2Score = 0;
-    
-    // Spawn all players
+    this.state.bots.clear();
+    this.botFireCooldowns.clear();
+    this.botRespawnQueue = [];
+
     let spawnIndex = 0;
     this.state.players.forEach((player: Player) => {
       this.spawnPlayer(player, spawnIndex);
       spawnIndex++;
     });
-    
-    // Spawn initial collectibles
+
     this.spawnInitialCollectibles();
-    
-    // Start game tick
+
+    if (this.state.botsEnabled) {
+      this.spawnBots();
+    }
+
     this.tickInterval = setInterval(() => this.tick(), 1000 / TICK_RATE);
-    
+
     console.log(`[GameRoom] Match started!`);
+  }
+
+  private spawnBots() {
+    const points = this.levelSpawnPoints.length > 0
+      ? this.levelSpawnPoints
+      : SPAWN_POINTS.map((p) => ({ x: p.x, y: p.y, z: p.z }));
+    const count = Math.min(BOT_MAX_COUNT, points.length);
+    for (let i = 0; i < count; i++) {
+      const pt = points[i % points.length];
+      const botId = `bot_${this.botIdCounter++}`;
+      const bot = new Bot();
+      bot.id = botId;
+      bot.x = pt.x;
+      bot.y = pt.y;
+      bot.z = pt.z;
+      const dx = -pt.x;
+      const dz = -pt.z;
+      const angle = Math.atan2(dx, dz);
+      bot.qy = Math.sin(angle / 2);
+      bot.qw = Math.cos(angle / 2);
+      bot.health = 100;
+      bot.maxHealth = 100;
+      this.state.bots.set(botId, bot);
+      this.botFireCooldowns.set(botId, 0);
+    }
+    console.log(`[GameRoom] Spawned ${count} bots`);
+  }
+
+  private spawnBotAt(botId: string, x: number, y: number, z: number) {
+    const bot = new Bot();
+    bot.id = botId;
+    bot.x = x;
+    bot.y = y;
+    bot.z = z;
+    const angle = Math.atan2(-x, -z);
+    bot.qy = Math.sin(angle / 2);
+    bot.qw = Math.cos(angle / 2);
+    bot.health = 100;
+    bot.maxHealth = 100;
+    this.state.bots.set(botId, bot);
+    this.botFireCooldowns.set(botId, 0);
+  }
+
+  private updateBots(dt: number) {
+    const alivePlayers: Player[] = [];
+    this.state.players.forEach((p: Player) => {
+      if (p.alive) alivePlayers.push(p);
+    });
+    if (alivePlayers.length === 0) return;
+
+    this.state.bots.forEach((bot: Bot, botId: string) => {
+      let nearest: Player | null = null;
+      let nearestDistSq = Infinity;
+      for (const p of alivePlayers) {
+        const dx = p.x - bot.x;
+        const dy = p.y - bot.y;
+        const dz = p.z - bot.z;
+        const dSq = dx * dx + dy * dy + dz * dz;
+        if (dSq < nearestDistSq) {
+          nearestDistSq = dSq;
+          nearest = p;
+        }
+      }
+      if (!nearest) return;
+
+      const dx = nearest.x - bot.x;
+      const dy = nearest.y - bot.y;
+      const dz = nearest.z - bot.z;
+      const len = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6;
+      const dirX = dx / len;
+      const dirY = dy / len;
+      const dirZ = dz / len;
+
+      const lookY = Math.atan2(-dx, -dz);
+      bot.qx = 0;
+      bot.qy = Math.sin(lookY / 2);
+      bot.qz = 0;
+      bot.qw = Math.cos(lookY / 2);
+
+      if (nearestDistSq > 36) {
+        bot.x += dirX * BOT_SPEED * dt;
+        bot.y += dirY * BOT_SPEED * dt;
+        bot.z += dirZ * BOT_SPEED * dt;
+      }
+
+      let cooldown = this.botFireCooldowns.get(botId) ?? 0;
+      cooldown -= dt;
+      this.botFireCooldowns.set(botId, cooldown);
+      if (cooldown <= 0 && nearestDistSq < BOT_ATTACK_RANGE_SQ) {
+        const muzzleX = bot.x - dirX * 2;
+        const muzzleY = bot.y - dirY * 2;
+        const muzzleZ = bot.z - dirZ * 2;
+        this.spawnProjectileFromBot(botId, muzzleX, muzzleY, muzzleZ, dirX, dirY, dirZ);
+        this.botFireCooldowns.set(botId, BOT_FIRE_INTERVAL);
+      }
+    });
+
+    for (let i = this.botRespawnQueue.length - 1; i >= 0; i--) {
+      const entry = this.botRespawnQueue[i];
+      entry.timer -= dt;
+      if (entry.timer <= 0) {
+        this.botRespawnQueue.splice(i, 1);
+        const newId = `bot_${this.botIdCounter++}`;
+        this.spawnBotAt(newId, entry.x, entry.y, entry.z);
+      }
+    }
+  }
+
+  private spawnProjectileFromBot(
+    botId: string,
+    x: number, y: number, z: number,
+    dx: number, dy: number, dz: number,
+  ) {
+    const proj = new Projectile();
+    proj.id = `proj_${this.projectileIdCounter++}`;
+    proj.ownerId = botId;
+    proj.x = x;
+    proj.y = y;
+    proj.z = z;
+    proj.dx = dx;
+    proj.dy = dy;
+    proj.dz = dz;
+    proj.speed = BOT_LASER_SPEED;
+    proj.damage = BOT_LASER_DAMAGE;
+    proj.type = "laser";
+    proj.lifetime = 3;
+    this.state.projectiles.set(proj.id, proj);
   }
 
   private spawnInitialCollectibles() {
@@ -559,25 +704,19 @@ export class GameRoom extends Room {
 
   private tick() {
     const dt = 1 / TICK_RATE;
-    
+
     this.state.matchTime += dt;
-    
-    // Update projectiles (includes swept collision detection)
+
     this.updateProjectiles(dt);
-    
-    // Update collectibles (rotation and collection detection)
+
+    if (this.state.botsEnabled) {
+      this.updateBots(dt);
+    }
+
     this.updateCollectibles(dt);
-    
-    // Handle shield regeneration
     this.updateShieldRegen(dt);
-
-    // Handle boost (drain + regen)
     this.updateBoost(dt);
-
-    // Handle respawns
     this.handleRespawns(dt);
-    
-    // Check match end conditions
     this.checkMatchEnd();
   }
 
@@ -656,8 +795,7 @@ export class GameRoom extends Room {
         player.health -= proj.damage;
         player.lastDamageTime = Date.now();
         toRemove.push(projId);
-        
-        // Broadcast hit event
+
         this.broadcast("hit", {
           targetId: player.id,
           shooterId: proj.ownerId,
@@ -666,12 +804,68 @@ export class GameRoom extends Room {
           y: closestY,
           z: closestZ,
         });
-        
+
         if (player.health <= 0) {
           this.handlePlayerDeath(player, proj.ownerId);
         }
       }
     });
+
+    const isBotProjectile = proj.ownerId.startsWith("bot_");
+    if (!isBotProjectile) {
+      this.state.bots.forEach((bot: Bot, botId: string) => {
+        if (toRemove.includes(projId)) return;
+
+        const toBotX = bot.x - prevX;
+        const toBotY = bot.y - prevY;
+        const toBotZ = bot.z - prevZ;
+        const segX = proj.x - prevX;
+        const segY = proj.y - prevY;
+        const segZ = proj.z - prevZ;
+        const segLenSq = segX * segX + segY * segY + segZ * segZ;
+
+        let closestX = prevX, closestY = prevY, closestZ = prevZ;
+        if (segLenSq > 0.0001) {
+          const t = Math.max(0, Math.min(1, (toBotX * segX + toBotY * segY + toBotZ * segZ) / segLenSq));
+          closestX = prevX + t * segX;
+          closestY = prevY + t * segY;
+          closestZ = prevZ + t * segZ;
+        }
+        const dbx = bot.x - closestX;
+        const dby = bot.y - closestY;
+        const dbz = bot.z - closestZ;
+        const distSqBot = dbx * dbx + dby * dby + dbz * dbz;
+        if (distSqBot < BOT_HIT_RADIUS * BOT_HIT_RADIUS) {
+          bot.health -= proj.damage;
+          toRemove.push(projId);
+
+          this.broadcast("hit", {
+            targetId: botId,
+            shooterId: proj.ownerId,
+            damage: proj.damage,
+            x: closestX,
+            y: closestY,
+            z: closestZ,
+          });
+
+          if (bot.health <= 0) {
+            const deathX = bot.x;
+            const deathY = bot.y;
+            const deathZ = bot.z;
+            this.state.bots.delete(botId);
+            this.botFireCooldowns.delete(botId);
+            this.botRespawnQueue.push({
+              botId,
+              timer: BOT_RESPAWN_TIME,
+              x: deathX,
+              y: deathY,
+              z: deathZ,
+            });
+            this.broadcast("botDeath", { botId, x: deathX, y: deathY, z: deathZ });
+          }
+        }
+      });
+    }
   }
 
   private updateCollectibles(dt: number) {
@@ -870,9 +1064,12 @@ export class GameRoom extends Room {
       clearInterval(this.tickInterval);
       this.tickInterval = null;
     }
-    
+
     this.state.phase = "results";
     this.state.projectiles.clear();
+    this.state.bots.clear();
+    this.botFireCooldowns.clear();
+    this.botRespawnQueue = [];
     
     // Determine winner
     let winner = "";

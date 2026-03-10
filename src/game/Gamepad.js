@@ -27,6 +27,7 @@ export const DEFAULT_GAMEPAD_BINDINGS = {
   rightStickY: 'lookY',     // Right stick vertical -> pitch
   rightTrigger: 'fire',     // RT -> fire lasers
   leftTrigger: 'missile',   // LT -> fire missiles
+  rightBumper: 'kineticMissile',
   leftStickPress: 'boost',  // L3 -> boost/sprint
   dpadUp: 'strafeUp',       // D-pad up -> strafe up
   dpadDown: 'strafeDown',   // D-pad down -> strafe down
@@ -45,6 +46,7 @@ export const HOTAS_BINDINGS = {
   twist: 'rollAxis',        // Twist/rudder -> roll (analog)
   buttonA: 'fire',          // Trigger (button 0) -> fire lasers
   buttonX: 'missile',       // Button 2 -> missiles
+  buttonB: 'kineticMissile',
   button8: 'boost',         // Button 8 -> boost
   start: 'pause',
   back: 'leaderboard',
@@ -85,6 +87,7 @@ export const GAMEPAD_ACTION_LABELS = {
   rollAxis: 'Roll (Analog)',
   fire: 'Fire Lasers',
   missile: 'Fire Missiles',
+  kineticMissile: 'Fire Kinetic Missile',
   boost: 'Boost',
   strafeUp: 'Strafe Up',
   strafeDown: 'Strafe Down',

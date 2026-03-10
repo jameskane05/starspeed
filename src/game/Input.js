@@ -62,6 +62,7 @@ export class Input {
       fire: false,
       missile: false,
       missileJustPressed: false,
+      kineticMissileJustPressed: false,
       boost: false,
       strafeUp: false,
       strafeDown: false,
@@ -145,6 +146,10 @@ export class Input {
     }
     if (e.code === 'Tab' && this.game.gameManager?.isPlaying()) e.preventDefault();
     this.setKey(e.code, true);
+    if (!e.repeat && this.game.gameManager?.isPlaying()) {
+      if (KeyBindings.isKeyBound('missile', e.code)) this.game.firePlayerMissile?.();
+      else if (KeyBindings.isKeyBound('kineticMissile', e.code)) this.game.firePlayerKineticMissile?.();
+    }
   }
 
   onKeyUp(e) {
@@ -268,6 +273,7 @@ export class Input {
     gp.fire = GamepadInput.getButtonState('fire');
     gp.missile = GamepadInput.getButtonState('missile');
     gp.missileJustPressed = GamepadInput.getButtonJustPressed('missile');
+    gp.kineticMissileJustPressed = GamepadInput.getButtonJustPressed('kineticMissile');
     gp.boost = GamepadInput.getButtonState('boost');
     
     // Strafe from buttons or POV hat (HOTAS)

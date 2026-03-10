@@ -1595,6 +1595,20 @@
   color: var(--accent-green);
 }
 
+.create-game .ready-checkbox-bots:focus-within {
+  box-shadow: none;
+  border-color: var(--border-color);
+}
+
+.create-game .ready-checkbox-bots:focus-within .ready-checkmark {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
+}
+
+.create-game .ready-checkbox-bots:hover .ready-checkmark {
+  border-color: var(--accent-cyan);
+}
+
 /* Results */
 .results {
   gap: 2rem;

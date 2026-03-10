@@ -54,6 +54,7 @@ export async function startSoloDebug(game) {
     game.input,
     game.level,
     game.scene,
+    { game },
   );
   game.player.health = 100;
   game.player.maxHealth = 100;

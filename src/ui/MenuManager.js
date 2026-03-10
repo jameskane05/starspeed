@@ -1344,6 +1344,7 @@ class MenuManager {
     maxPlayers = 8,
     level = "newworld",
     roomCode = null,
+    botsEnabled = false,
   ) {
     this.emit("levelSelected", level);
     this.showLoading("Creating arena...");
@@ -1357,6 +1358,7 @@ class MenuManager {
       level,
       roomId: roomCode,
       playerName: this.playerName,
+      botsEnabled,
     });
   }
 

@@ -27,7 +27,6 @@ import proceduralAudio from "../audio/ProceduralAudio.js";
 import engineAudio from "../audio/EngineAudio.js";
 import * as gameInGameUI from "./gameInGameUI.js";
 
-const _enginePos = new THREE.Vector3();
 const _audioForward = new THREE.Vector3();
 const _audioUp = new THREE.Vector3();
 const _unitForward = new THREE.Vector3();
@@ -66,6 +65,7 @@ export function tick(game, delta, timestamp, frame) {
       if (game.player) {
         const boostFuelBefore = game.player.boostFuel;
         game.player.update(delta, game.clock.elapsedTime);
+        game.dialogManager?.update(delta);
         if (game.isMultiplayer) {
           const localPlayer = NetworkManager.getLocalPlayer();
           if (localPlayer) {
@@ -76,27 +76,7 @@ export function tick(game, delta, timestamp, frame) {
         }
         engineAudio.update(delta, game.player);
         updateBoostDoF(game, delta);
-        const isBoosting = game.isMultiplayer
-          ? (NetworkManager.getLocalPlayer()?.isBoosting ?? false)
-          : game.player.isBoosting;
-        const t = game.clock.elapsedTime;
-        if (
-          game.player.engineMarkers?.length > 0 &&
-          game.playerEngineTrails.length >= 2
-        ) {
-          if (isBoosting) {
-            for (
-              let i = 0;
-              i < game.player.engineMarkers.length && i < 2;
-              i++
-            ) {
-              game.player.engineMarkers[i].getWorldPosition(_enginePos);
-              game.playerEngineTrails[i].addPoint(_enginePos, t);
-            }
-          }
-          game.playerEngineTrails[0].update(t);
-          game.playerEngineTrails[1].update(t);
-        }
+        // Afterburner trail only on remote players (RemotePlayer); local player does not show own trail
         if (!game.isMultiplayer) {
           const p = game.player;
           const elapsed = game.clock.elapsedTime;
@@ -131,6 +111,19 @@ export function tick(game, delta, timestamp, frame) {
     game.remotePlayers.forEach((remote) => {
       remote.update(delta);
     });
+
+    if (game.isMultiplayer) {
+      const bots = NetworkManager.getState()?.bots;
+      if (bots) {
+        bots.forEach((bot, id) => {
+          const entry = game.networkBots.get(id);
+          if (entry?.mesh) {
+            entry.mesh.position.set(bot.x, bot.y, bot.z);
+            entry.mesh.quaternion.set(bot.qx, bot.qy, bot.qz, bot.qw);
+          }
+        });
+      }
+    }
 
     game.collectibles.forEach((collectible) => {
       collectible.update(delta);

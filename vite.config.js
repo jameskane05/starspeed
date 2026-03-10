@@ -1,4 +1,6 @@
 import { defineConfig } from 'vite';
+import fs from 'fs';
+import path from 'path';
 import wasm from 'vite-plugin-wasm';
 import topLevelAwait from 'vite-plugin-top-level-await';
 import basicSsl from '@vitejs/plugin-basic-ssl';
@@ -6,9 +8,40 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 const isDev = process.env.NODE_ENV !== 'production';
 
+const staticExtensions = /\.(mp3|wav|ogg|m4a|png|jpg|jpeg|gif|webp|svg|ico|glb|gltf|json|woff2?|ttf|eot|spz|rad)$/i;
+
+function rejectMissingStaticPlugin() {
+  return {
+    name: 'reject-missing-static',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        let pathname = req.url?.split('?')[0] ?? '';
+        try {
+          pathname = decodeURIComponent(pathname);
+        } catch (_) {}
+        if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+        if (!staticExtensions.test(pathname)) return next();
+        const base = server.config.base.replace(/\/$/, '') || '';
+        const relative = pathname.startsWith(base) ? pathname.slice(base.length) : pathname;
+        const clean = path.normalize(relative).replace(/^(\.\.(\/|\\))+/, '');
+        if (clean.startsWith('..')) return next();
+        const publicDir = path.resolve(server.config.root, server.config.publicDir || 'public');
+        const filePath = path.join(publicDir, clean);
+        if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+          res.statusCode = 404;
+          res.end();
+          return;
+        }
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig({
   base: '/',
   plugins: [
+    rejectMissingStaticPlugin(),
     wasm(),
     topLevelAwait(),
     ...(isDev ? [basicSsl()] : []),

@@ -125,6 +125,8 @@ export const initialState = {
   // Current level/environment
   currentLevel: "newworld",
 
+  cockpitIntroPlayed: false,
+
   // Performance
   performanceProfile: null, // Set on init from saved settings or auto-detected
 };

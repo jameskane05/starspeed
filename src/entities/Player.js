@@ -21,6 +21,12 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { checkSphereCollision, castSphere } from "../physics/Physics.js";
 import { prefracturePlayerShip } from "../vfx/ShipDestruction.js";
+import { LipSyncManager } from "../ui/LipSyncManager.js";
+import { VRMAvatarRenderer } from "../ui/VRMAvatarRenderer.js";
+import {
+  hologramVertexShader,
+  hologramFragmentShader,
+} from "../vfx/shaders/hologramShader.glsl.js";
 
 const _right = new THREE.Vector3();
 const _up = new THREE.Vector3();
@@ -34,6 +40,10 @@ const _engineColorGlow = new THREE.Color(0xbbddff);
 const _engineColorBoost = new THREE.Color(0xddffff);
 const GUN_RETRACT_AMOUNT = 0.06;
 const GUN_RETRACT_RECOVERY = 6;
+const IDLE_BOB_SPEED = 0.6;
+const IDLE_BOB_POS_AMP = 0.0005;
+const IDLE_BOB_ANGLE_AMP = 0.00005;
+const IDLE_VELOCITY_THRESHOLD = 0.08;
 
 export class Player {
   constructor(camera, input, level, scene, options = {}) {
@@ -41,6 +51,7 @@ export class Player {
     this.input = input;
     this.level = level;
     this.scene = scene;
+    this.game = options.game ?? null;
     this.xrManager = null;
 
     this.health = options.health || 100;
@@ -94,6 +105,10 @@ export class Player {
     this.exteriorRef = null;
     this.engineGlowT = 0;
     this.engineGlowTarget = 0;
+    this.lipSyncManager = null;
+    this.vrmAvatarRenderer = null;
+    this.visemeHoloTime = 0;
+    this.visemeHoloUniforms = null;
 
     this.camera.position.set(0, 0, 0);
     this.camera.quaternion.identity();
@@ -138,24 +153,33 @@ export class Player {
             child.userData.restPosition = child.position.clone();
           } else if (n === "Missile_L") this.missileL = child;
           else if (n === "Missile_R") this.missileR = child;
-          if (n === "Engine_L" || n === "Engine_R") this.engineMarkers.push(child);
+          if (n === "Engine_L" || n === "Engine_R")
+            this.engineMarkers.push(child);
           if (n === "Engine_Center" || n === "Engine_L" || n === "Engine_R") {
-            if (child.isMesh && child.material) this.engineMaterials.push(child.material);
+            if (child.isMesh && child.material)
+              this.engineMaterials.push(child.material);
             else if (child.children) {
               child.traverse((c) => {
-                if (c.isMesh && c.material) this.engineMaterials.push(c.material);
+                if (c.isMesh && c.material)
+                  this.engineMaterials.push(c.material);
               });
             }
           }
         });
         if (!this.gunL || !this.gunR) {
-          console.warn("[Player] Ship model missing Gun_L and/or Gun_R; laser spawn using fallback offsets.");
+          console.warn(
+            "[Player] Ship model missing Gun_L and/or Gun_R; laser spawn using fallback offsets.",
+          );
         }
         if (this.engineMarkers.length < 2) {
-          console.warn("[Player] Ship model missing Engine_L and/or Engine_R; boost trail VFX disabled.");
+          console.warn(
+            "[Player] Ship model missing Engine_L and/or Engine_R; boost trail VFX disabled.",
+          );
         }
         if (this.engineMaterials.length === 0) {
-          console.warn("[Player] Ship model missing Engine_ meshes; engine glow disabled.");
+          console.warn(
+            "[Player] Ship model missing Engine_ meshes; engine glow disabled.",
+          );
         }
 
         this.camera.add(this.exteriorRef);
@@ -170,7 +194,7 @@ export class Player {
   loadCockpit(scene) {
     const loader = new GLTFLoader();
     loader.load(
-      "./Heavy_INT_02.glb",
+      "./Heavy_INT_03.glb",
       (gltf) => {
         this.cockpit = gltf.scene;
         this.cockpit.scale.setScalar(1.0);
@@ -206,6 +230,210 @@ export class Player {
         const cockpitLight = new THREE.PointLight(0x88aaff, 1, 5);
         cockpitLight.position.set(0, 0.2, 0);
         this.cockpit.add(cockpitLight);
+
+        let screenRMesh = null;
+        this.cockpit.traverse((child) => {
+          if (child.name === "Screen_R") {
+            screenRMesh = child.isMesh
+              ? child
+              : (child.children?.find((c) => c.isMesh) ?? null);
+          }
+        });
+        if (screenRMesh) {
+          const uniforms = {
+            uTexture: { value: null },
+            uTime: { value: 0 },
+            uHoloColor: { value: new THREE.Vector3(0.0, 0.85, 0.95) },
+            uScanLineIntensity: { value: 0.4 },
+            uAlpha: { value: 1.0 },
+            uUvOffset: { value: new THREE.Vector2(0, 0) },
+            uUvRepeat: { value: new THREE.Vector2(1, 1) },
+          };
+          const mat = new THREE.ShaderMaterial({
+            vertexShader: hologramVertexShader,
+            fragmentShader: hologramFragmentShader,
+            uniforms,
+            transparent: true,
+            depthWrite: false,
+            depthTest: false,
+            side: THREE.DoubleSide,
+          });
+          const visemeGeom = screenRMesh.geometry.clone();
+          const pos = visemeGeom.attributes.position;
+          const count = pos.count;
+          let xMin = Infinity,
+            xMax = -Infinity,
+            yMin = Infinity,
+            yMax = -Infinity,
+            zMin = Infinity,
+            zMax = -Infinity;
+          for (let i = 0; i < count; i++) {
+            const x = pos.getX(i),
+              y = pos.getY(i),
+              z = pos.getZ(i);
+            xMin = Math.min(xMin, x);
+            xMax = Math.max(xMax, x);
+            yMin = Math.min(yMin, y);
+            yMax = Math.max(yMax, y);
+            zMin = Math.min(zMin, z);
+            zMax = Math.max(zMax, z);
+          }
+          const xSpan = xMax - xMin,
+            ySpan = yMax - yMin,
+            zSpan = zMax - zMin;
+          const uAxis =
+            xSpan >= ySpan && xSpan >= zSpan ? "x" : ySpan >= zSpan ? "y" : "z";
+          const vAxis =
+            uAxis === "x"
+              ? ySpan >= zSpan
+                ? "y"
+                : "z"
+              : uAxis === "y"
+                ? xSpan >= zSpan
+                  ? "x"
+                  : "z"
+                : xSpan >= ySpan
+                  ? "x"
+                  : "y";
+          const uvs = new Float32Array(count * 2);
+          let uMin = Infinity,
+            uMax = -Infinity,
+            vMin = Infinity,
+            vMax = -Infinity;
+          for (let i = 0; i < count; i++) {
+            const uVal =
+              uAxis === "x"
+                ? pos.getX(i)
+                : uAxis === "y"
+                  ? pos.getY(i)
+                  : pos.getZ(i);
+            const vVal =
+              vAxis === "x"
+                ? pos.getX(i)
+                : vAxis === "y"
+                  ? pos.getY(i)
+                  : pos.getZ(i);
+            uMin = Math.min(uMin, uVal);
+            uMax = Math.max(uMax, uVal);
+            vMin = Math.min(vMin, vVal);
+            vMax = Math.max(vMax, vVal);
+          }
+          const uSpan = uMax - uMin || 1,
+            vSpan = vMax - vMin || 1;
+          for (let i = 0; i < count; i++) {
+            const uVal =
+              uAxis === "x"
+                ? pos.getX(i)
+                : uAxis === "y"
+                  ? pos.getY(i)
+                  : pos.getZ(i);
+            const vVal =
+              vAxis === "x"
+                ? pos.getX(i)
+                : vAxis === "y"
+                  ? pos.getY(i)
+                  : pos.getZ(i);
+            uvs[i * 2] = (uVal - uMin) / uSpan;
+            uvs[i * 2 + 1] = (vVal - vMin) / vSpan;
+          }
+          for (let i = 0; i < count; i++) {
+            uvs[i * 2 + 1] = 0.2 + 0.6 * uvs[i * 2 + 1];
+          }
+          visemeGeom.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+          const visemeMesh = new THREE.Mesh(visemeGeom, mat);
+          visemeMesh.position.set(0, 0.002, 0.01);
+          visemeMesh.renderOrder = 9010;
+          screenRMesh.add(visemeMesh);
+          this.visemeHoloUniforms = uniforms;
+
+          const vrmRenderer = new VRMAvatarRenderer({
+            vrmUrl: "./model_original_1773065783.vrm",
+          });
+          uniforms.uTexture.value = vrmRenderer.getTexture();
+          vrmRenderer
+            .loadVRM()
+            .then(() => {
+              this.vrmAvatarRenderer = vrmRenderer;
+              uniforms.uTexture.value = vrmRenderer.getTexture();
+              uniforms.uUvRepeat.value.set(1, 1);
+              uniforms.uUvOffset.value.set(0, 0);
+              if (!this.game?.gameManager) return;
+              import("../ui/DialogManager.js").then(({ DialogManager }) => {
+                const dm = new DialogManager({
+                  gameManager: this.game.gameManager,
+                  vrmAvatarRenderer: vrmRenderer,
+                  captionParent: this.camera,
+                });
+                dm.initialize().then(() => {
+                  this.game.dialogManager = dm;
+                });
+              });
+            })
+            .catch((err) => {
+              console.warn("[Cockpit] VRM load failed, using 2D viseme:", err);
+              const margin = 0.02;
+              const cellSize = 1 / 4;
+              const displaySize = cellSize * (1 - margin * 2);
+              const texLoader = new THREE.TextureLoader();
+              texLoader.load(
+                "./textures/ComfyUI_00429_.png",
+                (texture) => {
+                  uniforms.uTexture.value = texture;
+                  uniforms.uUvOffset.value.set(
+                    cellSize * margin,
+                    3 / 4 + cellSize * margin,
+                  );
+                  uniforms.uUvRepeat.value.set(displaySize, displaySize);
+                  for (let i = 0; i < count; i++) {
+                    const uVal =
+                      uAxis === "x"
+                        ? pos.getX(i)
+                        : uAxis === "y"
+                          ? pos.getY(i)
+                          : pos.getZ(i);
+                    const vVal =
+                      vAxis === "x"
+                        ? pos.getX(i)
+                        : vAxis === "y"
+                          ? pos.getY(i)
+                          : pos.getZ(i);
+                    const u = (uVal - uMin) / uSpan,
+                      v = (vVal - vMin) / vSpan;
+                    uvs[i * 2] = 0.125 + v * 0.75;
+                    uvs[i * 2 + 1] = u;
+                  }
+                  visemeGeom.attributes.uv.needsUpdate = true;
+                  this.lipSyncManager = new LipSyncManager({
+                    onFrameChange: (frameIndex, uv) => {
+                      uniforms.uUvOffset.value.set(uv.u, uv.v);
+                      uniforms.uUvRepeat.value.set(uv.uSize, uv.vSize);
+                    },
+                  });
+                  const setVisemeFrame = (frameIndex) => {
+                    const uv = this.lipSyncManager.getUV(frameIndex);
+                    uniforms.uUvOffset.value.set(uv.u, uv.v);
+                    uniforms.uUvRepeat.value.set(uv.uSize, uv.vSize);
+                  };
+                  setVisemeFrame(this.lipSyncManager.visemeFrames.silence);
+                  this.lipSyncManager.initialize().then(async () => {
+                    if (!this.game?.gameManager) return;
+                    const { DialogManager } =
+                      await import("../ui/DialogManager.js");
+                    const dm = new DialogManager({
+                      gameManager: this.game.gameManager,
+                      lipSyncManager: this.lipSyncManager,
+                      captionParent: this.camera,
+                    });
+                    await dm.initialize();
+                    this.game.dialogManager = dm;
+                  });
+                },
+                undefined,
+                (e) =>
+                  console.warn("[Cockpit] 2D viseme texture load failed:", e),
+              );
+            });
+        }
 
         this.camera.add(this.cockpit);
         console.log("Cockpit loaded");
@@ -359,28 +587,88 @@ export class Player {
       else this.velocity.z = 0;
     }
 
+    const speed = this.velocity.length();
+    const idle = Math.max(0, 1 - speed / IDLE_VELOCITY_THRESHOLD);
+    if (idle > 0) {
+      const t = elapsedTime;
+      _up.set(0, 1, 0).applyQuaternion(rig.quaternion);
+      _right.set(1, 0, 0).applyQuaternion(rig.quaternion);
+      _forward.set(0, 0, -1).applyQuaternion(rig.quaternion);
+      rig.position.addScaledVector(
+        _up,
+        Math.sin(t * IDLE_BOB_SPEED) * IDLE_BOB_POS_AMP * idle,
+      );
+      rig.position.addScaledVector(
+        _right,
+        Math.sin(t * IDLE_BOB_SPEED * 0.73 + 1) *
+          IDLE_BOB_POS_AMP *
+          0.75 *
+          idle,
+      );
+      rig.position.addScaledVector(
+        _forward,
+        Math.sin(t * IDLE_BOB_SPEED * 0.5 + 2) * IDLE_BOB_POS_AMP * 0.5 * idle,
+      );
+      _pitchQuat.setFromAxisAngle(
+        _right,
+        Math.sin(t * 0.42) * IDLE_BOB_ANGLE_AMP * idle,
+      );
+      _yawQuat.setFromAxisAngle(
+        _up,
+        Math.sin(t * 0.38 + 0.5) * IDLE_BOB_ANGLE_AMP * idle,
+      );
+      rig.quaternion.premultiply(_yawQuat).premultiply(_pitchQuat).normalize();
+    }
+
     if (this.engineMaterials.length > 0) {
-      this.engineGlowTarget = this.isBoosting ? 1 : Math.min(1, this.velocity.length() / this.maxSpeed);
-      this.engineGlowT += (this.engineGlowTarget - this.engineGlowT) * Math.min(1, delta * 4);
+      this.engineGlowTarget = this.isBoosting
+        ? 1
+        : Math.min(1, this.velocity.length() / this.maxSpeed);
+      this.engineGlowT +=
+        (this.engineGlowTarget - this.engineGlowT) * Math.min(1, delta * 4);
       const boostGlow = this.isBoosting ? 1 : 0;
       for (const mat of this.engineMaterials) {
         if (!mat.color || !mat.emissive) continue;
-        mat.color.lerpColors(_engineColorBlack, boostGlow > 0 ? _engineColorBoost : _engineColorGlow, this.engineGlowT);
-        mat.emissive.lerpColors(_engineColorBlack, boostGlow > 0 ? _engineColorBoost : _engineColorGlow, this.engineGlowT);
-        mat.emissiveIntensity = boostGlow > 0 ? 2.2 : (0.05 + 0.25 * this.engineGlowT);
+        mat.color.lerpColors(
+          _engineColorBlack,
+          boostGlow > 0 ? _engineColorBoost : _engineColorGlow,
+          this.engineGlowT,
+        );
+        mat.emissive.lerpColors(
+          _engineColorBlack,
+          boostGlow > 0 ? _engineColorBoost : _engineColorGlow,
+          this.engineGlowT,
+        );
+        mat.emissiveIntensity =
+          boostGlow > 0 ? 2.2 : 0.05 + 0.25 * this.engineGlowT;
       }
     }
 
     const gunRecover = 1 - Math.exp(-GUN_RETRACT_RECOVERY * delta);
     if (this.gunL?.userData.restPosition) {
-      this.gunRetractionL = Math.max(0, this.gunRetractionL - this.gunRetractionL * gunRecover);
+      this.gunRetractionL = Math.max(
+        0,
+        this.gunRetractionL - this.gunRetractionL * gunRecover,
+      );
       this.gunL.position.copy(this.gunL.userData.restPosition);
       this.gunL.position.z -= this.gunRetractionL;
     }
     if (this.gunR?.userData.restPosition) {
-      this.gunRetractionR = Math.max(0, this.gunRetractionR - this.gunRetractionR * gunRecover);
+      this.gunRetractionR = Math.max(
+        0,
+        this.gunRetractionR - this.gunRetractionR * gunRecover,
+      );
       this.gunR.position.copy(this.gunR.userData.restPosition);
       this.gunR.position.z -= this.gunRetractionR;
+    }
+    if (this.vrmAvatarRenderer && this.game?.renderer) {
+      this.vrmAvatarRenderer.update(this.game.renderer, delta);
+    } else {
+      this.lipSyncManager?.updateAnalysis();
+    }
+    if (this.visemeHoloUniforms?.uTime) {
+      this.visemeHoloTime += delta;
+      this.visemeHoloUniforms.uTime.value = this.visemeHoloTime;
     }
   }
 
@@ -446,6 +734,15 @@ export class Player {
       this.updateXR(delta, elapsedTime);
       return;
     }
+    if (this.vrmAvatarRenderer && this.game?.renderer) {
+      this.vrmAvatarRenderer.update(this.game.renderer, delta);
+    } else {
+      this.lipSyncManager?.updateAnalysis();
+    }
+    if (this.visemeHoloUniforms?.uTime) {
+      this.visemeHoloTime += delta;
+      this.visemeHoloUniforms.uTime.value = this.visemeHoloTime;
+    }
 
     const keys = this.input.keys;
     const gp = this.input.gamepad;
@@ -457,7 +754,9 @@ export class Player {
       this.headlightEnabled = !this.headlightEnabled;
       const headlightIntensity = 40;
       if (this.headlight) {
-        this.headlight.intensity = this.headlightEnabled ? headlightIntensity : 0;
+        this.headlight.intensity = this.headlightEnabled
+          ? headlightIntensity
+          : 0;
       }
       keys.toggleHeadlightJustPressed = false;
     }
@@ -502,7 +801,11 @@ export class Player {
     const maxPitch = Math.PI / 2 - 1e-4;
     let pitchDelta = this.pitchVelocity * controlDelta;
     const pitchNow = Math.asin(THREE.MathUtils.clamp(-_forward.y, -1, 1));
-    const pitchAfter = THREE.MathUtils.clamp(pitchNow + pitchDelta, -maxPitch, maxPitch);
+    const pitchAfter = THREE.MathUtils.clamp(
+      pitchNow + pitchDelta,
+      -maxPitch,
+      maxPitch,
+    );
     pitchDelta = pitchAfter - pitchNow;
     _pitchQuat.setFromAxisAngle(_right, pitchDelta);
     this.camera.quaternion.premultiply(_pitchQuat);
@@ -524,7 +827,9 @@ export class Player {
     if (Math.abs(this.rollVelocity) > this.rollMaxSpeed) {
       this.rollVelocity = Math.sign(this.rollVelocity) * this.rollMaxSpeed;
     }
-    const hasRollInput = rollInput !== 0 || (useGamepad && gp.rollAnalog && Math.abs(gp.rollAnalog) > 0.1);
+    const hasRollInput =
+      rollInput !== 0 ||
+      (useGamepad && gp.rollAnalog && Math.abs(gp.rollAnalog) > 0.1);
     const rollDamp = hasRollInput
       ? Math.pow(this.rollDrag, delta * 60)
       : Math.pow(this.rollDrag, delta * 60) * Math.pow(0.92, delta * 60);
@@ -662,26 +967,80 @@ export class Player {
       }
     }
 
+    const speed = this.velocity.length();
+    const idle = Math.max(0, 1 - speed / IDLE_VELOCITY_THRESHOLD);
+    if (idle > 0) {
+      const t = elapsedTime;
+      _up.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
+      _right.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
+      _forward.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
+      this.camera.position.addScaledVector(
+        _up,
+        Math.sin(t * IDLE_BOB_SPEED) * IDLE_BOB_POS_AMP * idle,
+      );
+      this.camera.position.addScaledVector(
+        _right,
+        Math.sin(t * IDLE_BOB_SPEED * 0.73 + 1) *
+          IDLE_BOB_POS_AMP *
+          0.75 *
+          idle,
+      );
+      this.camera.position.addScaledVector(
+        _forward,
+        Math.sin(t * IDLE_BOB_SPEED * 0.5 + 2) * IDLE_BOB_POS_AMP * 0.5 * idle,
+      );
+      _pitchQuat.setFromAxisAngle(
+        _right,
+        Math.sin(t * 0.42) * IDLE_BOB_ANGLE_AMP * idle,
+      );
+      _yawQuat.setFromAxisAngle(
+        _up,
+        Math.sin(t * 0.38 + 0.5) * IDLE_BOB_ANGLE_AMP * idle,
+      );
+      this.camera.quaternion
+        .premultiply(_yawQuat)
+        .premultiply(_pitchQuat)
+        .normalize();
+    }
+
     if (this.engineMaterials.length > 0) {
-      this.engineGlowTarget = this.isBoosting ? 1 : Math.min(1, this.velocity.length() / this.maxSpeed);
-      this.engineGlowT += (this.engineGlowTarget - this.engineGlowT) * Math.min(1, delta * 4);
+      this.engineGlowTarget = this.isBoosting
+        ? 1
+        : Math.min(1, this.velocity.length() / this.maxSpeed);
+      this.engineGlowT +=
+        (this.engineGlowTarget - this.engineGlowT) * Math.min(1, delta * 4);
       const boostGlow = this.isBoosting ? 1 : 0;
       for (const mat of this.engineMaterials) {
         if (!mat.color || !mat.emissive) continue;
-        mat.color.lerpColors(_engineColorBlack, boostGlow > 0 ? _engineColorBoost : _engineColorGlow, this.engineGlowT);
-        mat.emissive.lerpColors(_engineColorBlack, boostGlow > 0 ? _engineColorBoost : _engineColorGlow, this.engineGlowT);
-        mat.emissiveIntensity = boostGlow > 0 ? 2.2 : (0.05 + 0.25 * this.engineGlowT);
+        mat.color.lerpColors(
+          _engineColorBlack,
+          boostGlow > 0 ? _engineColorBoost : _engineColorGlow,
+          this.engineGlowT,
+        );
+        mat.emissive.lerpColors(
+          _engineColorBlack,
+          boostGlow > 0 ? _engineColorBoost : _engineColorGlow,
+          this.engineGlowT,
+        );
+        mat.emissiveIntensity =
+          boostGlow > 0 ? 2.2 : 0.05 + 0.25 * this.engineGlowT;
       }
     }
 
     const gunRecover = 1 - Math.exp(-GUN_RETRACT_RECOVERY * delta);
     if (this.gunL?.userData.restPosition) {
-      this.gunRetractionL = Math.max(0, this.gunRetractionL - this.gunRetractionL * gunRecover);
+      this.gunRetractionL = Math.max(
+        0,
+        this.gunRetractionL - this.gunRetractionL * gunRecover,
+      );
       this.gunL.position.copy(this.gunL.userData.restPosition);
       this.gunL.position.z -= this.gunRetractionL;
     }
     if (this.gunR?.userData.restPosition) {
-      this.gunRetractionR = Math.max(0, this.gunRetractionR - this.gunRetractionR * gunRecover);
+      this.gunRetractionR = Math.max(
+        0,
+        this.gunRetractionR - this.gunRetractionR * gunRecover,
+      );
       this.gunR.position.copy(this.gunR.userData.restPosition);
       this.gunR.position.z -= this.gunRetractionR;
     }

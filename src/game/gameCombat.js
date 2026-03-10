@@ -28,6 +28,7 @@ import {
 import { castSphere, checkSphereCollision } from "../physics/Physics.js";
 import { Projectile } from "../entities/Projectile.js";
 import { Missile } from "../entities/Missile.js";
+import { KineticMissile } from "../entities/KineticMissile.js";
 import { Explosion } from "../entities/Explosion.js";
 import { LaserImpact } from "../entities/LaserImpact.js";
 import { spawnDestruction } from "../vfx/ShipDestruction.js";
@@ -39,6 +40,65 @@ const _fireDir = new THREE.Vector3();
 const _hitPos = new THREE.Vector3();
 const _hitNormal = new THREE.Vector3();
 const _sparkPos = new THREE.Vector3();
+
+function applyKineticExplosion(game, position, damage, radius) {
+  for (let j = game.enemies.length - 1; j >= 0; j--) {
+    const enemy = game.enemies[j];
+    const dist = position.distanceTo(enemy.mesh.position);
+    if (dist >= radius) continue;
+    const falloff = 1 - (dist / radius) * 0.5;
+    const dmg = Math.max(1, Math.floor(damage * falloff));
+    enemy.takeDamage(dmg);
+    if (enemy.health <= 0) {
+      const deathPos = enemy.mesh.position.clone();
+      const deathQuat = enemy.mesh.quaternion.clone();
+      const explosion = new Explosion(
+        game.scene,
+        deathPos,
+        enemy.glowColor,
+        game.dynamicLights,
+        { big: true },
+      );
+      game.explosions.push(explosion);
+      sfxManager.play("ship-explosion", deathPos, 0.6);
+      if (game.particles) game.explosionEffect.emitBigExplosion(deathPos);
+      spawnDestruction(game.scene, deathPos, deathQuat, enemy.modelIndex);
+      const respawnPos = enemy.spawnPoint;
+      enemy.dispose(game.scene);
+      game.enemies.splice(j, 1);
+      if (!game.isMultiplayer) {
+        game.enemyRespawnQueue.push({ timer: 20, pos: respawnPos });
+      }
+      game.gameManager.setState({
+        enemiesRemaining: game.enemies.length,
+        enemiesKilled: game.gameManager.getState().enemiesKilled + 1,
+      });
+    }
+  }
+  const explosion = new Explosion(
+    game.scene,
+    position,
+    0x4488ff,
+    game.dynamicLights,
+    { big: true },
+  );
+  game.explosions.push(explosion);
+  if (game.particles) {
+    game.explosionEffect.emitBigExplosion(position);
+    game.explosionEffect.emitBigExplosion(position);
+    game.explosionEffect.emitExplosionParticles(
+      position,
+      { r: 0.3, g: 0.5, b: 1 },
+      120,
+    );
+  }
+  game.dynamicLights?.flash(position, 0x4488ff, {
+    intensity: 90,
+    distance: 70,
+    ttl: 0.25,
+    fade: 0.4,
+  });
+}
 
 export function initProjectileSplatLayer(game) {
   if (game.projectileSplatLayer) return;
@@ -170,6 +230,45 @@ export function firePlayerMissile(game) {
     distance: 20,
     ttl: 0.07,
     fade: 0.16,
+  });
+}
+
+export function firePlayerKineticMissile(game) {
+  if (!game.gameManager.isPlaying()) return;
+  if (game.player.missiles <= 0) return;
+  if (
+    game.isMultiplayer &&
+    NetworkManager.getLocalPlayer() &&
+    !NetworkManager.getLocalPlayer().alive
+  )
+    return;
+
+  const now = game.clock.elapsedTime;
+  if (now - game.lastMissileTime < game.missileCooldown) return;
+  game.lastMissileTime = now;
+
+  game.player.missiles--;
+
+  const fireQuat = game.xrManager?.isPresenting
+    ? game.xrManager.rig.quaternion
+    : game.camera.quaternion;
+  _fireDir.set(0, 0, -1).applyQuaternion(fireQuat);
+  game.player.camera.updateMatrixWorld(true);
+  const spawnPos = game.player.getMissileSpawnPoint();
+  spawnPos.addScaledVector(_fireDir, -1);
+
+  const missile = new KineticMissile(game.scene, spawnPos, _fireDir, {
+    trailsEffect: game.trailsEffect,
+  });
+  game.missiles.push(missile);
+
+  proceduralAudio.missileFire();
+
+  game.dynamicLights?.flash(spawnPos, 0x4488ff, {
+    intensity: 12,
+    distance: 18,
+    ttl: 0.06,
+    fade: 0.14,
   });
 }
 
@@ -356,7 +455,102 @@ export function checkCollisions(game) {
   for (let i = game.missiles.length - 1; i >= 0; i--) {
     const missile = game.missiles[i];
 
-    if (missile.disposed || missile.lifetime <= 0) {
+    if (missile.disposed) {
+      game.missiles.splice(i, 1);
+      continue;
+    }
+
+    if (missile.isKinetic) {
+      if (missile.lifetime <= 0) {
+        applyKineticExplosion(
+          game,
+          missile.getPosition().clone(),
+          missile.damage,
+          missile.explosionRadius,
+        );
+        missile.dispose(game.scene);
+        game.missiles.splice(i, 1);
+        continue;
+      }
+
+      const missilePos = missile.getPosition();
+      let exploded = false;
+
+      for (let j = game.enemies.length - 1; j >= 0; j--) {
+        const enemy = game.enemies[j];
+        if (enemy.pointInHitbox(missilePos)) {
+          applyKineticExplosion(
+            game,
+            missilePos.clone(),
+            missile.damage,
+            missile.explosionRadius,
+          );
+          exploded = true;
+          break;
+        }
+      }
+
+      if (!exploded && missile.prevPosition) {
+        const wallHit = castSphere(
+          missile.prevPosition.x,
+          missile.prevPosition.y,
+          missile.prevPosition.z,
+          missilePos.x,
+          missilePos.y,
+          missilePos.z,
+          missile.collisionRadius,
+        );
+        if (wallHit) {
+          const toi = Number(wallHit.timeOfImpact ?? wallHit.toi) ?? 0;
+          _hitPos.set(
+            missile.prevPosition.x + missile.direction.x * toi,
+            missile.prevPosition.y + missile.direction.y * toi,
+            missile.prevPosition.z + missile.direction.z * toi,
+          );
+          if (isNaN(_hitPos.x)) _hitPos.copy(missile.prevPosition);
+          _hitNormal.set(
+            wallHit.normal2.x,
+            wallHit.normal2.y,
+            wallHit.normal2.z,
+          );
+          if (_hitNormal.dot(missile.direction) > 0) _hitNormal.negate();
+
+          if (missile.bouncesLeft > 0) {
+            missile.applyBounce(_hitPos, _hitNormal);
+            if (game.particles) {
+              _sparkPos.copy(_hitPos).addScaledVector(_hitNormal, 0.05);
+              game.sparksEffect.emitElectricalSparks(
+                _sparkPos,
+                _hitNormal,
+                80,
+              );
+            }
+            game.dynamicLights?.flash(_hitPos, 0x4488ff, {
+              intensity: 8,
+              distance: 12,
+              ttl: 0.05,
+              fade: 0.1,
+            });
+          } else {
+            applyKineticExplosion(
+              game,
+              _hitPos.clone(),
+              missile.damage,
+              missile.explosionRadius,
+            );
+            exploded = true;
+          }
+        }
+      }
+
+      if (exploded) {
+        missile.dispose(game.scene);
+        game.missiles.splice(i, 1);
+      }
+      continue;
+    }
+
+    if (missile.lifetime <= 0) {
       missile.dispose(game.scene);
       game.missiles.splice(i, 1);
       continue;

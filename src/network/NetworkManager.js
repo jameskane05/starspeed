@@ -70,6 +70,7 @@ class NetworkManager {
         killLimit: options.killLimit || 20,
         maxMatchTime: options.maxMatchTime || 480,
         maxPlayers: options.maxPlayers || 8,
+        botsEnabled: options.botsEnabled === true,
       };
       
       if (options.roomId) {
@@ -176,10 +177,10 @@ class NetworkManager {
       this.emit("roomJoined", { roomId: this.room.roomId, isHost });
     });
 
-    // Track known entities to detect new ones via state changes (fallback)
     this._knownProjectiles = this._knownProjectiles || new Set();
     this._knownPlayers = this._knownPlayers || new Set();
     this._knownCollectibles = this._knownCollectibles || new Set();
+    this._knownBots = this._knownBots || new Set();
     
     this.room.onStateChange((state) => {
       this.emit("stateChange", state);
@@ -225,7 +226,6 @@ class NetworkManager {
         });
       }
 
-      // Authoritative collectibles: sync spawn/remove from state (respawn handled by server)
       if (state.collectibles) {
         const currentIds = new Set();
         state.collectibles.forEach((collectible, id) => {
@@ -239,6 +239,23 @@ class NetworkManager {
           if (!currentIds.has(id)) {
             this._knownCollectibles.delete(id);
             this.emit("collectibleRemove", { id });
+          }
+        });
+      }
+
+      if (state.bots) {
+        const currentIds = new Set();
+        state.bots.forEach((bot, id) => {
+          currentIds.add(id);
+          if (!this._knownBots.has(id)) {
+            this._knownBots.add(id);
+            this.emit("botAdd", { bot, id });
+          }
+        });
+        this._knownBots.forEach((id) => {
+          if (!currentIds.has(id)) {
+            this._knownBots.delete(id);
+            this.emit("botRemove", { id });
           }
         });
       }
@@ -266,6 +283,10 @@ class NetworkManager {
 
     this.room.onMessage("collectiblePickup", (data) => {
       this.emit("collectiblePickup", data);
+    });
+
+    this.room.onMessage("botDeath", (data) => {
+      this.emit("botDeath", data);
     });
 
     this.room.onLeave((code) => {

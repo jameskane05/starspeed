@@ -85,6 +85,19 @@ export class Collectible extends Schema {
   @type("number") rotY: number = 0;
 }
 
+export class Bot extends Schema {
+  @type("string") id: string = "";
+  @type("number") x: number = 0;
+  @type("number") y: number = 0;
+  @type("number") z: number = 0;
+  @type("number") qx: number = 0;
+  @type("number") qy: number = 0;
+  @type("number") qz: number = 0;
+  @type("number") qw: number = 1;
+  @type("number") health: number = 100;
+  @type("number") maxHealth: number = 100;
+}
+
 export class GameState extends Schema {
   @type("string") phase: string = "lobby"; // "lobby" | "countdown" | "playing" | "results"
   @type("string") mode: string = "ffa"; // "ffa" | "team"
@@ -97,10 +110,12 @@ export class GameState extends Schema {
   @type("number") maxMatchTime: number = 480; // 8 minutes
   @type("number") killLimit: number = 20;
   @type("number") maxPlayers: number = 8;
-  
+  @type("boolean") botsEnabled: boolean = false;
+
   @type({ map: Player }) players = new MapSchema<Player>();
   @type({ map: Projectile }) projectiles = new MapSchema<Projectile>();
   @type({ map: Collectible }) collectibles = new MapSchema<Collectible>();
+  @type({ map: Bot }) bots = new MapSchema<Bot>();
   
   // Team scores (for team mode)
   @type("number") team1Score: number = 0;

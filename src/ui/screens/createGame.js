@@ -75,6 +75,13 @@ export function renderCreateGame(manager) {
               <button class="players-btn selected" data-players="8">8</button>
             </div>
           </div>
+          <div class="form-group form-group-bots">
+            <label class="ready-checkbox ready-checkbox-bots">
+              <input type="checkbox" id="bots-enabled" />
+              <span class="ready-checkmark"></span>
+              <span class="ready-label">BOTS</span>
+            </label>
+          </div>
         </div>
         <button class="menu-btn primary large" id="btn-create-room">LAUNCH ARENA</button>
       </div>
@@ -87,6 +94,7 @@ export function renderCreateGame(manager) {
   let isPublic = true;
   let killLimit = 20;
   let maxPlayers = 8;
+  let botsEnabled = false;
 
   document.getElementById("btn-back").addEventListener("click", () => {
     manager.showScreen(SCREENS.MAIN_MENU);
@@ -137,6 +145,10 @@ export function renderCreateGame(manager) {
     selectedLevel = e.target.value;
   });
 
+  document.getElementById("bots-enabled").addEventListener("change", (e) => {
+    botsEnabled = e.target.checked;
+  });
+
   document
     .getElementById("btn-create-room")
     .addEventListener("click", async () => {
@@ -155,6 +167,7 @@ export function renderCreateGame(manager) {
         maxPlayers,
         selectedLevel,
         roomCode,
+        botsEnabled,
       );
     });
 }

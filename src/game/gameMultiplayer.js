@@ -18,6 +18,7 @@
  * =============================================================================
  */
 
+import * as THREE from "three";
 import { Player } from "../entities/Player.js";
 import { RemotePlayer } from "../entities/RemotePlayer.js";
 import { Explosion } from "../entities/Explosion.js";
@@ -36,6 +37,51 @@ import {
   getSceneObject,
   LEVEL_OBJECT_IDS,
 } from "./gameLevel.js";
+
+function createBotMesh(scene) {
+  const geometry = new THREE.CylinderGeometry(0.35, 0.45, 1.8, 8);
+  geometry.rotateX(Math.PI / 2);
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x1a0a0a,
+    emissive: 0xff4400,
+    emissiveIntensity: 0.4,
+    metalness: 0.3,
+    roughness: 0.7,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  scene.add(mesh);
+  return mesh;
+}
+
+export function addNetworkBot(game, id, bot) {
+  if (game.networkBots.has(id)) return;
+  const mesh = createBotMesh(game.scene);
+  mesh.position.set(bot.x, bot.y, bot.z);
+  mesh.quaternion.set(bot.qx, bot.qy, bot.qz, bot.qw);
+  game.networkBots.set(id, { mesh });
+}
+
+export function removeNetworkBot(game, id, deathData = null) {
+  const entry = game.networkBots.get(id);
+  if (!entry) return;
+  game.scene.remove(entry.mesh);
+  entry.mesh.geometry.dispose();
+  entry.mesh.material.dispose();
+  game.networkBots.delete(id);
+  if (deathData && deathData.x !== undefined) {
+    const pos = new THREE.Vector3(deathData.x, deathData.y, deathData.z);
+    const explosion = new Explosion(
+      game.scene,
+      pos,
+      0xff4400,
+      game.dynamicLights,
+      { big: true },
+    );
+    game.explosions.push(explosion);
+    sfxManager.play("ship-explosion", pos);
+    if (game.particles) game.explosionEffect?.emitBigExplosion?.(pos);
+  }
+}
 
 export function setupNetworkListeners(game) {
   NetworkManager.on("roomJoined", () => {
@@ -227,6 +273,18 @@ export function setupNetworkListeners(game) {
   NetworkManager.on("collectiblePickup", (data) => {
     game.handleCollectiblePickup(data);
   });
+
+  NetworkManager.on("botAdd", ({ bot, id }) => {
+    if (game.isMultiplayer && game.scene) addNetworkBot(game, id, bot);
+  });
+
+  NetworkManager.on("botRemove", ({ id }) => {
+    removeNetworkBot(game, id);
+  });
+
+  NetworkManager.on("botDeath", (data) => {
+    removeNetworkBot(game, data.botId, data);
+  });
 }
 
 export async function startMultiplayerGame(game) {
@@ -265,6 +323,7 @@ export async function startMultiplayerGame(game) {
     game.input,
     game.level,
     game.scene,
+    { game },
   );
   game.player.health = localPlayer.health;
   game.player.maxHealth = localPlayer.maxHealth;
@@ -323,6 +382,12 @@ export async function startMultiplayerGame(game) {
     }
   });
 
+  if (state?.botsEnabled && state?.bots) {
+    state.bots.forEach((bot, id) => {
+      if (!game.networkBots.has(id)) addNetworkBot(game, id, bot);
+    });
+  }
+
   if (!game.input.mobile.shouldSkipPointerLock()) {
     document.body.requestPointerLock?.()?.catch?.(() => {
       console.warn("[Game] Pointer lock failed - click to capture");
@@ -370,6 +435,13 @@ export function onMatchEnd(game) {
 export function cleanupMultiplayer(game) {
   game.remotePlayers.forEach((remote) => remote.dispose());
   game.remotePlayers.clear();
+
+  game.networkBots.forEach((entry) => {
+    game.scene.remove(entry.mesh);
+    entry.mesh.geometry.dispose();
+    entry.mesh.material.dispose();
+  });
+  game.networkBots.clear();
 
   game.networkProjectiles.forEach((data) => {
     if (data.type === "missile") {
