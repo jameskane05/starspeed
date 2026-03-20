@@ -41,6 +41,48 @@ const _hitPos = new THREE.Vector3();
 const _hitNormal = new THREE.Vector3();
 const _sparkPos = new THREE.Vector3();
 
+function shouldQueueSoloEnemyRespawn(game) {
+  return (
+    !game.isMultiplayer &&
+    !game.missionManager?.shouldSuppressRespawns?.()
+  );
+}
+
+function destroyEnemy(game, enemy, index, weaponType = "laser") {
+  const deathPos = enemy.mesh.position.clone();
+  const deathQuat = enemy.mesh.quaternion.clone();
+  const explosion = new Explosion(
+    game.scene,
+    deathPos,
+    enemy.glowColor,
+    game.dynamicLights,
+    { big: true },
+  );
+  game.explosions.push(explosion);
+  sfxManager.play("ship-explosion", deathPos, 0.6);
+  if (game.particles) {
+    game.explosionEffect.emitBigExplosion(deathPos);
+  }
+  spawnDestruction(game.scene, deathPos, deathQuat, enemy.modelIndex);
+  const respawnPos = enemy.spawnPoint;
+  enemy.dispose(game.scene);
+  game.enemies.splice(index, 1);
+  if (shouldQueueSoloEnemyRespawn(game)) {
+    game.enemyRespawnQueue.push({ timer: 20, pos: respawnPos });
+  }
+  game.gameManager.setState({
+    enemiesRemaining: game.enemies.length,
+    enemiesKilled: game.gameManager.getState().enemiesKilled + 1,
+  });
+  game.missionManager?.reportEvent("enemyDestroyed", {
+    weaponType,
+    remaining: game.enemies.length,
+  });
+  if (game.enemies.length === 0) {
+    game.missionManager?.reportEvent("waveCleared", { weaponType });
+  }
+}
+
 function applyKineticExplosion(game, position, damage, radius) {
   for (let j = game.enemies.length - 1; j >= 0; j--) {
     const enemy = game.enemies[j];
@@ -50,29 +92,7 @@ function applyKineticExplosion(game, position, damage, radius) {
     const dmg = Math.max(1, Math.floor(damage * falloff));
     enemy.takeDamage(dmg);
     if (enemy.health <= 0) {
-      const deathPos = enemy.mesh.position.clone();
-      const deathQuat = enemy.mesh.quaternion.clone();
-      const explosion = new Explosion(
-        game.scene,
-        deathPos,
-        enemy.glowColor,
-        game.dynamicLights,
-        { big: true },
-      );
-      game.explosions.push(explosion);
-      sfxManager.play("ship-explosion", deathPos, 0.6);
-      if (game.particles) game.explosionEffect.emitBigExplosion(deathPos);
-      spawnDestruction(game.scene, deathPos, deathQuat, enemy.modelIndex);
-      const respawnPos = enemy.spawnPoint;
-      enemy.dispose(game.scene);
-      game.enemies.splice(j, 1);
-      if (!game.isMultiplayer) {
-        game.enemyRespawnQueue.push({ timer: 20, pos: respawnPos });
-      }
-      game.gameManager.setState({
-        enemiesRemaining: game.enemies.length,
-        enemiesKilled: game.gameManager.getState().enemiesKilled + 1,
-      });
+      destroyEnemy(game, enemy, j, "kineticMissile");
     }
   }
   const explosion = new Explosion(
@@ -140,17 +160,17 @@ export function createProjectileSplatLight(game, isPlayerOwned, visual) {
 }
 
 export function firePlayerWeapon(game) {
-  if (!game.gameManager.isPlaying()) return;
+  if (!game.gameManager.isPlaying()) return false;
   if (
     game.isMultiplayer &&
     NetworkManager.getLocalPlayer() &&
     !NetworkManager.getLocalPlayer().alive
   )
-    return;
-  if (!game.player.gunL || !game.player.gunR) return;
+    return false;
+  if (!game.player.gunL || !game.player.gunR) return false;
 
   const now = game.clock.elapsedTime;
-  if (now - game.lastLaserTime < game.laserCooldown) return;
+  if (now - game.lastLaserTime < game.laserCooldown) return false;
   game.lastLaserTime = now;
 
   const fireQuat = game.xrManager?.isPresenting
@@ -187,20 +207,21 @@ export function firePlayerWeapon(game) {
     ttl: 0.05,
     fade: 0.12,
   });
+  return true;
 }
 
 export function firePlayerMissile(game) {
-  if (!game.gameManager.isPlaying()) return;
-  if (game.player.missiles <= 0) return;
+  if (!game.gameManager.isPlaying()) return false;
+  if (game.player.missiles <= 0) return false;
   if (
     game.isMultiplayer &&
     NetworkManager.getLocalPlayer() &&
     !NetworkManager.getLocalPlayer().alive
   )
-    return;
+    return false;
 
   const now = game.clock.elapsedTime;
-  if (now - game.lastMissileTime < game.missileCooldown) return;
+  if (now - game.lastMissileTime < game.missileCooldown) return false;
   game.lastMissileTime = now;
 
   game.player.missiles--;
@@ -221,7 +242,9 @@ export function firePlayerMissile(game) {
   proceduralAudio.missileFire();
 
   if (game.isMultiplayer) {
-    NetworkManager.sendFire("missile", spawnPos, _fireDir);
+    NetworkManager.sendFire("missile", spawnPos, _fireDir, {
+      variant: "homing",
+    });
     game.localMissileQueue.push(missile);
   }
 
@@ -231,20 +254,21 @@ export function firePlayerMissile(game) {
     ttl: 0.07,
     fade: 0.16,
   });
+  return true;
 }
 
 export function firePlayerKineticMissile(game) {
-  if (!game.gameManager.isPlaying()) return;
-  if (game.player.missiles <= 0) return;
+  if (!game.gameManager.isPlaying()) return false;
+  if (game.player.missiles <= 0) return false;
   if (
     game.isMultiplayer &&
     NetworkManager.getLocalPlayer() &&
     !NetworkManager.getLocalPlayer().alive
   )
-    return;
+    return false;
 
   const now = game.clock.elapsedTime;
-  if (now - game.lastMissileTime < game.missileCooldown) return;
+  if (now - game.lastMissileTime < game.missileCooldown) return false;
   game.lastMissileTime = now;
 
   game.player.missiles--;
@@ -264,12 +288,20 @@ export function firePlayerKineticMissile(game) {
 
   proceduralAudio.missileFire();
 
+  if (game.isMultiplayer) {
+    NetworkManager.sendFire("missile", spawnPos, _fireDir, {
+      variant: "kinetic",
+    });
+    game.localMissileQueue.push(missile);
+  }
+
   game.dynamicLights?.flash(spawnPos, 0x4488ff, {
     intensity: 12,
     distance: 18,
     ttl: 0.06,
     fade: 0.14,
   });
+  return true;
 }
 
 export function fireEnemyWeapon(game, position, direction, style = null) {
@@ -338,36 +370,7 @@ export function checkCollisions(game) {
             hitSomething = true;
 
             if (enemy.health <= 0) {
-              const deathPos = enemy.mesh.position.clone();
-              const deathQuat = enemy.mesh.quaternion.clone();
-              const explosion = new Explosion(
-                game.scene,
-                deathPos,
-                enemy.glowColor,
-                game.dynamicLights,
-                { big: true },
-              );
-              game.explosions.push(explosion);
-              sfxManager.play("ship-explosion", deathPos, 0.6);
-              if (game.particles) {
-                game.explosionEffect.emitBigExplosion(deathPos);
-              }
-              spawnDestruction(
-                game.scene,
-                deathPos,
-                deathQuat,
-                enemy.modelIndex,
-              );
-              const respawnPos = enemy.spawnPoint;
-              enemy.dispose(game.scene);
-              game.enemies.splice(j, 1);
-              if (!game.isMultiplayer) {
-                game.enemyRespawnQueue.push({ timer: 20, pos: respawnPos });
-              }
-              game.gameManager.setState({
-                enemiesRemaining: game.enemies.length,
-                enemiesKilled: game.gameManager.getState().enemiesKilled + 1,
-              });
+              destroyEnemy(game, enemy, j, "laser");
             }
             break;
           }
@@ -566,31 +569,7 @@ export function checkCollisions(game) {
         exploded = true;
 
         if (enemy.health <= 0) {
-          const deathPos = enemy.mesh.position.clone();
-          const deathQuat = enemy.mesh.quaternion.clone();
-          const explosion = new Explosion(
-            game.scene,
-            deathPos,
-            enemy.glowColor,
-            game.dynamicLights,
-            { big: true },
-          );
-          game.explosions.push(explosion);
-          sfxManager.play("ship-explosion", deathPos, 0.6);
-          if (game.particles) {
-            game.explosionEffect.emitBigExplosion(deathPos);
-          }
-          spawnDestruction(game.scene, deathPos, deathQuat, enemy.modelIndex);
-          const respawnPos = enemy.spawnPoint;
-          enemy.dispose(game.scene);
-          game.enemies.splice(j, 1);
-          if (!game.isMultiplayer) {
-            game.enemyRespawnQueue.push({ timer: 20, pos: respawnPos });
-          }
-          game.gameManager.setState({
-            enemiesRemaining: game.enemies.length,
-            enemiesKilled: game.gameManager.getState().enemiesKilled + 1,
-          });
+          destroyEnemy(game, enemy, j, "homingMissile");
         }
         break;
       }

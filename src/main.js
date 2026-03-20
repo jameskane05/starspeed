@@ -12,8 +12,10 @@
  * =============================================================================
  */
 
-import { Game } from './game/Game.js';
-import './ui/menu.css';
+import { Game } from "./game/Game.js";
+import "./ui/menu.css";
+
+window.dispatchEvent(new Event("app-bootstrap-ready"));
 
 const game = new Game();
-game.init().catch(err => console.error("Failed to initialize game:", err));
+game.init().catch((err) => console.error("Failed to initialize game:", err));

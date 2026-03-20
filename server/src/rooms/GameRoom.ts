@@ -149,7 +149,12 @@ export class GameRoom extends Room {
 
   private handleSetSpawnPoints(client: Client, data: any) {
     if (client.sessionId !== this.state.hostId) return;
-    const canSet = this.state.phase === "countdown" || this.state.phase === "playing";
+    // Lobby included: host pre-syncs spawns from loaded GLB before countdown so startMatch
+    // does not run with empty levelSpawnPoints / levelPlayerSpawns.
+    const canSet =
+      this.state.phase === "lobby" ||
+      this.state.phase === "countdown" ||
+      this.state.phase === "playing";
     if (!canSet) return;
 
     const parse = (arr: any) =>
@@ -349,7 +354,15 @@ export class GameRoom extends Room {
     proj.speed = speed;
     proj.damage = damage;
     proj.type = type;
-    proj.lifetime = type === "missile" ? 5 : 3;
+    proj.variant = type === "missile" && data.variant === "kinetic"
+      ? "kinetic"
+      : "homing";
+    proj.lifetime =
+      type === "missile"
+        ? proj.variant === "kinetic"
+          ? 8
+          : 5
+        : 3;
     
     this.state.projectiles.set(proj.id, proj);
     console.log(`[GameRoom] Projectile spawned: ${proj.id} type=${type} pos=(${proj.x.toFixed(1)},${proj.y.toFixed(1)},${proj.z.toFixed(1)}) dir=(${proj.dx.toFixed(2)},${proj.dy.toFixed(2)},${proj.dz.toFixed(2)})`);
@@ -420,12 +433,40 @@ export class GameRoom extends Room {
   }
 
   private spawnBots() {
-    const points = this.levelSpawnPoints.length > 0
-      ? this.levelSpawnPoints
-      : SPAWN_POINTS.map((p) => ({ x: p.x, y: p.y, z: p.z }));
+    let points: { x: number; y: number; z: number }[];
+
+    // spawnPlayer() uses: playerSpawns → else enemy spawns → else SPAWN_POINTS
+    // spawnBots uses: enemy spawns → else player spawns → else SPAWN_POINTS
+    const playerSpawnPool: "enemy" | "player" | "default" =
+      this.levelPlayerSpawns.length > 0
+        ? "player"
+        : this.levelSpawnPoints.length > 0
+          ? "enemy"
+          : "default";
+    const botSpawnPool: "enemy" | "player" | "default" =
+      this.levelSpawnPoints.length > 0
+        ? "enemy"
+        : this.levelPlayerSpawns.length > 0
+          ? "player"
+          : "default";
+    const botsSharePoolWithPlayers = playerSpawnPool === botSpawnPool;
+
+    if (this.levelSpawnPoints.length > 0) {
+      points = this.levelSpawnPoints;
+    } else if (this.levelPlayerSpawns.length > 0) {
+      points = this.levelPlayerSpawns;
+    } else {
+      points = SPAWN_POINTS.map((p) => ({ x: p.x, y: p.y, z: p.z }));
+    }
+
+    const nPlayers = this.state.players.size;
+    const pickIndex = botsSharePoolWithPlayers
+      ? (i: number) => (nPlayers + i) % points.length
+      : (i: number) => i % points.length;
+
     const count = Math.min(BOT_MAX_COUNT, points.length);
     for (let i = 0; i < count; i++) {
-      const pt = points[i % points.length];
+      const pt = points[pickIndex(i)];
       const botId = `bot_${this.botIdCounter++}`;
       const bot = new Bot();
       bot.id = botId;

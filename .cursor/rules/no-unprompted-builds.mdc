@@ -1,0 +1,11 @@
+---
+description: Do not run builds unless James asks
+alwaysApply: true
+---
+
+# No Unprompted Builds
+
+- Do not run `build`, `build:client`, production bundling, or equivalent verification builds by default.
+- Assume the local dev server is already running for this project unless James says otherwise.
+- Let James test gameplay changes manually unless he explicitly asks for a build, test run, or other verification command.
+- If command verification is useful, prefer asking before running it.

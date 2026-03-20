@@ -128,6 +128,7 @@ export function finishSoloRespawn(game) {
 
   game._hudLast.health = null;
   game._hudLast.missiles = null;
+  game._hudLast.boost = null;
   game._soloRespawning = false;
   if (game.player?.cockpit) game.player.cockpit.visible = true;
 }
@@ -156,6 +157,7 @@ export function handleLocalPlayerRespawn(game) {
 
     game._hudLast.health = null;
     game._hudLast.missiles = null;
+    game._hudLast.boost = null;
   }
 }
 

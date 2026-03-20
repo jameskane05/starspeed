@@ -28,6 +28,12 @@ export function renderInitialLoading(manager) {
 
 export function renderLoading(manager) {
   manager.container.classList.remove("hidden");
+  if (manager.backgroundOnlyLoading) {
+    manager.menuContent.innerHTML = `
+      <div class="menu-screen loading-screen loading-screen-background-only"></div>
+    `;
+    return;
+  }
   manager.menuContent.innerHTML = `
     <div class="menu-screen loading-screen">
       <div class="loading-content">

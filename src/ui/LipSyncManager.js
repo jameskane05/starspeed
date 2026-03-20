@@ -46,6 +46,16 @@ export class LipSyncManager {
 
     this._analysisActive = false;
     this._isPlaying = false;
+    this._placeholderActive = false;
+    this._placeholderEndTime = 0;
+    this._placeholderSequence = [
+      this.visemeFrames.neutral,
+      this.visemeFrames.AEI,
+      this.visemeFrames.OH,
+      this.visemeFrames.UHU,
+      this.visemeFrames.neutral,
+    ];
+    this._placeholderIndex = 0;
   }
 
   async initialize() {
@@ -111,6 +121,18 @@ export class LipSyncManager {
     );
   }
 
+  playPlaceholder(durationSeconds = 0) {
+    this.stop();
+    this._placeholderActive = durationSeconds > 0;
+    this._placeholderEndTime = performance.now() + durationSeconds * 1000;
+    this._placeholderIndex = 0;
+    const frame = this._placeholderSequence[this._placeholderIndex];
+    this.currentFrame = frame;
+    if (this.onFrameChange) {
+      this.onFrameChange(frame, this.getUV(frame));
+    }
+  }
+
   stop() {
     if (this.audioElement) {
       this.audioElement.pause();
@@ -118,9 +140,34 @@ export class LipSyncManager {
     }
     this._isPlaying = false;
     this._analysisActive = false;
+    this._placeholderActive = false;
+    this._placeholderEndTime = 0;
+    this._placeholderIndex = 0;
+    if (this.onFrameChange) {
+      this.onFrameChange(this.visemeFrames.silence, this.getUV(this.visemeFrames.silence));
+    }
   }
 
   updateAnalysis() {
+    if (this._placeholderActive && !this._isPlaying) {
+      const now = performance.now();
+      if (now >= this._placeholderEndTime) {
+        this._placeholderActive = false;
+        if (this.onFrameChange) {
+          this.onFrameChange(this.visemeFrames.silence, this.getUV(this.visemeFrames.silence));
+        }
+        return;
+      }
+      if (now - this.lastUpdateTime < this.updateInterval) return;
+      this.lastUpdateTime = now;
+      this._placeholderIndex =
+        (this._placeholderIndex + 1) % this._placeholderSequence.length;
+      this.currentFrame = this._placeholderSequence[this._placeholderIndex];
+      if (this.onFrameChange) {
+        this.onFrameChange(this.currentFrame, this.getUV(this.currentFrame));
+      }
+      return;
+    }
     if (!this._isPlaying || !this._analysisActive || !this.analyser) return;
     const now = performance.now();
     if (now - this.lastUpdateTime < this.updateInterval) return;

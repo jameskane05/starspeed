@@ -351,6 +351,9 @@ export class VRMAvatarRenderer {
     this.audioElement = null;
     this._ready = false;
     this._playing = false;
+    this._placeholderPlaying = false;
+    this._placeholderDuration = 0;
+    this._placeholderStartTime = 0;
     this._dialogFaceWeight = 0;
     this._dialogPoseWeight = 0;
     this.idleMixer = null;
@@ -386,10 +389,18 @@ export class VRMAvatarRenderer {
   }
 
   getCurrentTime() {
-    return this.audioElement?.currentTime ?? 0;
+    if (this.audioElement) return this.audioElement.currentTime ?? 0;
+    if (this._placeholderPlaying) {
+      return performance.now() / 1000 - this._placeholderStartTime;
+    }
+    return 0;
   }
 
   isPlaying() {
+    if (this._placeholderPlaying) {
+      return performance.now() / 1000 - this._placeholderStartTime <
+        this._placeholderDuration;
+    }
     return this._playing && this.audioElement && !this.audioElement.ended;
   }
 
@@ -504,8 +515,19 @@ export class VRMAvatarRenderer {
     );
   }
 
+  playPlaceholder(durationSeconds = 0) {
+    this.stop();
+    if (!this._ready || !this.vrm) return;
+    this._placeholderPlaying = durationSeconds > 0;
+    this._placeholderDuration = Math.max(0, durationSeconds);
+    this._placeholderStartTime = performance.now() / 1000;
+  }
+
   stop() {
     this._playing = false;
+    this._placeholderPlaying = false;
+    this._placeholderDuration = 0;
+    this._placeholderStartTime = 0;
     this._dialogFaceWeight = 0;
     this._dialogPoseWeight = 0;
     this._headPoseState.initialized = false;
@@ -523,7 +545,13 @@ export class VRMAvatarRenderer {
 
   update(renderer, delta) {
     if (!this._ready || !this.vrm) return;
-    const isSpeaking = !!(this.audioElement && this._playing);
+    if (
+      this._placeholderPlaying &&
+      performance.now() / 1000 - this._placeholderStartTime >= this._placeholderDuration
+    ) {
+      this._placeholderPlaying = false;
+    }
+    const isSpeaking = !!(this.audioElement && this._playing) || this._placeholderPlaying;
     const dialogFaceBlendAlpha = 1 - Math.exp(-DIALOG_FACE_BLEND * delta);
     const dialogPoseBlendAlpha = 1 - Math.exp(-DIALOG_POSE_BLEND * delta);
     this._dialogFaceWeight = THREE.MathUtils.lerp(
@@ -544,8 +572,10 @@ export class VRMAvatarRenderer {
     }
     this._headPoseState.dialogWeight = this._dialogPoseWeight;
     let t = 0;
-    if (isSpeaking) {
+    if (this.audioElement && this._playing) {
       t = this.audioElement.currentTime;
+    } else if (this._placeholderPlaying) {
+      t = performance.now() / 1000 - this._placeholderStartTime;
     }
     if (this.idleAction) {
       if (!isSpeaking && this.idleAction.paused) {
@@ -562,7 +592,7 @@ export class VRMAvatarRenderer {
     }
     let faceValues = null;
     let faceMatrix = null;
-    if (isSpeaking && this.faceData && this.faceData.frames && this.faceData.frames.length) {
+    if (this.audioElement && this._playing && this.faceData && this.faceData.frames && this.faceData.frames.length) {
       this._headPoseState.smoothingAlpha = 1 - Math.exp(-HEAD_SMOOTHING * delta);
       faceValues = smoothFaceValues(
         sampleFrames(this.faceData.frames, this.faceData.names, t),
@@ -578,6 +608,13 @@ export class VRMAvatarRenderer {
     );
     if (weightedFaceValues) {
       applyFaceToExpressionManager(this.vrm, this.faceData.names, weightedFaceValues);
+    } else if (this._placeholderPlaying && this.vrm.expressionManager) {
+      const mouthOpen = 0.18 + 0.22 * (0.5 + 0.5 * Math.sin(t * 10));
+      const mouthRound = 0.04 + 0.08 * (0.5 + 0.5 * Math.sin(t * 6 + 0.8));
+      this.vrm.expressionManager.setValue("aa", mouthOpen);
+      this.vrm.expressionManager.setValue("oh", mouthRound);
+      this.vrm.expressionManager.setValue("ou", mouthRound * 0.6);
+      this.vrm.expressionManager.setValue("blink", 0);
     } else if (this.vrm.expressionManager) {
       this.vrm.expressionManager.resetValues();
     }

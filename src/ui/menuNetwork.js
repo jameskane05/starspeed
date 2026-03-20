@@ -22,11 +22,17 @@ import proceduralAudio from "../audio/ProceduralAudio.js";
 
 export function setupNetworkListeners(manager) {
   NetworkManager.on("roomJoined", () => {
+    manager._lastNetworkPhase = "lobby";
+    manager._lastCountdown = null;
+    manager.hideMatchmakingModal();
     manager.showScreen(SCREENS.LOBBY);
   });
 
   NetworkManager.on("stateChange", (state) => {
-    if (state.phase === "playing" && manager.currentScreen !== SCREENS.PLAYING) {
+    const previousPhase = manager._lastNetworkPhase;
+    manager._lastNetworkPhase = state.phase;
+
+    if (state.phase === "playing" && previousPhase !== "playing") {
       manager.showScreen(SCREENS.PLAYING);
       manager.emit("gameStart");
     } else if (
@@ -52,6 +58,9 @@ export function setupNetworkListeners(manager) {
   });
 
   NetworkManager.on("roomLeft", (data) => {
+    manager._lastNetworkPhase = null;
+    manager._lastCountdown = null;
+    manager.hideMatchmakingModal();
     manager.chatMessages = [];
     if (data?.code === 4000) {
       showKickedModal(manager);
@@ -83,6 +92,7 @@ export function setupNetworkListeners(manager) {
     }
 
     showError(manager, message);
+    manager.hideMatchmakingModal();
 
     if (manager.currentScreen === SCREENS.PLAYING) return;
     if (manager.lastScreen) {
@@ -152,10 +162,7 @@ export async function refreshRoomList(manager) {
 }
 
 export function startRefreshing(manager) {
-  manager.refreshInterval = setInterval(
-    () => refreshRoomList(manager),
-    5000,
-  );
+  manager.refreshInterval = setInterval(() => refreshRoomList(manager), 5000);
 }
 
 export function stopRefreshing(manager) {
@@ -188,9 +195,7 @@ export function showKickedModal(manager) {
   };
   document.addEventListener("keydown", onKey);
 
-  overlay
-    .querySelector("#kicked-modal-ok")
-    .addEventListener("click", dismiss);
+  overlay.querySelector("#kicked-modal-ok").addEventListener("click", dismiss);
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) dismiss();
   });

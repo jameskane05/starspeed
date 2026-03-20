@@ -45,6 +45,8 @@ import GizmoManager from "../utils/GizmoManager.js";
 import { detectPlatform } from "../utils/platformDetection.js";
 import NetworkManager from "../network/NetworkManager.js";
 import MenuManager from "../ui/MenuManager.js";
+import LoadingProgressManager from "../ui/LoadingProgressManager.js";
+import "./gameFirstViewLoading.js";
 import * as gameInGameUI from "./gameInGameUI.js";
 import * as gameUpdate from "./gameUpdate.js";
 import * as gameMultiplayer from "./gameMultiplayer.js";
@@ -59,6 +61,7 @@ export async function init(game) {
   initPhysics();
 
   game.scene = new THREE.Scene();
+  game.levelLoadingTracker = new LoadingProgressManager();
   game.scene.background = new THREE.Color(0x050510);
   game.scene.fog = null;
 
@@ -269,12 +272,16 @@ export async function init(game) {
       engineAudio.resume();
     } else {
       proceduralAudio.shieldRechargeStop();
+      proceduralAudio.boosterRechargeStop();
     }
   });
 
   await MenuManager.init();
   MenuManager.on("gameStart", async () => await game.startMultiplayerGame());
   MenuManager.on("campaignStart", () => game.startSoloDebug());
+  MenuManager.on("trainingGroundsStart", (levelId) =>
+    game.startTrainingGrounds(levelId || "arenatech"),
+  );
   MenuManager.on("levelSelected", (level) => {
     game.gameManager.setState({ currentLevel: level });
   });

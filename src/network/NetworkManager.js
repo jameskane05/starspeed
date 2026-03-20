@@ -381,7 +381,7 @@ class NetworkManager {
     return this.inputSequence;
   }
 
-  sendFire(weapon, position, direction) {
+  sendFire(weapon, position, direction, extraData = {}) {
     if (!this.room || this.room.state.phase !== "playing") {
       console.log("[Network] sendFire blocked - phase:", this.room?.state?.phase);
       return;
@@ -389,6 +389,7 @@ class NetworkManager {
     
     console.log("[Network] Sending fire:", weapon);
     this.room.send("fire", {
+      ...extraData,
       weapon,
       x: position.x,
       y: position.y,

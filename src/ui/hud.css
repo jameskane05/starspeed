@@ -58,7 +58,7 @@ canvas {
   transition: opacity 0.3s;
 }
 
-@media (min-width: 769px) {
+@media (min-width: 1051px) and (min-height: 1051px) {
   #hud {
     top: auto;
     bottom: calc(12px + env(safe-area-inset-bottom, 0px));
@@ -74,20 +74,6 @@ canvas {
     right: calc(12px + env(safe-area-inset-right, 0px));
     transform: none;
   }
-}
-
-#hud .hud-missiles,
-#hud .hud-kills,
-#hud .hud-shields,
-#hud .hud-boost {
-  display: flex;
-  align-items: center;
-  gap: 0.35em;
-}
-
-#hud .hud-boost span::after,
-#hud .hud-shields span::after {
-  content: "%";
 }
 
 #hud.active {
@@ -130,7 +116,7 @@ canvas {
   display: block;
 }
 
-@media (min-width: 769px) {
+@media (min-width: 1051px) and (min-height: 1051px) {
   #game-top-buttons button {
     font-size: 2rem;
   }
@@ -142,48 +128,14 @@ canvas {
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1050px), (max-height: 1050px) {
   #hud.active ~ #game-top-buttons {
     display: none;
   }
 }
 
-#hud .hud-icon {
-  width: 1.1em;
-  height: 1.1em;
-  vertical-align: middle;
-  object-fit: contain;
-}
-
 #mobile-controls.active ~ #hud {
   font-size: 1.2rem;
-}
-
-#mobile-controls.active ~ #hud .hud-missiles,
-#mobile-controls.active ~ #hud .hud-boost {
-  display: none;
-}
-
-#mobile-controls.active ~ #hud .hud-kills,
-#mobile-controls.active ~ #hud .hud-shields {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-#mobile-controls.active ~ #hud .hud-kills .hud-icon,
-#mobile-controls.active ~ #hud .hud-shields .hud-icon {
-  width: 56px;
-  height: 56px;
-}
-
-#mobile-controls.active ~ #hud .hud-kills span,
-#mobile-controls.active ~ #hud .hud-shields span {
-  line-height: 1;
-}
-
-#mobile-controls.active ~ #hud .hud-shields span::after {
-  content: "%";
 }
 
 #mobile-controls .mobile-counter {
@@ -199,14 +151,24 @@ canvas {
   display: block;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1050px), (max-height: 1050px) {
   #mobile-controls.active ~ #hud {
     flex-direction: column;
     align-items: flex-end;
     gap: 0.5rem;
   }
-  #mobile-controls.active ~ #hud .hud-shields {
-    order: -1;
+}
+
+@media (orientation: portrait) and (max-width: 1050px) {
+  #mission-panel {
+    top: calc(8px + env(safe-area-inset-top, 0px));
+  }
+}
+
+@media (orientation: landscape) and (max-width: 1050px),
+  (orientation: landscape) and (max-height: 1050px) {
+  #mission-panel {
+    top: calc(12px + env(safe-area-inset-top, 0px));
   }
 }
 
@@ -258,6 +220,149 @@ canvas {
   padding: 0.15rem 0.4rem;
   font-weight: 600;
   color: #00f0ff;
+}
+
+#mission-panel {
+  position: fixed;
+  top: calc(160px + env(safe-area-inset-top, 0px));
+  left: calc(12px + env(safe-area-inset-left, 0px));
+  right: auto;
+  width: fit-content;
+  max-width: min(
+    11.25rem,
+    calc(
+      100vw - 24px - env(safe-area-inset-left, 0px) -
+        env(safe-area-inset-right, 0px)
+    )
+  );
+  z-index: 55;
+  display: none;
+  pointer-events: auto;
+  font-family: "Rajdhani", "Courier New", monospace;
+  text-transform: uppercase;
+}
+
+#mission-panel .mission-panel-toggle {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0.42rem 0.55rem;
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  background: rgba(4, 10, 18, 0.78);
+  color: #d8fbff;
+  font: inherit;
+  font-size: 0.65rem;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(6px);
+}
+
+#mission-panel .mission-panel-chevron {
+  font-size: 0.95rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+#mission-panel .mission-panel-content {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin-top: 0.45rem;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid rgba(0, 240, 255, 0.28);
+  background: rgba(4, 10, 18, 0.82);
+  color: #d8fbff;
+  font-size: 0.65rem;
+  line-height: 1.35;
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(6px);
+}
+
+#mission-panel.collapsed .mission-panel-content {
+  display: none;
+}
+
+#mission-panel .mission-panel-status {
+  font-size: 0.7rem;
+  opacity: 0.75;
+  margin-bottom: 0.35rem;
+}
+
+#mission-panel .mission-panel-title {
+  font-size: 0.62rem;
+  font-weight: 700;
+  margin-bottom: 0.45rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-transform: uppercase;
+}
+
+#mission-panel .mission-panel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+#mission-panel .mission-panel-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+#mission-panel .mission-panel-item > span:last-child {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+#mission-panel .mission-panel-item.completed {
+  opacity: 0.72;
+}
+
+#mission-panel .mission-panel-marker {
+  color: #00f0ff;
+}
+
+#mission-panel .mission-panel-item.completed .mission-panel-marker {
+  color: #77ffb8;
+}
+
+@media (min-width: 1051px) and (min-height: 1051px) {
+  #mission-panel {
+    max-width: 520px;
+  }
+
+  #mission-panel .mission-panel-toggle {
+    font-size: 1.05rem;
+    padding: 0.8rem 1rem;
+  }
+
+  #mission-panel .mission-panel-status {
+    font-size: 0.9rem;
+  }
+
+  #mission-panel .mission-panel-title {
+    font-size: 1.5rem;
+  }
+
+  #mission-panel .mission-panel-list {
+    gap: 0.65rem;
+  }
+
+  #mission-panel .mission-panel-item {
+    font-size: 1.1rem;
+  }
 }
 
 #kill-feed {
@@ -466,16 +571,6 @@ canvas {
   pointer-events: auto;
 }
 
-.mobile-top-left {
-  position: absolute;
-  top: calc(12px + env(safe-area-inset-top, 0px));
-  left: calc(12px + env(safe-area-inset-left, 0px));
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 #mobile-menu-btn,
 #mobile-leaderboard-btn {
   padding: 0;
@@ -515,7 +610,7 @@ canvas {
 #mobile-controls .combat-right button,
 #mobile-controls .directional-left button,
 #mobile-controls .directional-right button,
-#mobile-controls .mobile-top-left button {
+#mobile-controls .directional-right-rolls button {
   pointer-events: auto;
 }
 
@@ -554,13 +649,26 @@ canvas {
 #mobile-controls .directional-right {
   position: absolute;
   display: flex;
-  flex-direction: row;
   gap: 8px;
   bottom: calc(2px + env(safe-area-inset-bottom, 0px));
 }
 
+#mobile-controls .directional-left {
+  flex-direction: row;
+}
+
+#mobile-controls .directional-right {
+  flex-direction: column;
+}
+
+#mobile-controls .directional-right-rolls {
+  display: flex;
+  gap: 8px;
+}
+
 #mobile-controls .directional-left button,
-#mobile-controls .directional-right button {
+#mobile-controls .directional-right button,
+#mobile-controls .directional-right-rolls button {
   padding: 0;
   border: none;
   background: none;
@@ -569,7 +677,8 @@ canvas {
   display: block;
 }
 #mobile-controls .directional-left button img,
-#mobile-controls .directional-right button img {
+#mobile-controls .directional-right button img,
+#mobile-controls .directional-right-rolls button img {
   width: 56px;
   height: 56px;
   display: block;
@@ -577,7 +686,8 @@ canvas {
   transition: filter 0.05s;
 }
 #mobile-controls .directional-left button:active img,
-#mobile-controls .directional-right button:active img {
+#mobile-controls .directional-right button:active img,
+#mobile-controls .directional-right-rolls button:active img {
   filter: brightness(0.75);
 }
 
@@ -597,6 +707,14 @@ canvas {
   flex-direction: column;
   gap: 2px;
   align-items: center;
+}
+
+#mobile-controls .combat-right {
+  padding-top: 0;
+}
+
+#mobile-menu-btn {
+  margin-bottom: calc(0.95rem + 12px);
 }
 
 #mobile-controls .combat-center button {
@@ -619,6 +737,9 @@ canvas {
 }
 
 @media (orientation: landscape) {
+  #mission-panel {
+    top: calc(12px + env(safe-area-inset-top, 0px));
+  }
   #mobile-controls .joystick-move {
     left: calc(12px + env(safe-area-inset-left, 0px));
   }
@@ -636,7 +757,8 @@ canvas {
     align-items: flex-end;
   }
   #mobile-controls .directional-left button,
-  #mobile-controls .directional-right button {
+  #mobile-controls .directional-right button,
+  #mobile-controls .directional-right-rolls button {
     flex-shrink: 0;
   }
   #mobile-controls .combat-center {
@@ -673,6 +795,9 @@ canvas {
   #mobile-controls .directional-right {
     flex-direction: row;
   }
+  #mobile-controls .directional-right {
+    flex-direction: column;
+  }
   #mobile-controls .combat-center {
     left: 50%;
     transform: translateX(-50%);
@@ -683,7 +808,8 @@ canvas {
     flex-direction: column;
   }
   #mobile-controls .directional-left button img,
-  #mobile-controls .directional-right button img {
+  #mobile-controls .directional-right button img,
+  #mobile-controls .directional-right-rolls button img {
     width: 56px;
     height: 56px;
   }

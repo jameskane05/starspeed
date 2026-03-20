@@ -30,6 +30,8 @@ function updateGamepadIndicator() {
 }
 
 export function renderMainMenu(manager) {
+  const matchmakingActive = Boolean(manager.matchmakingMessage);
+
   if (manager.startScene && manager.startScene.renderer) {
     manager.startScene.renderer.domElement.style.display = "block";
   }
@@ -47,19 +49,19 @@ export function renderMainMenu(manager) {
             <div class="menu-buttons">
               <label>CALLSIGN</label>
               <div class="name-input-group">
-                <input type="text" id="player-name" value="${manager.playerName}" maxlength="16" />
+                <input type="text" id="player-name" value="${manager.playerName}" maxlength="16" ${matchmakingActive ? "disabled" : ""} />
               </div>
               <label>SINGLE-PLAYER</label>
-              <button class="menu-btn" id="btn-testing">TESTING GROUNDS</button>
+              <button class="menu-btn" id="btn-training" ${matchmakingActive ? "disabled" : ""}>TRAINING GROUNDS</button>
               <button class="menu-btn" id="btn-campaign" disabled>CAMPAIGN</button>
               <label>MULTI-PLAYER</label>
-              <button class="menu-btn" id="btn-quick">QUICKMATCH</button>
-              <button class="menu-btn" id="btn-join">JOIN MATCH</button>
-              <button class="menu-btn" id="btn-create">CREATE MATCH</button>
+              <button class="menu-btn" id="btn-quick" ${matchmakingActive ? "disabled" : ""}>QUICKMATCH</button>
+              <button class="menu-btn" id="btn-join" ${matchmakingActive ? "disabled" : ""}>JOIN MATCH</button>
+              <button class="menu-btn" id="btn-create" ${matchmakingActive ? "disabled" : ""}>CREATE MATCH</button>
               <label>MISC</label>
               <div class="menu-buttons-row">
-                <button class="menu-btn" id="btn-feedback">FEEDBACK</button>
-                <button class="menu-btn" id="btn-options">OPTIONS</button>
+                <button class="menu-btn" id="btn-feedback" ${matchmakingActive ? "disabled" : ""}>FEEDBACK</button>
+                <button class="menu-btn" id="btn-options" ${matchmakingActive ? "disabled" : ""}>OPTIONS</button>
               </div>
             </div>
           </div>
@@ -74,7 +76,7 @@ export function renderMainMenu(manager) {
               ${Object.values(LEVELS)
                 .map(
                   (level) => `
-                <option value="${level.id}">${level.name}</option>
+                <option value="${level.id}" ${level.id === "arenatech" ? "selected" : ""}>${level.name}</option>
               `,
                 )
                 .join("")}
@@ -86,6 +88,18 @@ export function renderMainMenu(manager) {
           </div>
         </div>
       </div>
+      ${
+        matchmakingActive
+          ? `
+      <div class="matchmaking-modal">
+        <div class="matchmaking-modal-content">
+          <div class="matchmaking-modal-title">MATCHMAKING</div>
+          <div class="matchmaking-modal-message">${manager.matchmakingMessage}</div>
+        </div>
+      </div>
+      `
+          : ""
+      }
     </div>
   `;
 
@@ -93,7 +107,7 @@ export function renderMainMenu(manager) {
     manager.saveCallsign(e.target.value || "Pilot");
   });
 
-  document.getElementById("btn-testing").addEventListener("click", () => {
+  document.getElementById("btn-training").addEventListener("click", () => {
     document.getElementById("level-select-modal").style.display = "flex";
   });
 
@@ -101,8 +115,7 @@ export function renderMainMenu(manager) {
   document.getElementById("btn-level-start").addEventListener("click", () => {
     const levelId = document.getElementById("level-select-solo").value;
     levelModal.style.display = "none";
-    if (levelId) manager.emit("levelSelected", levelId);
-    manager.emit("campaignStart");
+    manager.emit("trainingGroundsStart", levelId || "arenatech");
   });
 
   document.getElementById("btn-level-cancel").addEventListener("click", () => {

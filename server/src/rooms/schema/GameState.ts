@@ -69,6 +69,7 @@ export class Projectile extends Schema {
   @type("number") speed: number = 60;
   @type("number") damage: number = 25;
   @type("string") type: string = "laser"; // "laser" | "missile"
+  @type("string") variant: string = "homing"; // "homing" | "kinetic"
   @type("number") lifetime: number = 3;
 }
 

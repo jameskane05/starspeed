@@ -39,47 +39,69 @@ function getLevelOcclusion(game) {
 }
 
 export async function preloadLevel(game) {
-  if (game.isLoadingLevel) return;
+  if (game.levelLoadPromise) {
+    return game.levelLoadPromise;
+  }
 
   console.log("[Game] Preloading level...");
   game.isLoadingLevel = true;
 
-  try {
-    let state = game.gameManager.getState();
-    let objectsToLoad = getSceneObjectsForState({
-      ...state,
-      currentState: GAME_STATES.PLAYING,
-    });
-
-    const loads = [];
-    for (const obj of objectsToLoad) {
-      if (game.sceneManager.hasObject(obj.id)) continue;
-      loads.push(
-        game.sceneManager
-          .loadObject(obj, obj.type === "splat" ? (p) => {} : null)
-          .catch((err) => {
-            console.warn(`[Game] Failed to load ${obj.id}:`, err.message);
-            throw err;
-          }),
-      );
-    }
-    await Promise.all(loads);
-    console.log("[Game] Level preloaded successfully");
-  } catch (err) {
-    console.warn(
-      "[Game] Level preload failed, falling back to newworld:",
-      err?.message,
-    );
-    const current = game.gameManager.getState().currentLevel;
-    if (current && current !== "newworld") {
-      game.gameManager.setState({ currentLevel: "newworld" });
-      if (game.isMultiplayer && NetworkManager.isHost()) {
-        NetworkManager.setLevel("newworld");
-      }
-    }
+  const tracker = game.levelLoadingTracker || null;
+  if (tracker && tracker.getTaskCount() === 0) {
+    tracker.reset();
   }
 
-  game.isLoadingLevel = false;
+  game.levelLoadPromise = (async () => {
+    try {
+      const state = game.gameManager.getState();
+      const objectsToLoad = getSceneObjectsForState({
+        ...state,
+        currentState: GAME_STATES.PLAYING,
+      });
+
+      const loads = [];
+      for (const obj of objectsToLoad) {
+        if (game.sceneManager.hasObject(obj.id)) continue;
+
+        const taskId = `level_${obj.id}`;
+        tracker?.registerTask(taskId);
+
+        loads.push(
+          game.sceneManager
+            .loadObject(obj, (progress) => tracker?.updateTask(taskId, progress))
+            .then((result) => {
+              tracker?.completeTask(taskId);
+              return result;
+            })
+            .catch((err) => {
+              tracker?.completeTask(taskId);
+              console.warn(`[Game] Failed to load ${obj.id}:`, err.message);
+              throw err;
+            }),
+        );
+      }
+
+      await Promise.all(loads);
+      console.log("[Game] Level preloaded successfully");
+    } catch (err) {
+      console.warn(
+        "[Game] Level preload failed, falling back to newworld:",
+        err?.message,
+      );
+      const current = game.gameManager.getState().currentLevel;
+      if (current && current !== "newworld") {
+        game.gameManager.setState({ currentLevel: "newworld" });
+        if (game.isMultiplayer && NetworkManager.isHost()) {
+          NetworkManager.setLevel("newworld");
+        }
+      }
+    } finally {
+      game.isLoadingLevel = false;
+      game.levelLoadPromise = null;
+    }
+  })();
+
+  return game.levelLoadPromise;
 }
 
 export async function loadLevelAndStart(game) {
@@ -88,20 +110,18 @@ export async function loadLevelAndStart(game) {
   });
 
   const objectsToLoad = getSceneObjectsForState(game.gameManager.getState());
-  const loads = [];
-  for (const obj of objectsToLoad) {
-    if (game.sceneManager.hasObject(obj.id)) continue;
-    loads.push(
-      game.sceneManager.loadObject(
-        obj,
-        obj.type === "splat"
-          ? (progress) => {
-              MenuManager.updateLoadingProgress(progress);
-            }
-          : null,
-      ),
-    );
-  }
+  const toLoad = objectsToLoad.filter((obj) => !game.sceneManager.hasObject(obj.id));
+  const n = toLoad.length;
+  const progressByIndex = n ? new Array(n).fill(0) : [];
+  const report = (index, p) => {
+    progressByIndex[index] = Math.min(1, p);
+    const total = progressByIndex.reduce((a, b) => a + b, 0);
+    MenuManager.updateLoadingProgress(total / n);
+  };
+
+  const loads = toLoad.map((obj, i) =>
+    game.sceneManager.loadObject(obj, (p) => report(i, p)),
+  );
   if (loads.length > 0) {
     console.log("[Game] Loading level objects...");
     try {
@@ -111,7 +131,7 @@ export async function loadLevelAndStart(game) {
       console.error("[Game] Level load failed:", err);
     }
   } else {
-    console.log("[Game] Level already preloaded");
+    MenuManager.updateLoadingProgress(1);
   }
 
   MenuManager.loadingComplete();

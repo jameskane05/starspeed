@@ -156,6 +156,20 @@ class GameManager {
     return { ...this.state };
   }
 
+  clearMissionState(extraState = {}) {
+    this.setState({
+      currentMissionId: null,
+      missionLevelId: null,
+      missionStatus: "idle",
+      missionStepId: null,
+      missionStepTitle: "",
+      currentObjectives: [],
+      playerLaserEnabled: initialState.playerLaserEnabled,
+      playerMissilesEnabled: initialState.playerMissilesEnabled,
+      ...extraState,
+    });
+  }
+
   /**
    * Get state name from numeric value
    */

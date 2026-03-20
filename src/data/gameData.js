@@ -109,6 +109,15 @@ export const initialState = {
   isRunning: false,
   isPaused: false,
   isMultiplayer: false,
+  currentMissionId: null,
+  missionLevelId: null,
+  missionStatus: "idle",
+  missionStepId: null,
+  missionStepTitle: "",
+  currentObjectives: [],
+  selectedMissileMode: "homing",
+  playerLaserEnabled: true,
+  playerMissilesEnabled: true,
 
   // Player stats
   playerHealth: 100,
@@ -124,8 +133,6 @@ export const initialState = {
 
   // Current level/environment
   currentLevel: "newworld",
-
-  cockpitIntroPlayed: false,
 
   // Performance
   performanceProfile: null, // Set on init from saved settings or auto-detected

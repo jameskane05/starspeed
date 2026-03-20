@@ -32,13 +32,27 @@ import proceduralAudio from "../audio/ProceduralAudio.js";
 import sfxManager from "../audio/sfxManager.js";
 import engineAudio from "../audio/EngineAudio.js";
 import { GAME_STATES, SHIP_CLASSES } from "../data/gameData.js";
+import { updateLeaderboardButtonVisibility } from "./gameInGameUI.js";
 import {
   getSceneObjectsForState,
   getSceneObject,
   LEVEL_OBJECT_IDS,
 } from "./gameLevel.js";
+import {
+  showFirstViewLoading,
+  hideFirstViewLoading,
+  waitForFirstViewReady,
+} from "./gameFirstViewLoading.js";
+import { loadShipModels, shipModels } from "../entities/Enemy.js";
 
-function createBotMesh(scene) {
+function hashBotId(id) {
+  let h = 0;
+  const s = String(id || "");
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function createBotPlaceholderMesh(scene) {
   const geometry = new THREE.CylinderGeometry(0.35, 0.45, 1.8, 8);
   geometry.rotateX(Math.PI / 2);
   const material = new THREE.MeshStandardMaterial({
@@ -53,20 +67,62 @@ function createBotMesh(scene) {
   return mesh;
 }
 
-export function addNetworkBot(game, id, bot) {
+function buildBotShipGroup(id) {
+  const root = new THREE.Group();
+  const n = shipModels.length;
+  if (n === 0) return { root, usesSharedShip: false };
+
+  const template = shipModels[hashBotId(id) % n];
+  const clone = template.clone();
+  clone.scale.setScalar(2.0);
+  clone.rotation.set(0, Math.PI, 0);
+  clone.traverse((child) => {
+    if (!child.isMesh) return;
+    const name = child.name?.toLowerCase?.() || "";
+    if (name.startsWith("thruster_") || name.startsWith("weapon_")) {
+      child.visible = false;
+    }
+  });
+  root.add(clone);
+  return { root, usesSharedShip: true };
+}
+
+function disposeNetworkBotEntry(game, entry) {
+  if (!entry?.mesh) return;
+  game.scene.remove(entry.mesh);
+  if (!entry.usesSharedShip) {
+    entry.mesh.traverse?.((child) => {
+      if (!child.isMesh) return;
+      child.geometry?.dispose?.();
+      const mats = Array.isArray(child.material)
+        ? child.material
+        : [child.material];
+      for (const m of mats) m?.dispose?.();
+    });
+  }
+}
+
+export async function addNetworkBot(game, id, bot) {
   if (game.networkBots.has(id)) return;
-  const mesh = createBotMesh(game.scene);
-  mesh.position.set(bot.x, bot.y, bot.z);
-  mesh.quaternion.set(bot.qx, bot.qy, bot.qz, bot.qw);
-  game.networkBots.set(id, { mesh });
+  await loadShipModels();
+  const { root, usesSharedShip } = buildBotShipGroup(id);
+  if (root.children.length === 0) {
+    const fallback = createBotPlaceholderMesh(game.scene);
+    game.networkBots.set(id, { mesh: fallback, usesSharedShip: false });
+    fallback.position.set(bot.x, bot.y, bot.z);
+    fallback.quaternion.set(bot.qx, bot.qy, bot.qz, bot.qw);
+    return;
+  }
+  game.scene.add(root);
+  root.position.set(bot.x, bot.y, bot.z);
+  root.quaternion.set(bot.qx, bot.qy, bot.qz, bot.qw);
+  game.networkBots.set(id, { mesh: root, usesSharedShip });
 }
 
 export function removeNetworkBot(game, id, deathData = null) {
   const entry = game.networkBots.get(id);
   if (!entry) return;
-  game.scene.remove(entry.mesh);
-  entry.mesh.geometry.dispose();
-  entry.mesh.material.dispose();
+  disposeNetworkBotEntry(game, entry);
   game.networkBots.delete(id);
   if (deathData && deathData.x !== undefined) {
     const pos = new THREE.Vector3(deathData.x, deathData.y, deathData.z);
@@ -83,13 +139,32 @@ export function removeNetworkBot(game, id, deathData = null) {
   }
 }
 
+function pushLevelSpawnsToServer(game) {
+  game._extractSpawnPoints();
+  NetworkManager.sendSpawnPoints({
+    enemySpawns: game.spawnPoints,
+    playerSpawns: game.playerSpawnPoints,
+    missileSpawns: game.missileSpawnPoints,
+  });
+}
+
+async function hostSyncSpawnsAfterPreload(game) {
+  try {
+    await game.preloadLevel();
+  } catch {
+    /* preloadLevel already logs */
+  }
+  if (!NetworkManager.isHost() || !game.sceneManager) return;
+  pushLevelSpawnsToServer(game);
+}
+
 export function setupNetworkListeners(game) {
   NetworkManager.on("roomJoined", () => {
     const roomState = NetworkManager.getState();
     if (roomState?.level) {
       game.gameManager.setState({ currentLevel: roomState.level });
     }
-    game.preloadLevel();
+    void hostSyncSpawnsAfterPreload(game);
   });
 
   NetworkManager.on("playerJoin", ({ player, sessionId, isLocal }) => {
@@ -236,17 +311,9 @@ export function setupNetworkListeners(game) {
       game.gameManager.setState({
         currentLevel: state.level || game.gameManager.getState().currentLevel,
       });
-      const levelDataId = game.gameManager.getState().currentLevel
-        ? `${game.gameManager.getState().currentLevel}LevelData`
-        : null;
-      if (levelDataId && game.sceneManager.hasObject(levelDataId)) {
-        game._extractSpawnPoints();
-        NetworkManager.sendSpawnPoints({
-          enemySpawns: game.spawnPoints,
-          playerSpawns: game.playerSpawnPoints,
-          missileSpawns: game.missileSpawnPoints,
-        });
-      }
+      const run = () => void hostSyncSpawnsAfterPreload(game);
+      run();
+      setTimeout(run, 500);
     }
     if (state.phase === "lobby" && state.level) {
       const current = game.gameManager.getState().currentLevel;
@@ -265,7 +332,7 @@ export function setupNetworkListeners(game) {
         game.gameManager.setState({ currentLevel: state.level });
         game.lightManager?.updateAmbientForLevel(state.level);
         game.isLoadingLevel = false;
-        game.preloadLevel();
+        void hostSyncSpawnsAfterPreload(game);
       }
     }
   });
@@ -275,7 +342,11 @@ export function setupNetworkListeners(game) {
   });
 
   NetworkManager.on("botAdd", ({ bot, id }) => {
-    if (game.isMultiplayer && game.scene) addNetworkBot(game, id, bot);
+    if (game.isMultiplayer && game.scene) {
+      void addNetworkBot(game, id, bot).catch((err) =>
+        console.warn("[Multiplayer] addNetworkBot failed", err),
+      );
+    }
   });
 
   NetworkManager.on("botRemove", ({ id }) => {
@@ -289,18 +360,28 @@ export function setupNetworkListeners(game) {
 
 export async function startMultiplayerGame(game) {
   game.isMultiplayer = true;
+  updateLeaderboardButtonVisibility(game);
+  const loadingTracker = game.levelLoadingTracker;
 
-  game.renderer.domElement.style.display = "block";
+  if (!game.levelLoadPromise) {
+    loadingTracker?.reset();
+  }
+  MenuManager.showBackgroundLoading();
+  loadingTracker?.registerTask("multiplayer-player-setup");
+  loadingTracker?.registerTask("multiplayer-scene-setup");
+  showFirstViewLoading();
 
   const state = NetworkManager.getState();
   const localPlayer = NetworkManager.getLocalPlayer();
-
   const level = state?.level || "newworld";
   game.gameManager.setState({
     currentLevel: level,
     currentState: GAME_STATES.PLAYING,
+    isMultiplayer: true,
   });
   game.lightManager?.updateAmbientForLevel(level);
+
+  await game.preloadLevel();
 
   for (const id of LEVEL_OBJECT_IDS) {
     const obj = getSceneObject(id);
@@ -313,18 +394,19 @@ export async function startMultiplayerGame(game) {
     }
   }
 
-  if (!localPlayer) return;
+  if (!localPlayer) {
+    loadingTracker?.completeTask("multiplayer-scene-setup");
+    loadingTracker?.completeTask("multiplayer-player-setup");
+    hideFirstViewLoading();
+    return;
+  }
 
   const classStats =
     SHIP_CLASSES[localPlayer.shipClass] || SHIP_CLASSES.fighter;
 
-  game.player = new Player(
-    game.camera,
-    game.input,
-    game.level,
-    game.scene,
-    { game },
-  );
+  game.player = new Player(game.camera, game.input, game.level, game.scene, {
+    game,
+  });
   game.player.health = localPlayer.health;
   game.player.maxHealth = localPlayer.maxHealth;
   game.player.missiles = localPlayer.missiles;
@@ -350,14 +432,10 @@ export async function startMultiplayerGame(game) {
   if (loads.length > 0) {
     await Promise.all(loads);
   }
+  loadingTracker?.completeTask("multiplayer-scene-setup");
 
-  game._extractSpawnPoints();
   if (NetworkManager.isHost()) {
-    NetworkManager.sendSpawnPoints({
-      enemySpawns: game.spawnPoints,
-      playerSpawns: game.playerSpawnPoints,
-      missileSpawns: game.missileSpawnPoints,
-    });
+    pushLevelSpawnsToServer(game);
   }
 
   if (game.playerSpawnPoints?.length > 0) {
@@ -383,9 +461,14 @@ export async function startMultiplayerGame(game) {
   });
 
   if (state?.botsEnabled && state?.bots) {
+    await game.ensureEnemyShipAssetsLoaded();
+    const pending = [];
     state.bots.forEach((bot, id) => {
-      if (!game.networkBots.has(id)) addNetworkBot(game, id, bot);
+      if (!game.networkBots.has(id)) pending.push([id, bot]);
     });
+    for (const [id, bot] of pending) {
+      await addNetworkBot(game, id, bot);
+    }
   }
 
   if (!game.input.mobile.shouldSkipPointerLock()) {
@@ -395,12 +478,19 @@ export async function startMultiplayerGame(game) {
   }
   document.getElementById("crosshair").classList.add("active");
   document.getElementById("hud").classList.add("active");
-  MenuManager.hide();
 
   game.gameManager.setState({
     isRunning: true,
-    isMultiplayer: true,
   });
+  loadingTracker?.completeTask("multiplayer-player-setup");
+
+  game.renderer.domElement.style.display = "block";
+
+  (async () => {
+    await waitForFirstViewReady(game);
+    MenuManager.enterPlayingMode();
+    hideFirstViewLoading();
+  })();
 }
 
 export function addRemotePlayer(game, sessionId, playerData) {
@@ -436,11 +526,7 @@ export function cleanupMultiplayer(game) {
   game.remotePlayers.forEach((remote) => remote.dispose());
   game.remotePlayers.clear();
 
-  game.networkBots.forEach((entry) => {
-    game.scene.remove(entry.mesh);
-    entry.mesh.geometry.dispose();
-    entry.mesh.material.dispose();
-  });
+  game.networkBots.forEach((entry) => disposeNetworkBotEntry(game, entry));
   game.networkBots.clear();
 
   game.networkProjectiles.forEach((data) => {

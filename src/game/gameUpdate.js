@@ -31,12 +31,53 @@ const _audioForward = new THREE.Vector3();
 const _audioUp = new THREE.Vector3();
 const _unitForward = new THREE.Vector3();
 
+function restoreBaseCameraLayers(game) {
+  if (!game.camera) return;
+  if (game._baseCameraLayerMask == null) {
+    game._baseCameraLayerMask = game.camera.layers.mask;
+  }
+  game.camera.layers.mask = game._baseCameraLayerMask;
+}
+
+function renderCaptionOverlay(game) {
+  const captionMesh = game.dialogManager?.captionMesh;
+  const captionLayer = game.dialogManager?.captionRenderLayer;
+  if (!captionMesh?.visible || captionLayer == null) return;
+
+  if (game._baseCameraLayerMask == null) {
+    game._baseCameraLayerMask = game.camera.layers.mask;
+  }
+
+  const previousCameraMask = game.camera.layers.mask;
+  const previousAutoClear = game.renderer.autoClear;
+  const previousBackground = game.scene.background;
+  const previousBackgroundBlurriness = game.scene.backgroundBlurriness;
+  const previousBackgroundIntensity = game.scene.backgroundIntensity;
+  try {
+    game.camera.layers.set(captionLayer);
+    game.renderer.autoClear = false;
+    game.scene.background = null;
+    game.scene.backgroundBlurriness = 0;
+    game.scene.backgroundIntensity = 0;
+    game.renderer.clearDepth();
+    game.renderer.render(game.scene, game.camera);
+  } finally {
+    game.camera.layers.mask = previousCameraMask;
+    game.renderer.autoClear = previousAutoClear;
+    game.scene.background = previousBackground;
+    game.scene.backgroundBlurriness = previousBackgroundBlurriness;
+    game.scene.backgroundIntensity = previousBackgroundIntensity;
+  }
+}
+
 export function tick(game, delta, timestamp, frame) {
   game._frameCount++;
   const isPlaying = game.gameManager.isPlaying();
 
   if (!isPlaying) {
     proceduralAudio.shieldRechargeStop();
+    proceduralAudio.boosterRechargeStop();
+    game._boostFuelRechargePrev = null;
   }
 
   if (game.xrManager) {
@@ -56,6 +97,8 @@ export function tick(game, delta, timestamp, frame) {
 
     if (multiplayerDead) {
       proceduralAudio.shieldRechargeStop();
+      proceduralAudio.boosterRechargeStop();
+      game._boostFuelRechargePrev = null;
     }
 
     if (!game._soloRespawning && !multiplayerDead) {
@@ -63,7 +106,6 @@ export function tick(game, delta, timestamp, frame) {
       game.handleGamepadFire();
 
       if (game.player) {
-        const boostFuelBefore = game.player.boostFuel;
         game.player.update(delta, game.clock.elapsedTime);
         game.dialogManager?.update(delta);
         if (game.isMultiplayer) {
@@ -105,6 +147,20 @@ export function tick(game, delta, timestamp, frame) {
             proceduralAudio.shieldRechargeStop();
           }
         }
+
+        const prevBoostFuel = game._boostFuelRechargePrev;
+        const fuel = game.player.boostFuel;
+        const maxFuel = game.player.maxBoostFuel || 1;
+        const boostRecharging =
+          prevBoostFuel != null &&
+          fuel < maxFuel &&
+          fuel > prevBoostFuel;
+        if (boostRecharging) {
+          proceduralAudio.boosterRechargeUpdate(fuel / maxFuel);
+        } else {
+          proceduralAudio.boosterRechargeStop();
+        }
+        game._boostFuelRechargePrev = fuel;
       }
     }
 
@@ -150,6 +206,8 @@ export function tick(game, delta, timestamp, frame) {
       }
       game.tickEnemyRespawns(delta);
     }
+
+    game.missionManager?.update(delta);
 
     game.projectiles.forEach((proj) => proj.update(delta));
 
@@ -273,12 +331,17 @@ export function tick(game, delta, timestamp, frame) {
     game.projectileSplatLayer.updateMatrixWorld(true);
   }
 
+  restoreBaseCameraLayers(game);
+
   if (game.xrManager?.isPresenting) {
     game.renderer.render(game.scene, game.camera);
+    renderCaptionOverlay(game);
   } else if (game._bloomActive) {
     game.composer.render();
+    renderCaptionOverlay(game);
   } else {
     game.renderer.render(game.scene, game.camera);
+    renderCaptionOverlay(game);
   }
 }
 
@@ -303,6 +366,7 @@ export function onResize(game) {
   const vp = window.visualViewport;
   const w = vp ? Math.round(vp.width) : window.innerWidth;
   const h = vp ? Math.round(vp.height) : window.innerHeight;
+  game.camera.fov = 70;
   game.camera.aspect = w / h;
   game.camera.updateProjectionMatrix();
   game.renderer.setSize(w, h);

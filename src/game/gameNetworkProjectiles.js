@@ -19,6 +19,7 @@
 import * as THREE from "three";
 import { Projectile } from "../entities/Projectile.js";
 import { Missile } from "../entities/Missile.js";
+import { KineticMissile } from "../entities/KineticMissile.js";
 import { Explosion } from "../entities/Explosion.js";
 import { LaserImpact } from "../entities/LaserImpact.js";
 import { Collectible } from "../entities/Collectible.js";
@@ -36,11 +37,7 @@ export function spawnCollectible(game, id, data) {
     y: data?.y ?? 0,
     z: data?.z ?? 0,
   };
-  const collectible = new Collectible(
-    game.scene,
-    payload,
-    game.dynamicLights,
-  );
+  const collectible = new Collectible(game.scene, payload, game.dynamicLights);
   game.collectibles.set(id, collectible);
 }
 
@@ -121,24 +118,34 @@ export function spawnNetworkProjectile(game, id, data) {
     const missilePos = remote?.getMissileSpawnPoint?.();
     if (missilePos) position.copy(missilePos).addScaledVector(direction, -1);
 
-    const missile = new Missile(game.scene, position, direction, {
-      trailsEffect: game.trailsEffect,
-    });
+    const missile =
+      data.variant === "kinetic"
+        ? new KineticMissile(game.scene, position, direction, {
+            trailsEffect: game.trailsEffect,
+          })
+        : new Missile(game.scene, position, direction, {
+            trailsEffect: game.trailsEffect,
+          });
     const targetPosition = new THREE.Vector3(data.x, data.y, data.z);
     const targetDirection = direction.clone().normalize();
     game.networkProjectiles.set(id, {
       type: "missile",
+      variant: data.variant === "kinetic" ? "kinetic" : "homing",
       obj: missile,
       targetPosition,
       targetDirection,
     });
 
-    game.dynamicLights?.flash(position, 0xffaa33, {
-      intensity: 14,
-      distance: 20,
-      ttl: 0.07,
-      fade: 0.16,
-    });
+    game.dynamicLights?.flash(
+      position,
+      data.variant === "kinetic" ? 0x4488ff : 0xffaa33,
+      {
+        intensity: 14,
+        distance: 20,
+        ttl: 0.07,
+        fade: 0.16,
+      },
+    );
     proceduralAudio.missileFire();
   } else {
     const isPlayerOwned = data.ownerId === NetworkManager.sessionId;
@@ -191,17 +198,16 @@ export function updateNetworkProjectile(game, id, projectile) {
 
   if (data.type === "missile" && data.targetPosition && data.targetDirection) {
     data.targetPosition.set(projectile.x, projectile.y, projectile.z);
-    data.targetDirection.set(projectile.dx, projectile.dy, projectile.dz).normalize();
+    data.targetDirection
+      .set(projectile.dx, projectile.dy, projectile.dz)
+      .normalize();
   } else if (data.type === "missile") {
     data.obj.group.position.set(projectile.x, projectile.y, projectile.z);
     data.obj.direction
       .set(projectile.dx, projectile.dy, projectile.dz)
       .normalize();
     const forward = new THREE.Vector3(0, 0, 1);
-    data.obj.group.quaternion.setFromUnitVectors(
-      forward,
-      data.obj.direction,
-    );
+    data.obj.group.quaternion.setFromUnitVectors(forward, data.obj.direction);
   } else {
     data.obj.mesh.position.set(projectile.x, projectile.y, projectile.z);
     data.obj.direction
@@ -270,6 +276,10 @@ export function handleNetworkHit(game, data) {
       remote.takeDamage(data.damage);
     }
   } else {
+    if (!game.player) {
+      console.warn("[Game] Ignoring local hit before player spawn");
+      return;
+    }
     game.player.health -= data.damage;
     game.player.lastDamageTime = game.clock.elapsedTime;
     game.showDamageIndicator(hitPos);

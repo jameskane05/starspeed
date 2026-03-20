@@ -16,37 +16,225 @@
     />
     <meta name="description" content="Zero-G Aerial Combat" />
     <title>STARSPEED by James C. Kane</title>
+    <script>
+      (function () {
+        var rad = /\.(rad|radc)(\?|$)/i;
+        window.__starspeedRadcCounters = { requested: 0, completed: 0 };
+        var c = window.__starspeedRadcCounters;
+        function done() {
+          c.completed += 1;
+        }
+        if (window.fetch) {
+          var f = window.fetch;
+          window.fetch = function (input, init) {
+            var url =
+              typeof input === "string"
+                ? input
+                : input && input.url
+                  ? String(input.url)
+                  : "";
+            if (rad.test(url)) {
+              c.requested += 1;
+              return f.apply(this, arguments).then(
+                function (r) {
+                  done();
+                  return r;
+                },
+                function (e) {
+                  done();
+                  throw e;
+                },
+              );
+            }
+            return f.apply(this, arguments);
+          };
+        }
+        if (window.XMLHttpRequest) {
+          var X = window.XMLHttpRequest;
+          window.XMLHttpRequest = function () {
+            var xhr = new X();
+            var isRad = false;
+            var open = xhr.open;
+            xhr.open = function (method, url) {
+              isRad = rad.test(String(url));
+              return open.apply(this, arguments);
+            };
+            var send = xhr.send;
+            xhr.send = function () {
+              if (isRad) {
+                c.requested += 1;
+                var onEnd = function () {
+                  xhr.removeEventListener("load", onEnd);
+                  xhr.removeEventListener("error", onEnd);
+                  xhr.removeEventListener("abort", onEnd);
+                  done();
+                };
+                xhr.addEventListener("load", onEnd);
+                xhr.addEventListener("error", onEnd);
+                xhr.addEventListener("abort", onEnd);
+              }
+              return send.apply(this, arguments);
+            };
+            return xhr;
+          };
+        }
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="preload"
+      href="/images/ui/Starspeed_WordMark.png"
+      as="image"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;500;700;900&display=swap"
+    />
     <link rel="stylesheet" href="/src/ui/hud.css" />
     <script>
-      document.addEventListener('contextmenu', function (e) {
-        var onLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      document.addEventListener("contextmenu", function (e) {
+        var onLocalhost =
+          location.hostname === "localhost" ||
+          location.hostname === "127.0.0.1";
         var hitCanvas = e.target instanceof HTMLCanvasElement;
         if (!onLocalhost || hitCanvas) e.preventDefault();
       });
     </script>
   </head>
   <body>
+    <style>
+      #app-loading-bootstrap {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #0a0a12 0%, #0d0d18 100%);
+      }
+      #app-loading-bootstrap.visible {
+        display: flex;
+      }
+      #app-loading-bootstrap .loading-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        max-width: 500px;
+      }
+      #app-loading-bootstrap .loading-message {
+        font-family: "Rajdhani", sans-serif;
+        font-size: 1.4rem;
+        font-weight: 500;
+        color: #e0e0e0;
+        margin-bottom: 2rem;
+        letter-spacing: 0.2em;
+        animation: appLoadingPulse 2s ease-in-out infinite;
+      }
+      @keyframes appLoadingPulse {
+        0%,
+        100% {
+          opacity: 0.7;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+      #app-loading-bootstrap .loading-progress {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      #app-loading-bootstrap .loading-progress-bar {
+        width: 100%;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 2px;
+        overflow: hidden;
+        position: relative;
+      }
+      #app-loading-bootstrap .loading-progress-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #00f0ff, #00ff88);
+        box-shadow: 0 0 15px rgba(0, 240, 255, 0.6);
+        border-radius: 2px;
+        transition: width 0.3s ease-out;
+      }
+      #app-loading-bootstrap .loading-progress-text {
+        font-family: "Orbitron", sans-serif;
+        font-size: 1rem;
+        color: #00f0ff;
+        margin-top: 2rem;
+      }
+    </style>
+    <div id="app-loading-bootstrap" aria-hidden="true">
+      <div class="loading-content">
+        <div class="loading-message">LOADING...</div>
+        <div class="loading-progress">
+          <div class="loading-progress-bar">
+            <div class="loading-progress-fill"></div>
+          </div>
+          <div class="loading-progress-text">0%</div>
+        </div>
+      </div>
+    </div>
+    <script>
+      (function () {
+        var el = document.getElementById("app-loading-bootstrap");
+        if (!el) return;
+        var dismissed = false;
+        var progress = 0;
+        var fill = el.querySelector(".loading-progress-fill");
+        var text = el.querySelector(".loading-progress-text");
+        function setProgress(value) {
+          progress = Math.max(progress, Math.min(1, value));
+          var pct = Math.round(progress * 100);
+          if (fill) fill.style.width = pct + "%";
+          if (text) text.textContent = pct + "%";
+        }
+        function show() {
+          if (dismissed) return;
+          el.classList.add("visible");
+          el.setAttribute("aria-hidden", "false");
+        }
+        function hide() {
+          dismissed = true;
+          el.classList.remove("visible");
+          el.setAttribute("aria-hidden", "true");
+        }
+        if (document.fonts && document.fonts.ready) {
+          document.fonts.ready.then(function () {
+            setProgress(0.08);
+            show();
+          });
+        } else {
+          setProgress(0.08);
+          show();
+        }
+        window.__starspeedBootstrapLoading = {
+          setProgress: setProgress,
+          hide: hide,
+          show: show,
+        };
+        window.addEventListener("app-bootstrap-ready", function () {
+          setProgress(0.2);
+        });
+        window.addEventListener("app-initial-load-progress", function (event) {
+          var detail = event && event.detail ? event.detail : {};
+          var p = typeof detail.progress === "number" ? detail.progress : 0;
+          setProgress(0.2 + p * 0.8);
+        });
+        window.addEventListener("app-ready", hide);
+      })();
+    </script>
     <div id="menu-container"></div>
     <div id="crosshair"></div>
     <div id="mobile-controls">
-      <div class="mobile-top-left">
-        <button
-          id="mobile-menu-btn"
-          data-action="menu"
-          type="button"
-          aria-label="Menu"
-        >
-          <img src="/images/ui/menu.png" alt="Menu" />
-        </button>
-        <button
-          id="mobile-leaderboard-btn"
-          data-action="leaderboard"
-          type="button"
-          aria-label="Leaderboard"
-        >
-          <img src="/images/ui/leaderboard.png" alt="Leaderboard" />
-        </button>
-      </div>
       <div class="joystick joystick-move">
         <div class="thumb"></div>
       </div>
@@ -62,12 +250,22 @@
         </button>
       </div>
       <div class="directional-right">
-        <button data-action="roll-left" type="button">
-          <img src="/images/ui/roll-left.png" alt="Roll left" />
+        <button
+          id="mobile-leaderboard-btn"
+          data-action="leaderboard"
+          type="button"
+          aria-label="Leaderboard"
+        >
+          <img src="/images/ui/leaderboard.png" alt="Leaderboard" />
         </button>
-        <button data-action="roll-right" type="button">
-          <img src="/images/ui/roll-right.png" alt="Roll right" />
-        </button>
+        <div class="directional-right-rolls">
+          <button data-action="roll-left" type="button">
+            <img src="/images/ui/roll-left.png" alt="Roll left" />
+          </button>
+          <button data-action="roll-right" type="button">
+            <img src="/images/ui/roll-right.png" alt="Roll right" />
+          </button>
+        </div>
       </div>
       <div class="combat-center">
         <div class="combat-left">
@@ -85,6 +283,14 @@
           </button>
         </div>
         <div class="combat-right">
+          <button
+            id="mobile-menu-btn"
+            data-action="menu"
+            type="button"
+            aria-label="Menu"
+          >
+            <img src="/images/ui/menu.png" alt="Menu" />
+          </button>
           <button data-action="fire-weapon" type="button">
             <img src="/images/ui/lasers.png" alt="Fire weapon" />
           </button>
@@ -98,33 +304,22 @@
       <div class="damage-indicator damage-indicator-right"></div>
       <div class="damage-indicator damage-indicator-center"></div>
     </div>
-    <div id="hud">
-      <div class="hud-missiles">
-        <span id="missiles">20</span
-        ><img src="/images/ui/missiles.png" alt="Missiles" class="hud-icon" />
-      </div>
-      <div class="hud-kills">
-        <span id="kills">0</span
-        ><img src="/images/ui/kills.png" alt="Kills" class="hud-icon" />
-      </div>
-      <div class="hud-shields">
-        <span id="health">100</span
-        ><img src="/images/ui/shields.png" alt="Shields" class="hud-icon" />
-      </div>
-      <div class="hud-boost">
-        <span id="boost">100</span
-        ><img
-          src="/images/ui/booster-rockets.png"
-          alt="Boost"
-          class="hud-icon"
-        />
-      </div>
-    </div>
+    <div id="hud"></div>
     <div id="game-top-buttons">
-      <button id="game-menu-btn" data-action="menu" type="button" aria-label="Menu">
+      <button
+        id="game-menu-btn"
+        data-action="menu"
+        type="button"
+        aria-label="Menu"
+      >
         <img src="/images/ui/menu.png" alt="Menu" />
       </button>
-      <button id="game-leaderboard-btn" data-action="leaderboard" type="button" aria-label="Leaderboard">
+      <button
+        id="game-leaderboard-btn"
+        data-action="leaderboard"
+        type="button"
+        aria-label="Leaderboard"
+      >
         <img src="/images/ui/leaderboard.png" alt="Leaderboard" />
       </button>
     </div>

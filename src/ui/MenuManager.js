@@ -46,6 +46,7 @@ import {
 } from "../game/Gamepad.js";
 import { AudioSettings } from "../game/AudioSettings.js";
 import { StartScreenScene } from "./StartScreenScene.js";
+import LoadingProgressManager from "./LoadingProgressManager.js";
 import proceduralAudio from "../audio/ProceduralAudio.js";
 import sfxManager from "../audio/sfxManager.js";
 import sfxSounds from "../audio/sfxData.js";
@@ -62,6 +63,19 @@ import * as playingScreen from "./screens/playing.js";
 import * as resultsScreen from "./screens/results.js";
 import * as feedbackDashboardScreen from "./screens/feedbackDashboard.js";
 import * as feedbackModalScreen from "./screens/feedbackModal.js";
+
+function preloadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const decodePromise =
+        typeof img.decode === "function" ? img.decode() : Promise.resolve();
+      decodePromise.then(resolve).catch(resolve);
+    };
+    img.onerror = () => reject(new Error(`Failed to preload image: ${src}`));
+    img.src = src;
+  });
+}
 
 class MenuManager {
   constructor() {
@@ -88,6 +102,10 @@ class MenuManager {
       JSON.parse(localStorage.getItem("starspeed_muted") || "[]"),
     );
     this.maxChatMessages = 50;
+    this.initialLoadingTracker = new LoadingProgressManager();
+    this.activeLoadingTracker = null;
+    this.matchmakingMessage = "";
+    this.backgroundOnlyLoading = false;
   }
 
   async init() {
@@ -105,15 +123,27 @@ class MenuManager {
     this.menuContent.id = "menu-content";
     this.container.appendChild(this.menuContent);
 
-    this.currentScreen = SCREENS.INITIAL_LOADING;
-    this.render();
+    this.bindInitialLoadingTracker(this.initialLoadingTracker);
 
     this.startScene = new StartScreenScene();
-    const onProgress = (pct) => this.updateInitialLoadProgress(pct);
-    await this.startScene.init(this.menuBg, onProgress);
+    this.initialLoadingTracker.reset();
+    this.initialLoadingTracker.registerTask("main-menu-logo");
+    const mainMenuLogoPromise = preloadImage("/images/ui/Starspeed_WordMark.png")
+      .catch((error) => {
+        console.warn("[MenuManager] Main menu logo preload failed:", error);
+      })
+      .finally(() => {
+        this.initialLoadingTracker.completeTask("main-menu-logo");
+      });
+    await Promise.all([
+      this.startScene.init(this.menuBg, this.initialLoadingTracker),
+      mainMenuLogoPromise,
+    ]);
+    this.clearLoadingTracker(this.initialLoadingTracker);
 
     this.currentScreen = SCREENS.MAIN_MENU;
     this.render();
+    window.dispatchEvent(new Event("app-ready"));
     sfxManager.init(sfxSounds);
 
     // Initialize procedural audio on first user interaction
@@ -221,61 +251,160 @@ class MenuManager {
   }
 
   showScreen(screen) {
-    this.currentScreen = screen;
-
-    if (this.startScene) {
-      const showScene =
-        screen === SCREENS.MAIN_MENU ||
-        screen === SCREENS.CREATE_GAME ||
-        screen === SCREENS.JOIN_GAME ||
-        screen === SCREENS.OPTIONS ||
-        screen === SCREENS.FEEDBACK_DASHBOARD;
-      if (showScene) {
-        this.startScene.resume();
-        if (this.startScene.renderer) {
-          this.startScene.renderer.domElement.style.display = "block";
-        }
-      } else {
-        this.startScene.pause();
-        if (this.startScene.renderer) {
-          this.startScene.renderer.domElement.style.display = "none";
-        }
-      }
+    if (screen !== SCREENS.MAIN_MENU) {
+      this.matchmakingMessage = "";
     }
+    if (screen !== SCREENS.LOADING && this._loadingRampId) {
+      clearInterval(this._loadingRampId);
+      this._loadingRampId = null;
+    }
+    this.currentScreen = screen;
+    if (screen !== SCREENS.LOADING && screen !== SCREENS.INITIAL_LOADING) {
+      this.backgroundOnlyLoading = false;
+    }
+
+    this.syncStartSceneState();
 
     this.render();
     setTimeout(() => this.resetFocus(), 50);
   }
 
+  syncStartSceneState() {
+    if (!this.startScene) return;
+    const showScene =
+      this.currentScreen === SCREENS.INITIAL_LOADING ||
+      this.currentScreen === SCREENS.MAIN_MENU ||
+      this.currentScreen === SCREENS.CREATE_GAME ||
+      this.currentScreen === SCREENS.JOIN_GAME ||
+      this.currentScreen === SCREENS.LOADING ||
+      this.currentScreen === SCREENS.OPTIONS ||
+      this.currentScreen === SCREENS.FEEDBACK_DASHBOARD;
+
+    this.startScene.setLoadingBackgroundOnly(
+      this.backgroundOnlyLoading ||
+        this.currentScreen === SCREENS.INITIAL_LOADING,
+    );
+
+    if (showScene) {
+      this.startScene.resume();
+      if (this.startScene.renderer) {
+        this.startScene.renderer.domElement.style.display = "block";
+      }
+      return;
+    }
+
+    this.startScene.pause();
+    if (this.startScene.renderer) {
+      this.startScene.renderer.domElement.style.display = "none";
+    }
+  }
+
   showLoading(message = "LOADING LEVEL...") {
+    this.backgroundOnlyLoading = false;
     this.loadingMessage = message;
+    if (this._loadingRampId) {
+      clearInterval(this._loadingRampId);
+      this._loadingRampId = null;
+    }
     this.showScreen(SCREENS.LOADING);
   }
 
+  showBackgroundLoading() {
+    this.backgroundOnlyLoading = true;
+    this.showScreen(SCREENS.LOADING);
+  }
+
+  showMatchmakingModal(message = "Finding match...") {
+    this.matchmakingMessage = message;
+    if (this.currentScreen === SCREENS.MAIN_MENU) {
+      this.render();
+      setTimeout(() => this.resetFocus(), 50);
+    }
+  }
+
+  hideMatchmakingModal() {
+    if (!this.matchmakingMessage) return;
+    this.matchmakingMessage = "";
+    if (this.currentScreen === SCREENS.MAIN_MENU) {
+      this.render();
+      setTimeout(() => this.resetFocus(), 50);
+    }
+  }
+
+  bindInitialLoadingTracker(tracker) {
+    if (!tracker) return;
+    this.clearLoadingTracker();
+    this.activeLoadingTracker = tracker;
+    tracker.setCallbacks({
+      onProgress: (progress) => this.updateInitialLoadProgress(progress),
+    });
+    this.currentScreen = SCREENS.INITIAL_LOADING;
+    this.render();
+  }
+
+  bindLoadingTracker(tracker, message = "LOADING LEVEL...") {
+    if (!tracker) return;
+    this.clearLoadingTracker();
+    this.loadingMessage = message;
+    this.activeLoadingTracker = tracker;
+    tracker.setCallbacks({
+      onProgress: (progress) => this.updateLoadingProgress(progress),
+    });
+    this.showScreen(SCREENS.LOADING);
+  }
+
+  clearLoadingTracker(tracker = this.activeLoadingTracker) {
+    if (!tracker) return;
+    tracker.clearCallbacks();
+    if (this.activeLoadingTracker === tracker) {
+      this.activeLoadingTracker = null;
+    }
+  }
+
   updateInitialLoadProgress(progress) {
-    const progressBar = document.querySelector(".initial-loading-screen .loading-progress-fill");
-    const progressText = document.querySelector(".initial-loading-screen .loading-progress-text");
+    const progressBar = document.querySelector(
+      ".initial-loading-screen .loading-progress-fill",
+    );
+    const progressText = document.querySelector(
+      ".initial-loading-screen .loading-progress-text",
+    );
+    const pct = Math.round(progress * 100);
+    if (progressBar) progressBar.style.width = `${pct}%`;
+    if (progressText) progressText.textContent = `${pct}%`;
+    window.dispatchEvent(
+      new CustomEvent("app-initial-load-progress", {
+        detail: { progress },
+      }),
+    );
+  }
+
+  updateLoadingProgress(progress) {
+    const root = document.querySelector(".loading-screen");
+    if (!root) return;
+    const progressBar = root.querySelector(".loading-progress-fill");
+    const progressText = root.querySelector(".loading-progress-text");
     const pct = Math.round(progress * 100);
     if (progressBar) progressBar.style.width = `${pct}%`;
     if (progressText) progressText.textContent = `${pct}%`;
   }
 
-  updateLoadingProgress(progress) {
-    const progressBar = document.querySelector(".loading-progress-fill");
-    const progressText = document.querySelector(".loading-progress-text");
-    if (progressBar) {
-      progressBar.style.width = `${Math.round(progress * 100)}%`;
-    }
-    if (progressText) {
-      progressText.textContent = `${Math.round(progress * 100)}%`;
-    }
-  }
-
   loadingComplete() {
+    if (this._loadingRampId) {
+      clearInterval(this._loadingRampId);
+      this._loadingRampId = null;
+    }
     if (this.currentScreen === SCREENS.LOADING) {
+      this.updateLoadingProgress(1);
       this.showScreen(SCREENS.PLAYING);
       this.emit("gameStart");
     }
+  }
+
+  enterPlayingMode() {
+    this.backgroundOnlyLoading = false;
+    this.currentScreen = SCREENS.PLAYING;
+    this.render();
+    this.hide();
   }
 
   render() {
@@ -1363,7 +1492,7 @@ class MenuManager {
   }
 
   async quickMatch() {
-    this.showLoading("Finding match...");
+    this.showMatchmakingModal("Finding match...");
     await NetworkManager.connect();
 
     // Check if there are existing public rooms to join
@@ -1390,24 +1519,7 @@ class MenuManager {
     if (this.container) {
       this.container.classList.remove("hidden");
     }
-    if (this.startScene) {
-      const showScene =
-        this.currentScreen === SCREENS.MAIN_MENU ||
-        this.currentScreen === SCREENS.CREATE_GAME ||
-        this.currentScreen === SCREENS.JOIN_GAME ||
-        this.currentScreen === SCREENS.OPTIONS;
-      if (showScene) {
-        this.startScene.resume();
-        if (this.startScene.renderer) {
-          this.startScene.renderer.domElement.style.display = "block";
-        }
-      } else {
-        this.startScene.pause();
-        if (this.startScene.renderer) {
-          this.startScene.renderer.domElement.style.display = "none";
-        }
-      }
-    }
+    this.syncStartSceneState();
   }
 
   hide() {

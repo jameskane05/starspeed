@@ -41,9 +41,7 @@ export function renderResults(manager) {
         <div class="scoreboard-header">
           <span>RANK</span>
           <span>PILOT</span>
-          <span>KILLS</span>
           <span>DEATHS</span>
-          <span>K/D</span>
         </div>
         ${players
           .map(
@@ -51,9 +49,7 @@ export function renderResults(manager) {
           <div class="scoreboard-row ${sessionId === NetworkManager.sessionId ? "local" : ""} ${state.mode === "team" ? `team-${player.team}` : ""}">
             <span class="rank">#${index + 1}</span>
             <span class="name">${player.name}</span>
-            <span class="kills">${player.kills}</span>
             <span class="deaths">${player.deaths}</span>
-            <span class="kd">${player.deaths > 0 ? (player.kills / player.deaths).toFixed(2) : player.kills.toFixed(2)}</span>
           </div>
         `,
           )

@@ -25,13 +25,44 @@ import { cleanupDestruction } from "../vfx/ShipDestruction.js";
 export function setup(game) {
   game.hud = {
     health: document.getElementById("health"),
-    kills: document.getElementById("kills"),
     missiles: document.getElementById("missiles"),
     boost: document.getElementById("boost"),
     mobileMissiles: document.getElementById("mobile-missiles"),
     mobileBoost: document.getElementById("mobile-boost"),
   };
   game.controlsHelpEl = document.getElementById("controls-help");
+  if (!game.missionPanel) {
+    game.missionPanel = document.createElement("div");
+    game.missionPanel.id = "mission-panel";
+    game.missionPanel.className = "mission-panel collapsed";
+    game.missionPanel.innerHTML = `
+      <button
+        id="mission-panel-toggle"
+        class="mission-panel-toggle"
+        type="button"
+        aria-expanded="false"
+      >
+        <span>OBJECTIVES</span>
+        <span class="mission-panel-chevron">+</span>
+      </button>
+      <div id="mission-panel-content" class="mission-panel-content"></div>
+    `;
+    document.body.appendChild(game.missionPanel);
+    game.missionPanelContent = game.missionPanel.querySelector(
+      "#mission-panel-content",
+    );
+    const missionPanelToggle = game.missionPanel.querySelector(
+      "#mission-panel-toggle",
+    );
+    missionPanelToggle?.addEventListener("click", () => {
+      game.missionPanelCollapsed = !game.missionPanelCollapsed;
+      syncMissionPanelState(game);
+    });
+  }
+  if (game.missionPanelCollapsed == null) {
+    game.missionPanelCollapsed = isMobileLayout(game);
+  }
+  syncMissionPanelState(game);
 
   const gameMenuBtn = document.getElementById("game-menu-btn");
   const gameLeaderboardBtn = document.getElementById("game-leaderboard-btn");
@@ -48,6 +79,7 @@ export function setup(game) {
       else showLeaderboard(game);
     });
   }
+  updateLeaderboardButtonVisibility(game);
 }
 
 export function toggleEscMenu(game) {
@@ -87,6 +119,13 @@ export function showEscMenu(game) {
     </div>
   `;
 
+  game.escMenu.querySelector(".esc-overlay")?.addEventListener("click", () => {
+    resumeGame(game);
+  });
+  game.escMenu.querySelector(".esc-content")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
+
   document
     .getElementById("esc-resume")
     .addEventListener("click", () => resumeGame(game));
@@ -124,6 +163,7 @@ export function showOptionsMenu(game) {
 }
 
 export function showLeaderboard(game) {
+  if (!game.isMultiplayer) return;
   if (!game.leaderboardEl) {
     game.leaderboardEl = document.createElement("div");
     game.leaderboardEl.id = "tab-leaderboard";
@@ -170,7 +210,6 @@ export function showLeaderboard(game) {
       <div class="leaderboard-header">
         <span class="lb-rank">#</span>
         <span class="lb-name">PILOT</span>
-        <span class="lb-kills">K</span>
         <span class="lb-deaths">D</span>
       </div>
       ${players
@@ -179,7 +218,6 @@ export function showLeaderboard(game) {
         <div class="leaderboard-row ${p.id === localId ? "local" : ""}">
           <span class="lb-rank">${i + 1}</span>
           <span class="lb-name">${p.name}</span>
-          <span class="lb-kills">${p.kills}</span>
           <span class="lb-deaths">${p.deaths}</span>
         </div>
       `,
@@ -198,6 +236,23 @@ export function hideLeaderboard(game) {
   }
 }
 
+export function updateLeaderboardButtonVisibility(game) {
+  const visible = Boolean(game.isMultiplayer);
+  const desktopBtn = document.getElementById("game-leaderboard-btn");
+  const mobileBtn = document.getElementById("mobile-leaderboard-btn");
+  if (desktopBtn) {
+    desktopBtn.style.display = visible ? "" : "none";
+    desktopBtn.disabled = !visible;
+  }
+  if (mobileBtn) {
+    mobileBtn.style.display = visible ? "" : "none";
+    mobileBtn.disabled = !visible;
+  }
+  if (!visible) {
+    hideLeaderboard(game);
+  }
+}
+
 function formatMatchTime(seconds) {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
@@ -205,10 +260,7 @@ function formatMatchTime(seconds) {
 }
 
 export function updateLeaderboardTimer(game) {
-  if (
-    !game.isMultiplayer ||
-    !game.leaderboardEl?.classList.contains("active")
-  )
+  if (!game.isMultiplayer || !game.leaderboardEl?.classList.contains("active"))
     return;
   const el = document.getElementById("leaderboard-timer");
   if (!el) return;
@@ -233,13 +285,15 @@ export function showControlsHelp(game, visible) {
       ["Strafe", "strafeUp", "strafeDown"],
       ["Boost", "boost"],
       ["Fire", null],
+      ["Missile fire", null],
+      ["Switch missile mode", "switchMissileMode"],
       ["Homing missile", "missile"],
       ["Kinetic missile", "kineticMissile"],
       ["Headlight", "toggleHeadlight"],
       ["Leaderboard", "leaderboard"],
       ["Pause", "pause"],
     ];
-    const rowLabels = { Fire: "Left Click" };
+    const rowLabels = { Fire: "Left Click", "Missile fire": "Right Click" };
     const html = rows
       .map(([label, ...actions]) => {
         const keys = actions
@@ -289,6 +343,8 @@ export function leaveMatch(game) {
   }
 
   cleanupDestruction(game.scene);
+  game.missionManager?.stopMission();
+  game.pendingMissionConfig = null;
 
   if (game.isMultiplayer) {
     NetworkManager.leaveRoom();
@@ -300,6 +356,11 @@ export function leaveMatch(game) {
 
   document.getElementById("crosshair").classList.remove("active");
   document.getElementById("hud").classList.remove("active");
+  if (game.missionPanel) {
+    game.missionPanel.style.display = "none";
+  }
+  game.missionPanelCollapsed = isMobileLayout(game);
+  syncMissionPanelState(game);
   game.player = null;
   MenuManager.show();
   game.gameManager.setState({
@@ -311,6 +372,7 @@ export function leaveMatch(game) {
 
 export function updateHUD(game, delta) {
   if (!game.hud || !game.player) return;
+  delta = Number.isFinite(delta) ? delta : 0.1;
 
   game._hudAccum += delta;
   if (game._hudAccum < 0.1) return;
@@ -326,24 +388,12 @@ export function updateHUD(game, delta) {
     Math.round((game.player.boostFuel / game.player.maxBoostFuel) * 100),
   );
 
-  let kills = 0;
-  if (game.isMultiplayer) {
-    const localPlayer = NetworkManager.getLocalPlayer();
-    kills = localPlayer?.kills || 0;
-  } else {
-    kills = game.gameManager.getState().enemiesKilled || 0;
-  }
-
   if (healthPercent !== game._hudLast.health) {
-    game.hud.health.textContent = String(healthPercent);
+    if (game.hud.health) game.hud.health.textContent = String(healthPercent);
     game._hudLast.health = healthPercent;
   }
-  if (kills !== game._hudLast.kills) {
-    game.hud.kills.textContent = String(kills);
-    game._hudLast.kills = kills;
-  }
+  const maxMissiles = game.player.maxMissiles || missiles;
   if (missiles !== game._hudLast.missiles) {
-    const maxMissiles = game.player.maxMissiles || missiles;
     const text = `${missiles}/${maxMissiles}`;
     if (game.hud.missiles) game.hud.missiles.textContent = text;
     if (game.hud.mobileMissiles) game.hud.mobileMissiles.textContent = text;
@@ -355,4 +405,69 @@ export function updateHUD(game, delta) {
     if (game.hud.mobileBoost) game.hud.mobileBoost.textContent = text;
     game._hudLast.boost = boostPercent;
   }
+  game.player.updateCockpitStatusDisplay?.({
+    healthPercent,
+    missiles,
+    maxMissiles,
+    boostPercent,
+  });
+
+  updateMissionPanel(game);
+}
+
+function updateMissionPanel(game) {
+  if (!game.missionPanel) return;
+  const state = game.gameManager?.getState?.();
+  const activeMission =
+    state?.currentMissionId &&
+    ["active", "complete"].includes(state?.missionStatus);
+  const objectives = state?.currentObjectives ?? [];
+
+  if (!activeMission || !objectives.length) {
+    game.missionPanel.style.display = "none";
+    if (game.missionPanelContent) {
+      game.missionPanelContent.innerHTML = "";
+    }
+    return;
+  }
+
+  const statusLabel =
+    state.missionStatus === "complete" ? "COMPLETE" : "OBJECTIVES";
+  game.missionPanel.style.display = "block";
+  if (game.missionPanelContent) {
+    game.missionPanelContent.innerHTML = `
+      <div class="mission-panel-title">${state.missionStepTitle || "Mission"}</div>
+      <div class="mission-panel-list">
+        ${objectives
+          .map(
+            (objective) => `
+              <div class="mission-panel-item ${objective.completed ? "completed" : ""}">
+                <span class="mission-panel-marker">${objective.completed ? "✓" : "○"}</span>
+                <span>${objective.text}</span>
+              </div>
+            `,
+          )
+          .join("")}
+      </div>
+    `;
+  }
+  syncMissionPanelState(game);
+}
+
+function syncMissionPanelState(game) {
+  if (!game.missionPanel) return;
+  const collapsed = game.missionPanelCollapsed !== false;
+  game.missionPanel.classList.toggle("collapsed", collapsed);
+  const toggle = game.missionPanel.querySelector("#mission-panel-toggle");
+  const chevron = game.missionPanel.querySelector(".mission-panel-chevron");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  }
+  if (chevron) {
+    chevron.textContent = collapsed ? "+" : "−";
+  }
+}
+
+function isMobileLayout(game) {
+  return Boolean(game?.gameManager?.state?.isMobile);
 }

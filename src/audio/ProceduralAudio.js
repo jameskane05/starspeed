@@ -9,7 +9,7 @@
  * - init(): create AudioContext, master gain; subscribe to AudioSettings
  * - UI: beeps, clicks, hover; combat: laser, shield hit, explosion, collect pickup
  * - setListenerPosition/Forward/Up for spatial audio
- * - shieldRechargeStart/Stop, low health warning; volume from AudioSettings
+ * - shieldRecharge / boosterRecharge loops; low health warning; volume from AudioSettings
  *
  * RELATED: AudioSettings.js, sfxManager.js, gameCombat.js, gameUpdate.js.
  *
@@ -597,6 +597,55 @@ class ProceduralAudio {
     } catch (e) {}
     this._shieldRechargeOsc = null;
     this._shieldRechargeGain = null;
+  }
+
+  /**
+   * Booster fuel recharge – same idea as shields but ~1 octave lower (C1 → ~F3)
+   */
+  boosterRechargeUpdate(rechargePct) {
+    if (!this.ctx) return;
+    if (this.ctx.state === "suspended") {
+      this.boosterRechargeStop();
+      return;
+    }
+    if (rechargePct >= 1) {
+      this.boosterRechargeStop();
+      return;
+    }
+    if (!this._boosterRechargeOsc) {
+      this._boosterRechargeOsc = this.ctx.createOscillator();
+      this._boosterRechargeGain = this.ctx.createGain();
+      this._boosterRechargeOsc.type = "sine";
+      this._boosterRechargeOsc.connect(this._boosterRechargeGain);
+      this._boosterRechargeGain.connect(this.masterGain);
+      this._boosterRechargeGain.gain.value = 0;
+      this._boosterRechargeOsc.start(0);
+    }
+    const C1 = 32.7;
+    const freq = C1 * Math.pow(2, 2.5 * rechargePct);
+    this._boosterRechargeOsc.frequency.setTargetAtTime(
+      freq,
+      this.ctx.currentTime,
+      0.05,
+    );
+    this._boosterRechargeGain.gain.setTargetAtTime(
+      0.06,
+      this.ctx.currentTime,
+      0.03,
+    );
+  }
+
+  boosterRechargeStop() {
+    if (!this._boosterRechargeOsc) return;
+    try {
+      if (this.ctx && this._boosterRechargeGain) {
+        const t = this.ctx.currentTime + 0.1;
+        this._boosterRechargeGain.gain.exponentialRampToValueAtTime(0.001, t);
+        this._boosterRechargeOsc.stop(t);
+      }
+    } catch (e) {}
+    this._boosterRechargeOsc = null;
+    this._boosterRechargeGain = null;
   }
 
   // ============================================

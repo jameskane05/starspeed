@@ -68,7 +68,7 @@ export class Game {
       gameCombat.fireEnemyWeapon(this, pos, dir, style);
 
     this.hud = null;
-    this._hudLast = { health: null, kills: null, missiles: null, boost: null };
+    this._hudLast = { health: null, missiles: null, boost: null };
     this._hudAccum = 0;
 
     // Multiplayer state
@@ -94,6 +94,8 @@ export class Game {
     this._frameCount = 0;
     this.enemyShipAssetsPromise = null;
     this.projectileSplatLayer = null;
+    this.missionManager = null;
+    this.pendingMissionConfig = null;
   }
 
   async init() {
@@ -103,6 +105,18 @@ export class Game {
 
   async startSoloDebug() {
     return gameSolo.startSoloDebug(this);
+  }
+
+  async startTrainingGrounds(levelId = "arenatech") {
+    this.pendingMissionConfig = {
+      missionId: "trainingGrounds",
+      levelId,
+    };
+    this.gameManager.setState({
+      currentLevel: levelId,
+      missionLevelId: levelId,
+    });
+    return this.startSoloDebug();
   }
 
   async ensureEnemyShipAssetsLoaded() {
@@ -318,20 +332,71 @@ export class Game {
     if (gp.fire) {
       this.firePlayerWeapon();
     }
-    if (gp.missileJustPressed) this.firePlayerMissile();
-    if (gp.kineticMissileJustPressed) this.firePlayerKineticMissile();
+    if (gp.missileJustPressed) this.fireSelectedMissile();
+    if (gp.kineticMissileJustPressed) {
+      this.setMissileMode("kinetic");
+      this.fireSelectedMissile();
+    }
+  }
+
+  canFireLasers() {
+    return this.gameManager?.getState?.()?.playerLaserEnabled !== false;
+  }
+
+  canFireMissiles() {
+    return this.gameManager?.getState?.()?.playerMissilesEnabled !== false;
   }
 
   firePlayerWeapon() {
-    gameCombat.firePlayerWeapon(this);
+    if (!this.canFireLasers()) return false;
+    return gameCombat.firePlayerWeapon(this);
+  }
+
+  getSelectedMissileMode() {
+    return this.gameManager?.getState?.()?.selectedMissileMode ?? "homing";
+  }
+
+  setMissileMode(mode) {
+    const nextMode = mode === "kinetic" ? "kinetic" : "homing";
+    const prevMode = this.getSelectedMissileMode();
+    if (prevMode === nextMode) return false;
+    this.gameManager?.setState({ selectedMissileMode: nextMode });
+    this.missionManager?.reportEvent("missileModeSwitched", {
+      previousMode: prevMode,
+      mode: nextMode,
+    });
+    return true;
+  }
+
+  toggleMissileMode() {
+    const nextMode =
+      this.getSelectedMissileMode() === "kinetic" ? "homing" : "kinetic";
+    return this.setMissileMode(nextMode);
+  }
+
+  fireSelectedMissile() {
+    if (!this.canFireMissiles()) return false;
+    return this.getSelectedMissileMode() === "kinetic"
+      ? this.firePlayerKineticMissile()
+      : this.firePlayerMissile();
   }
 
   firePlayerMissile() {
-    gameCombat.firePlayerMissile(this);
+    if (!this.canFireMissiles()) return false;
+    const fired = gameCombat.firePlayerMissile(this);
+    if (fired) {
+      this.missionManager?.reportEvent("missileFired", { mode: "homing" });
+    }
+    return fired;
   }
 
   firePlayerKineticMissile() {
-    gameCombat.firePlayerKineticMissile(this);
+    if (!this.canFireMissiles()) return false;
+    const fired = gameCombat.firePlayerKineticMissile(this);
+    if (fired) {
+      this.missionManager?.reportEvent("missileFired", { mode: "kinetic" });
+    }
+    return fired;
   }
 
   fireEnemyWeapon(position, direction, style = null) {

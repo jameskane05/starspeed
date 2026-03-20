@@ -147,8 +147,15 @@ export class Input {
     if (e.code === 'Tab' && this.game.gameManager?.isPlaying()) e.preventDefault();
     this.setKey(e.code, true);
     if (!e.repeat && this.game.gameManager?.isPlaying()) {
-      if (KeyBindings.isKeyBound('missile', e.code)) this.game.firePlayerMissile?.();
-      else if (KeyBindings.isKeyBound('kineticMissile', e.code)) this.game.firePlayerKineticMissile?.();
+      if (KeyBindings.isKeyBound('switchMissileMode', e.code)) {
+        this.game.toggleMissileMode?.();
+      } else if (KeyBindings.isKeyBound('missile', e.code)) {
+        this.game.setMissileMode?.('homing');
+        this.game.fireSelectedMissile?.();
+      } else if (KeyBindings.isKeyBound('kineticMissile', e.code)) {
+        this.game.setMissileMode?.('kinetic');
+        this.game.fireSelectedMissile?.();
+      }
     }
   }
 
@@ -209,7 +216,7 @@ export class Input {
     if (e.button === 0) {
       this.game.firePlayerWeapon();
     } else if (e.button === 2) {
-      this.game.firePlayerMissile();
+      this.game.fireSelectedMissile();
     }
   }
 

@@ -172,10 +172,22 @@ class SceneManager {
   /**
    * Load a GLTF model
    */
-  _loadGLTF(objectData) {
+  _loadGLTF(objectData, onProgress = null) {
+    const ESTIMATED_GLB_BYTES = 25 * 1024 * 1024;
     return new Promise((resolve, reject) => {
       const { id, path, position, rotation, scale, options } = objectData;
       const combined = options?.combinedLevel;
+
+      const progressCb = (a, b, c) => {
+        if (!onProgress) return;
+        const loaded = a?.loaded ?? b;
+        const total = a?.total ?? c;
+        if (total > 0 && typeof loaded === "number") {
+          onProgress(loaded / total);
+        } else if (loaded > 0) {
+          onProgress(Math.min(0.99, loaded / ESTIMATED_GLB_BYTES));
+        }
+      };
 
       this.gltfLoader.load(
         path,
@@ -250,6 +262,7 @@ class SceneManager {
             }
 
             this.scene.add(container);
+            if (onProgress) onProgress(1);
             resolve(container);
             return;
           }
@@ -289,9 +302,10 @@ class SceneManager {
           }
 
           this.scene.add(model);
+          if (onProgress) onProgress(1);
           resolve(model);
         },
-        undefined,
+        progressCb,
         (error) => reject(error),
       );
     });

@@ -21,6 +21,8 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { checkSphereCollision, castSphere } from "../physics/Physics.js";
 import { prefracturePlayerShip } from "../vfx/ShipDestruction.js";
+import { getCachedExteriorShip } from "../cache/exteriorShipCache.js";
+import { dialogSpeakers } from "../data/dialogData.js";
 import { LipSyncManager } from "../ui/LipSyncManager.js";
 import { VRMAvatarRenderer } from "../ui/VRMAvatarRenderer.js";
 import {
@@ -44,6 +46,115 @@ const IDLE_BOB_SPEED = 0.6;
 const IDLE_BOB_POS_AMP = 0.0005;
 const IDLE_BOB_ANGLE_AMP = 0.00005;
 const IDLE_VELOCITY_THRESHOLD = 0.08;
+const COCKPIT_STATUS_CANVAS_SIZE = 1024;
+
+function findCockpitScreenMesh(root, targetName) {
+  let match = null;
+  root?.traverse((child) => {
+    if (match || child.name !== targetName) return;
+    match = child.isMesh
+      ? child
+      : (child.children?.find((c) => c.isMesh) ?? null);
+  });
+  return match;
+}
+
+function createProjectedScreenMesh(screenMesh, material, options = {}) {
+  const geometry = screenMesh.geometry.clone();
+  const pos = geometry.attributes.position;
+  const count = pos.count;
+  let xMin = Infinity,
+    xMax = -Infinity,
+    yMin = Infinity,
+    yMax = -Infinity,
+    zMin = Infinity,
+    zMax = -Infinity;
+
+  for (let i = 0; i < count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    xMin = Math.min(xMin, x);
+    xMax = Math.max(xMax, x);
+    yMin = Math.min(yMin, y);
+    yMax = Math.max(yMax, y);
+    zMin = Math.min(zMin, z);
+    zMax = Math.max(zMax, z);
+  }
+
+  const xSpan = xMax - xMin;
+  const ySpan = yMax - yMin;
+  const zSpan = zMax - zMin;
+  const uAxis =
+    xSpan >= ySpan && xSpan >= zSpan ? "x" : ySpan >= zSpan ? "y" : "z";
+  const vAxis =
+    uAxis === "x"
+      ? ySpan >= zSpan
+        ? "y"
+        : "z"
+      : uAxis === "y"
+        ? xSpan >= zSpan
+          ? "x"
+          : "z"
+        : xSpan >= ySpan
+          ? "x"
+          : "y";
+  const uvs = new Float32Array(count * 2);
+  let uMin = Infinity,
+    uMax = -Infinity,
+    vMin = Infinity,
+    vMax = -Infinity;
+
+  for (let i = 0; i < count; i++) {
+    const uVal =
+      uAxis === "x" ? pos.getX(i) : uAxis === "y" ? pos.getY(i) : pos.getZ(i);
+    const vVal =
+      vAxis === "x" ? pos.getX(i) : vAxis === "y" ? pos.getY(i) : pos.getZ(i);
+    uMin = Math.min(uMin, uVal);
+    uMax = Math.max(uMax, uVal);
+    vMin = Math.min(vMin, vVal);
+    vMax = Math.max(vMax, vVal);
+  }
+
+  const uSpan = uMax - uMin || 1;
+  const vSpan = vMax - vMin || 1;
+  const vInset = options.vInset ?? 0.6;
+  const vOffset = (1 - vInset) * 0.5;
+
+  for (let i = 0; i < count; i++) {
+    const uVal =
+      uAxis === "x" ? pos.getX(i) : uAxis === "y" ? pos.getY(i) : pos.getZ(i);
+    const vVal =
+      vAxis === "x" ? pos.getX(i) : vAxis === "y" ? pos.getY(i) : pos.getZ(i);
+    uvs[i * 2] = (uVal - uMin) / uSpan;
+    uvs[i * 2 + 1] = vOffset + ((vVal - vMin) / vSpan) * vInset;
+  }
+
+  const rotateQuarterTurns = (((options.rotateQuarterTurns ?? 0) % 4) + 4) % 4;
+  if (rotateQuarterTurns !== 0) {
+    for (let i = 0; i < count; i++) {
+      const u = uvs[i * 2];
+      const v = uvs[i * 2 + 1];
+      if (rotateQuarterTurns === 1) {
+        uvs[i * 2] = v;
+        uvs[i * 2 + 1] = 1 - u;
+      } else if (rotateQuarterTurns === 2) {
+        uvs[i * 2] = 1 - u;
+        uvs[i * 2 + 1] = 1 - v;
+      } else if (rotateQuarterTurns === 3) {
+        uvs[i * 2] = 1 - v;
+        uvs[i * 2 + 1] = u;
+      }
+    }
+  }
+
+  geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set(0, options.yOffset ?? 0.002, options.zOffset ?? 0.01);
+  mesh.renderOrder = options.renderOrder ?? 9010;
+  screenMesh.add(mesh);
+  return mesh;
+}
 
 export class Player {
   constructor(camera, input, level, scene, options = {}) {
@@ -107,8 +218,23 @@ export class Player {
     this.engineGlowTarget = 0;
     this.lipSyncManager = null;
     this.vrmAvatarRenderer = null;
+    this.dialogSpeakerRenderers = {};
+    this.activeDialogSpeakerId = null;
     this.visemeHoloTime = 0;
     this.visemeHoloUniforms = null;
+    this.cockpitStatusCanvas = null;
+    this.cockpitStatusContext = null;
+    this.cockpitStatusTexture = null;
+    this.cockpitStatusUniforms = null;
+    this.cockpitStatusTime = 0;
+    this.cockpitStatusIcons = {};
+    this.cockpitStatusState = {
+      healthPercent: Math.round((this.health / this.maxHealth) * 100),
+      missiles: this.missiles,
+      maxMissiles: this.maxMissiles,
+      boostPercent: Math.round((this.boostFuel / this.maxBoostFuel) * 100),
+      missileMode: this.game?.getSelectedMissileMode?.() ?? "homing",
+    };
 
     this.camera.position.set(0, 0, 0);
     this.camera.quaternion.identity();
@@ -128,67 +254,142 @@ export class Player {
     this.camera.add(this.headlight);
     this.camera.add(this.headlight.target);
 
+    this.cockpitLoaded = new Promise((resolve) => {
+      this._resolveCockpitLoaded = resolve;
+    });
     this.loadCockpit(scene);
     this.loadExteriorRef();
   }
 
   loadExteriorRef() {
+    const applyExterior = (scene) => {
+      this.exteriorRef = scene;
+      this.exteriorRef.visible = false;
+      this.exteriorRef.position.set(0, 0, 0);
+      this.exteriorRef.rotation.set(0, Math.PI, 0);
+      this.exteriorRef.scale.setScalar(1);
+
+      this.exteriorRef.traverse((child) => {
+        const n = child.name;
+        if (n === "Gun_L") {
+          this.gunL = child;
+          child.userData.restPosition = child.position.clone();
+        } else if (n === "Gun_R") {
+          this.gunR = child;
+          child.userData.restPosition = child.position.clone();
+        } else if (n === "Missile_L") this.missileL = child;
+        else if (n === "Missile_R") this.missileR = child;
+        if (n === "Engine_L" || n === "Engine_R")
+          this.engineMarkers.push(child);
+        if (n === "Engine_Center" || n === "Engine_L" || n === "Engine_R") {
+          if (child.isMesh && child.material)
+            this.engineMaterials.push(child.material);
+          else if (child.children) {
+            child.traverse((c) => {
+              if (c.isMesh && c.material) this.engineMaterials.push(c.material);
+            });
+          }
+        }
+      });
+      if (!this.gunL || !this.gunR) {
+        console.warn(
+          "[Player] Ship model missing Gun_L and/or Gun_R; laser spawn using fallback offsets.",
+        );
+      }
+      if (this.engineMarkers.length < 2) {
+        console.warn(
+          "[Player] Ship model missing Engine_L and/or Engine_R; boost trail VFX disabled.",
+        );
+      }
+      if (this.engineMaterials.length === 0) {
+        console.warn(
+          "[Player] Ship model missing Engine_ meshes; engine glow disabled.",
+        );
+      }
+
+      this.camera.add(this.exteriorRef);
+      prefracturePlayerShip(this.exteriorRef);
+      if (this.xrManager) this._reparentToRig();
+    };
+
+    const cached = getCachedExteriorShip();
+    if (cached) {
+      applyExterior(cached.clone());
+      return;
+    }
+
     const loader = new GLTFLoader();
     loader.load(
       "./Heavy_EXT_02.glb",
-      (gltf) => {
-        this.exteriorRef = gltf.scene;
-        this.exteriorRef.visible = false;
-        this.exteriorRef.position.set(0, 0, 0);
-        this.exteriorRef.rotation.set(0, Math.PI, 0);
-        this.exteriorRef.scale.setScalar(1);
-
-        this.exteriorRef.traverse((child) => {
-          const n = child.name;
-          if (n === "Gun_L") {
-            this.gunL = child;
-            child.userData.restPosition = child.position.clone();
-          } else if (n === "Gun_R") {
-            this.gunR = child;
-            child.userData.restPosition = child.position.clone();
-          } else if (n === "Missile_L") this.missileL = child;
-          else if (n === "Missile_R") this.missileR = child;
-          if (n === "Engine_L" || n === "Engine_R")
-            this.engineMarkers.push(child);
-          if (n === "Engine_Center" || n === "Engine_L" || n === "Engine_R") {
-            if (child.isMesh && child.material)
-              this.engineMaterials.push(child.material);
-            else if (child.children) {
-              child.traverse((c) => {
-                if (c.isMesh && c.material)
-                  this.engineMaterials.push(c.material);
-              });
-            }
-          }
-        });
-        if (!this.gunL || !this.gunR) {
-          console.warn(
-            "[Player] Ship model missing Gun_L and/or Gun_R; laser spawn using fallback offsets.",
-          );
-        }
-        if (this.engineMarkers.length < 2) {
-          console.warn(
-            "[Player] Ship model missing Engine_L and/or Engine_R; boost trail VFX disabled.",
-          );
-        }
-        if (this.engineMaterials.length === 0) {
-          console.warn(
-            "[Player] Ship model missing Engine_ meshes; engine glow disabled.",
-          );
-        }
-
-        this.camera.add(this.exteriorRef);
-        prefracturePlayerShip(this.exteriorRef);
-        if (this.xrManager) this._reparentToRig();
-      },
+      (gltf) => applyExterior(gltf.scene),
       undefined,
       (err) => console.error("Exterior ref load error:", err),
     );
+  }
+
+  _getActiveDialogAvatarRenderer(speakerId = "alcair") {
+    if (this.dialogSpeakerRenderers[speakerId]) {
+      return {
+        speakerId,
+        renderer: this.dialogSpeakerRenderers[speakerId],
+      };
+    }
+
+    if (this.dialogSpeakerRenderers.alcair) {
+      return {
+        speakerId: "alcair",
+        renderer: this.dialogSpeakerRenderers.alcair,
+      };
+    }
+
+    const [fallbackSpeakerId, fallbackRenderer] =
+      Object.entries(this.dialogSpeakerRenderers)[0] ?? [];
+    if (fallbackRenderer) {
+      return {
+        speakerId: fallbackSpeakerId,
+        renderer: fallbackRenderer,
+      };
+    }
+
+    return {
+      speakerId: "alcair",
+      renderer: this.vrmAvatarRenderer,
+    };
+  }
+
+  _setActiveDialogSpeaker(speakerId = "alcair") {
+    const next = this._getActiveDialogAvatarRenderer(speakerId);
+    this.activeDialogSpeakerId = next.speakerId;
+    if (this.visemeHoloUniforms?.uTexture && next.renderer) {
+      this.visemeHoloUniforms.uTexture.value = next.renderer.getTexture();
+    }
+    if (this.visemeHoloUniforms?.uUvOffset) {
+      this.visemeHoloUniforms.uUvOffset.value.set(0, 0);
+    }
+    if (this.visemeHoloUniforms?.uUvRepeat) {
+      this.visemeHoloUniforms.uUvRepeat.value.set(1, 1);
+    }
+    return next.renderer;
+  }
+
+  _updateDialogAvatarRenderers(delta) {
+    const renderer = this.game?.renderer;
+    const speakerRenderers = Object.values(this.dialogSpeakerRenderers);
+    if (speakerRenderers.length > 0 && renderer) {
+      const seen = new Set();
+      for (const speakerRenderer of speakerRenderers) {
+        if (!speakerRenderer || seen.has(speakerRenderer)) continue;
+        seen.add(speakerRenderer);
+        speakerRenderer.update(renderer, delta);
+      }
+      return;
+    }
+
+    if (this.vrmAvatarRenderer && renderer) {
+      this.vrmAvatarRenderer.update(renderer, delta);
+    } else {
+      this.lipSyncManager?.updateAnalysis();
+    }
   }
 
   loadCockpit(scene) {
@@ -231,14 +432,11 @@ export class Player {
         cockpitLight.position.set(0, 0.2, 0);
         this.cockpit.add(cockpitLight);
 
-        let screenRMesh = null;
-        this.cockpit.traverse((child) => {
-          if (child.name === "Screen_R") {
-            screenRMesh = child.isMesh
-              ? child
-              : (child.children?.find((c) => c.isMesh) ?? null);
-          }
-        });
+        const screenRMesh = findCockpitScreenMesh(this.cockpit, "Screen_R");
+        const screenLMesh = findCockpitScreenMesh(this.cockpit, "Screen_L");
+        if (screenLMesh) {
+          this.setupCockpitStatusDisplay(screenLMesh);
+        }
         if (screenRMesh) {
           const uniforms = {
             uTexture: { value: null },
@@ -258,119 +456,59 @@ export class Player {
             depthTest: false,
             side: THREE.DoubleSide,
           });
-          const visemeGeom = screenRMesh.geometry.clone();
+          const visemeMesh = createProjectedScreenMesh(screenRMesh, mat);
+          this.visemeHoloUniforms = uniforms;
+          const visemeGeom = visemeMesh.geometry;
           const pos = visemeGeom.attributes.position;
           const count = pos.count;
-          let xMin = Infinity,
-            xMax = -Infinity,
-            yMin = Infinity,
-            yMax = -Infinity,
-            zMin = Infinity,
-            zMax = -Infinity;
-          for (let i = 0; i < count; i++) {
-            const x = pos.getX(i),
-              y = pos.getY(i),
-              z = pos.getZ(i);
-            xMin = Math.min(xMin, x);
-            xMax = Math.max(xMax, x);
-            yMin = Math.min(yMin, y);
-            yMax = Math.max(yMax, y);
-            zMin = Math.min(zMin, z);
-            zMax = Math.max(zMax, z);
-          }
-          const xSpan = xMax - xMin,
-            ySpan = yMax - yMin,
-            zSpan = zMax - zMin;
-          const uAxis =
-            xSpan >= ySpan && xSpan >= zSpan ? "x" : ySpan >= zSpan ? "y" : "z";
-          const vAxis =
-            uAxis === "x"
-              ? ySpan >= zSpan
-                ? "y"
-                : "z"
-              : uAxis === "y"
-                ? xSpan >= zSpan
-                  ? "x"
-                  : "z"
-                : xSpan >= ySpan
-                  ? "x"
-                  : "y";
-          const uvs = new Float32Array(count * 2);
-          let uMin = Infinity,
-            uMax = -Infinity,
-            vMin = Infinity,
-            vMax = -Infinity;
-          for (let i = 0; i < count; i++) {
-            const uVal =
-              uAxis === "x"
-                ? pos.getX(i)
-                : uAxis === "y"
-                  ? pos.getY(i)
-                  : pos.getZ(i);
-            const vVal =
-              vAxis === "x"
-                ? pos.getX(i)
-                : vAxis === "y"
-                  ? pos.getY(i)
-                  : pos.getZ(i);
-            uMin = Math.min(uMin, uVal);
-            uMax = Math.max(uMax, uVal);
-            vMin = Math.min(vMin, vVal);
-            vMax = Math.max(vMax, vVal);
-          }
-          const uSpan = uMax - uMin || 1,
-            vSpan = vMax - vMin || 1;
-          for (let i = 0; i < count; i++) {
-            const uVal =
-              uAxis === "x"
-                ? pos.getX(i)
-                : uAxis === "y"
-                  ? pos.getY(i)
-                  : pos.getZ(i);
-            const vVal =
-              vAxis === "x"
-                ? pos.getX(i)
-                : vAxis === "y"
-                  ? pos.getY(i)
-                  : pos.getZ(i);
-            uvs[i * 2] = (uVal - uMin) / uSpan;
-            uvs[i * 2 + 1] = (vVal - vMin) / vSpan;
-          }
-          for (let i = 0; i < count; i++) {
-            uvs[i * 2 + 1] = 0.2 + 0.6 * uvs[i * 2 + 1];
-          }
-          visemeGeom.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
-          const visemeMesh = new THREE.Mesh(visemeGeom, mat);
-          visemeMesh.position.set(0, 0.002, 0.01);
-          visemeMesh.renderOrder = 9010;
-          screenRMesh.add(visemeMesh);
-          this.visemeHoloUniforms = uniforms;
 
-          const vrmRenderer = new VRMAvatarRenderer({
-            vrmUrl: "./model_original_1773065783.vrm",
-          });
-          uniforms.uTexture.value = vrmRenderer.getTexture();
-          vrmRenderer
-            .loadVRM()
-            .then(() => {
-              this.vrmAvatarRenderer = vrmRenderer;
-              uniforms.uTexture.value = vrmRenderer.getTexture();
-              uniforms.uUvRepeat.value.set(1, 1);
-              uniforms.uUvOffset.value.set(0, 0);
-              if (!this.game?.gameManager) return;
-              import("../ui/DialogManager.js").then(({ DialogManager }) => {
-                const dm = new DialogManager({
-                  gameManager: this.game.gameManager,
-                  vrmAvatarRenderer: vrmRenderer,
-                  captionParent: this.camera,
-                });
-                dm.initialize().then(() => {
-                  this.game.dialogManager = dm;
-                });
-              });
-            })
-            .catch((err) => {
-              console.warn("[Cockpit] VRM load failed, using 2D viseme:", err);
+          const loadSpeakerRenderer = async (speakerId) => {
+            const speaker = dialogSpeakers[speakerId];
+            if (!speaker?.vrmUrl) return null;
+            const renderer = new VRMAvatarRenderer({
+              vrmUrl: speaker.vrmUrl,
+            });
+            await renderer.loadVRM();
+            this.dialogSpeakerRenderers[speakerId] = renderer;
+            if (speakerId === "alcair") {
+              this.vrmAvatarRenderer = renderer;
+            }
+            return renderer;
+          };
+
+          const initializeDialogManager = async () => {
+            if (!this.game?.gameManager) return;
+            const { DialogManager } = await import("../ui/DialogManager.js");
+            const dm = new DialogManager({
+              gameManager: this.game.gameManager,
+              speakerRenderers: this.dialogSpeakerRenderers,
+              defaultSpeakerId: "alcair",
+              onSpeakerChanged: (speakerId) =>
+                this._setActiveDialogSpeaker(speakerId),
+              captionParent: this.camera,
+            });
+            await dm.initialize();
+            this.game.dialogManager = dm;
+          };
+
+          Promise.allSettled(
+            Object.keys(dialogSpeakers).map((speakerId) =>
+              loadSpeakerRenderer(speakerId),
+            ),
+          )
+            .then(async (results) => {
+              const loadedRenderers = results
+                .filter((result) => result.status === "fulfilled")
+                .map((result) => result.value)
+                .filter(Boolean);
+
+              if (loadedRenderers.length > 0) {
+                this._setActiveDialogSpeaker("alcair");
+                await initializeDialogManager();
+                return;
+              }
+
+              console.warn("[Cockpit] VRM load failed, using 2D viseme.");
               const margin = 0.02;
               const cellSize = 1 / 4;
               const displaySize = cellSize * (1 - margin * 2);
@@ -384,21 +522,14 @@ export class Player {
                     3 / 4 + cellSize * margin,
                   );
                   uniforms.uUvRepeat.value.set(displaySize, displaySize);
+                  const uvs = visemeGeom.attributes.uv.array;
                   for (let i = 0; i < count; i++) {
-                    const uVal =
-                      uAxis === "x"
-                        ? pos.getX(i)
-                        : uAxis === "y"
-                          ? pos.getY(i)
-                          : pos.getZ(i);
-                    const vVal =
-                      vAxis === "x"
-                        ? pos.getX(i)
-                        : vAxis === "y"
-                          ? pos.getY(i)
-                          : pos.getZ(i);
-                    const u = (uVal - uMin) / uSpan,
-                      v = (vVal - vMin) / vSpan;
+                    const u = uvs[i * 2];
+                    const v = THREE.MathUtils.clamp(
+                      (uvs[i * 2 + 1] - 0.2) / 0.6,
+                      0,
+                      1,
+                    );
                     uvs[i * 2] = 0.125 + v * 0.75;
                     uvs[i * 2 + 1] = u;
                   }
@@ -432,19 +563,241 @@ export class Player {
                 (e) =>
                   console.warn("[Cockpit] 2D viseme texture load failed:", e),
               );
+            })
+            .catch((err) => {
+              console.warn("[Cockpit] Speaker avatar setup failed:", err);
             });
         }
 
         this.camera.add(this.cockpit);
         console.log("Cockpit loaded");
+        this._resolveCockpitLoaded?.();
 
         if (this.xrManager) {
           this._reparentToRig();
         }
       },
       undefined,
-      (err) => console.error("Cockpit load error:", err),
+      (err) => {
+        console.error("Cockpit load error:", err);
+        this._resolveCockpitLoaded?.();
+      },
     );
+  }
+
+  setupCockpitStatusDisplay(screenMesh) {
+    const canvas = document.createElement("canvas");
+    canvas.width = COCKPIT_STATUS_CANVAS_SIZE;
+    canvas.height = COCKPIT_STATUS_CANVAS_SIZE;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+
+    const uniforms = {
+      uTexture: { value: texture },
+      uTime: { value: 0 },
+      uHoloColor: { value: new THREE.Vector3(0.12, 1.0, 0.88) },
+      uScanLineIntensity: { value: 0.45 },
+      uAlpha: { value: 1.0 },
+      uUvOffset: { value: new THREE.Vector2(0, 0) },
+      uUvRepeat: { value: new THREE.Vector2(1, 1) },
+    };
+    const material = new THREE.ShaderMaterial({
+      vertexShader: hologramVertexShader,
+      fragmentShader: hologramFragmentShader,
+      uniforms,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      side: THREE.DoubleSide,
+    });
+    createProjectedScreenMesh(screenMesh, material, {
+      renderOrder: 9008,
+      rotateQuarterTurns: 3,
+    });
+
+    this.cockpitStatusCanvas = canvas;
+    this.cockpitStatusContext = context;
+    this.cockpitStatusTexture = texture;
+    this.cockpitStatusUniforms = uniforms;
+    this.cockpitStatusIcons = {
+      shields: this.createCockpitStatusIcon("/images/ui/shields.png"),
+      missiles: this.createCockpitStatusIcon("/images/ui/missiles.png"),
+      thrust: this.createCockpitStatusIcon("/images/ui/booster-rockets.png"),
+    };
+    this.cockpitStatusState = {
+      healthPercent: null,
+      missiles: null,
+      maxMissiles: null,
+      boostPercent: null,
+      missileMode: null,
+    };
+    this.updateCockpitStatusDisplay();
+  }
+
+  createCockpitStatusIcon(src) {
+    const image = new Image();
+    image.decoding = "async";
+    image.addEventListener("load", () => this.drawCockpitStatusDisplay(), {
+      once: true,
+    });
+    image.src = src;
+    return image;
+  }
+
+  updateCockpitStatusDisplay(status = {}) {
+    const nextState = {
+      healthPercent: Math.max(
+        0,
+        Math.round(
+          status.healthPercent ??
+            (this.health / Math.max(1, this.maxHealth || 1)) * 100,
+        ),
+      ),
+      missiles: Math.max(0, Math.round(status.missiles ?? this.missiles ?? 0)),
+      maxMissiles: Math.max(
+        1,
+        Math.round(
+          status.maxMissiles ?? this.maxMissiles ?? this.missiles ?? 1,
+        ),
+      ),
+      boostPercent: Math.max(
+        0,
+        Math.round(
+          status.boostPercent ??
+            (this.boostFuel / Math.max(1, this.maxBoostFuel || 1)) * 100,
+        ),
+      ),
+      missileMode:
+        status.missileMode ?? this.game?.getSelectedMissileMode?.() ?? "homing",
+    };
+    const prev = this.cockpitStatusState;
+    if (
+      prev.healthPercent === nextState.healthPercent &&
+      prev.missiles === nextState.missiles &&
+      prev.maxMissiles === nextState.maxMissiles &&
+      prev.boostPercent === nextState.boostPercent &&
+      prev.missileMode === nextState.missileMode
+    ) {
+      return;
+    }
+    this.cockpitStatusState = nextState;
+    this.drawCockpitStatusDisplay();
+  }
+
+  drawCockpitStatusDisplay() {
+    const ctx = this.cockpitStatusContext;
+    const texture = this.cockpitStatusTexture;
+    if (!ctx || !texture) return;
+
+    const { width, height } = this.cockpitStatusCanvas;
+    const panelWidth = Math.min(width * 0.54, 552);
+    const panelX = (width - panelWidth) * 0.5 - 10;
+    const topPadding = 0;
+    const bottomPadding = 96;
+    const rowCenters = [0, 1, 2].map(
+      (index) =>
+        topPadding +
+        ((height - topPadding - bottomPadding) * (index + 0.5)) / 3,
+    );
+    const iconSize = 208;
+    const iconX = panelX;
+    const valueRightX = panelX + panelWidth - 36;
+    const barX = panelX + 4;
+    const barRightX = panelX + panelWidth - 42;
+    const barWidth = barRightX - barX;
+    const barHeight = 30;
+    const rows = [
+      {
+        label: "SHIELDS",
+        value: `${this.cockpitStatusState.healthPercent}%`,
+        ratio: THREE.MathUtils.clamp(
+          this.cockpitStatusState.healthPercent / 100,
+          0,
+          1,
+        ),
+        icon: this.cockpitStatusIcons.shields,
+      },
+      {
+        label: "THRUST",
+        value: `${this.cockpitStatusState.boostPercent}%`,
+        ratio: THREE.MathUtils.clamp(
+          this.cockpitStatusState.boostPercent / 100,
+          0,
+          1,
+        ),
+        icon: this.cockpitStatusIcons.thrust,
+      },
+      {
+        label: "MISSILES",
+        value: `${this.cockpitStatusState.missiles}/${this.cockpitStatusState.maxMissiles}`,
+        ratio: THREE.MathUtils.clamp(
+          this.cockpitStatusState.missiles /
+            Math.max(1, this.cockpitStatusState.maxMissiles),
+          0,
+          1,
+        ),
+        icon: this.cockpitStatusIcons.missiles,
+        modeLabel:
+          this.cockpitStatusState.missileMode === "kinetic"
+            ? "KINETIC"
+            : "HOMING",
+      },
+    ];
+
+    ctx.clearRect(0, 0, width, height);
+
+    rows.forEach((row, index) => {
+      const centerY = rowCenters[index];
+      const iconY = centerY - iconSize * 0.5 - 18;
+      const valueY = centerY - (row.modeLabel ? -20 : 0);
+      const barY = iconY + iconSize + 18;
+
+      if (row.icon?.complete && row.icon.naturalWidth > 0) {
+        ctx.save();
+        ctx.globalAlpha = 0.98;
+        ctx.drawImage(row.icon, iconX, iconY, iconSize, iconSize);
+        ctx.restore();
+      }
+
+      ctx.fillStyle = "rgba(225, 255, 255, 0.96)";
+      ctx.textBaseline = "middle";
+      if (row.modeLabel) {
+        ctx.font = '700 65px "Rajdhani", "Courier New", monospace';
+        ctx.textAlign = "right";
+        ctx.fillText(row.modeLabel, valueRightX, centerY - 52);
+      }
+      ctx.font = '700 92px "Orbitron", "Rajdhani", monospace';
+      ctx.textAlign = "right";
+      ctx.fillText(row.value, valueRightX, valueY);
+      ctx.textBaseline = "alphabetic";
+
+      ctx.save();
+      ctx.fillStyle = "rgba(80, 170, 170, 0.14)";
+      ctx.strokeStyle = "rgba(180, 255, 255, 0.22)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(barX, barY, barWidth, barHeight, 10);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "rgba(235, 255, 255, 0.95)";
+      ctx.beginPath();
+      ctx.roundRect(
+        barX + 4,
+        barY + 4,
+        (barWidth - 8) * row.ratio,
+        barHeight - 8,
+        8,
+      );
+      ctx.fill();
+      ctx.restore();
+    });
+
+    texture.needsUpdate = true;
   }
 
   setXRMode(xrManager) {
@@ -661,14 +1014,14 @@ export class Player {
       this.gunR.position.copy(this.gunR.userData.restPosition);
       this.gunR.position.z -= this.gunRetractionR;
     }
-    if (this.vrmAvatarRenderer && this.game?.renderer) {
-      this.vrmAvatarRenderer.update(this.game.renderer, delta);
-    } else {
-      this.lipSyncManager?.updateAnalysis();
-    }
+    this._updateDialogAvatarRenderers(delta);
     if (this.visemeHoloUniforms?.uTime) {
       this.visemeHoloTime += delta;
       this.visemeHoloUniforms.uTime.value = this.visemeHoloTime;
+    }
+    if (this.cockpitStatusUniforms?.uTime) {
+      this.cockpitStatusTime += delta;
+      this.cockpitStatusUniforms.uTime.value = this.cockpitStatusTime;
     }
   }
 
@@ -734,14 +1087,14 @@ export class Player {
       this.updateXR(delta, elapsedTime);
       return;
     }
-    if (this.vrmAvatarRenderer && this.game?.renderer) {
-      this.vrmAvatarRenderer.update(this.game.renderer, delta);
-    } else {
-      this.lipSyncManager?.updateAnalysis();
-    }
+    this._updateDialogAvatarRenderers(delta);
     if (this.visemeHoloUniforms?.uTime) {
       this.visemeHoloTime += delta;
       this.visemeHoloUniforms.uTime.value = this.visemeHoloTime;
+    }
+    if (this.cockpitStatusUniforms?.uTime) {
+      this.cockpitStatusTime += delta;
+      this.cockpitStatusUniforms.uTime.value = this.cockpitStatusTime;
     }
 
     const keys = this.input.keys;
@@ -830,6 +1183,12 @@ export class Player {
     const hasRollInput =
       rollInput !== 0 ||
       (useGamepad && gp.rollAnalog && Math.abs(gp.rollAnalog) > 0.1);
+    if (hasRollInput && this.game?.missionManager) {
+      this.game.missionManager.reportEvent("rollInput", {
+        direction: rollInput < 0 ? "left" : "right",
+        amount: rollInput,
+      });
+    }
     const rollDamp = hasRollInput
       ? Math.pow(this.rollDrag, delta * 60)
       : Math.pow(this.rollDrag, delta * 60) * Math.pow(0.92, delta * 60);

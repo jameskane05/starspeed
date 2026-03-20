@@ -30,6 +30,7 @@ import { Missile } from "../entities/Missile.js";
 import sfxManager from "../audio/sfxManager.js";
 import proceduralAudio from "../audio/ProceduralAudio.js";
 import LightManager from "../managers/LightManager.js";
+import { setCachedExteriorShip } from "../cache/exteriorShipCache.js";
 
 const STAR_COUNT = 1500;
 const SPARKLE_COUNT = 250;
@@ -141,11 +142,39 @@ export class StartScreenScene {
     this.zoomWheelSpeed = 0.02;
     this.zoomLerpSpeed = 4;
     this._cameraToTargetDir = new THREE.Vector3();
+    this.loadingBackgroundOnly = false;
   }
 
-  async init(container, onProgress) {
-    const report = (pct) => onProgress && onProgress(Math.min(1, pct));
-    report(0);
+  async init(container, loadingProgress = null) {
+    const tracker =
+      loadingProgress &&
+      typeof loadingProgress.registerTask === "function" &&
+      typeof loadingProgress.updateTask === "function"
+        ? loadingProgress
+        : null;
+    const onProgress =
+      typeof loadingProgress === "function" ? loadingProgress : null;
+    const tasks = tracker ? null : { setup: 0, galaxy: 0, ship: 0 };
+    const report = (taskName, progress) => {
+      if (tracker) {
+        tracker.updateTask(taskName, progress);
+        return;
+      }
+
+      tasks[taskName] = Math.min(1, Math.max(0, progress));
+      const total = (tasks.setup + tasks.galaxy + tasks.ship) / 3;
+      onProgress?.(total);
+    };
+
+    if (tracker) {
+      tracker.registerTask("start-screen-setup");
+      tracker.registerTask("start-screen-galaxy");
+      tracker.registerTask("start-screen-ship");
+    } else {
+      report("setup", 0);
+      report("galaxy", 0);
+      report("ship", 0);
+    }
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x020208);
@@ -154,7 +183,10 @@ export class StartScreenScene {
       new THREE.TextureLoader().load(
         "/images/ui/galaxy_background.jpg",
         (tex) => {
-          report(0.35);
+          report(
+            tracker ? "start-screen-galaxy" : "galaxy",
+            1,
+          );
           tex.colorSpace = THREE.SRGBColorSpace;
           tex.minFilter = THREE.LinearFilter;
           tex.magFilter = THREE.LinearFilter;
@@ -208,7 +240,7 @@ export class StartScreenScene {
     const initW = vp ? Math.round(vp.width) : window.innerWidth;
     const initH = vp ? Math.round(vp.height) : window.innerHeight;
     const initLandscape = initW > initH;
-    const initDesktop = initW > 900;
+    const initDesktop = initW > 1050 && initH > 1050;
     this.cameraBasePos.copy(
       initLandscape && initDesktop
         ? this._desktopBasePos
@@ -282,9 +314,12 @@ export class StartScreenScene {
 
     this.createStarfield();
     this.createAmbientLighting();
-    await this.loadShip((shipProgress) => report(0.35 + 0.65 * shipProgress));
+    report(tracker ? "start-screen-setup" : "setup", 1);
+    await this.loadShip((p) => {
+      report(tracker ? "start-screen-ship" : "ship", p);
+    });
 
-    report(1);
+    report(tracker ? "start-screen-ship" : "ship", 1);
     this._onResize = this.onResize.bind(this);
     this._onMouseMove = this.onMouseMove.bind(this);
     this._onWheel = this.onWheel.bind(this);
@@ -299,6 +334,16 @@ export class StartScreenScene {
   _updateStartScreenBloomActive() {
     this.bloomPass.enabled =
       this.bloomEnabled && this.bloomPass.strength > 0.01;
+  }
+
+  setLoadingBackgroundOnly(enabled) {
+    this.loadingBackgroundOnly = Boolean(enabled);
+    if (this.moveGroup) {
+      this.moveGroup.visible = !this.loadingBackgroundOnly;
+    }
+    if (this.loadingBackgroundOnly) {
+      this.shipTrails.forEach((trail) => trail.clear());
+    }
   }
 
   getWeaponSpawnPoint() {
@@ -522,6 +567,7 @@ export class StartScreenScene {
 
   async loadShip(onProgress) {
     const loader = new GLTFLoader();
+    const ESTIMATED_SHIP_BYTES = 38 * 1024 * 1024;
 
     return new Promise((resolve) => {
       loader.load(
@@ -580,6 +626,7 @@ export class StartScreenScene {
           console.log("[StartScreen] Ship bounds:", box.min, box.max);
 
           this.moveGroup.add(this.ship);
+          setCachedExteriorShip(this.ship);
           if (this.engineLight) {
             this._engineLightSmoothPos.set(
               this.ship.position.x,
@@ -591,9 +638,14 @@ export class StartScreenScene {
           console.log("[StartScreen] Ship loaded successfully");
           resolve();
         },
-        (event) => {
-          if (onProgress && event.total > 0) {
-            onProgress(event.loaded / event.total);
+        (a, b, c) => {
+          if (!onProgress) return;
+          const loaded = a?.loaded ?? b;
+          const total = a?.total ?? c;
+          if (total > 0 && typeof loaded === "number") {
+            onProgress(loaded / total);
+          } else if (loaded > 0) {
+            onProgress(Math.min(0.99, loaded / ESTIMATED_SHIP_BYTES));
           }
         },
         (error) => {
@@ -667,6 +719,13 @@ export class StartScreenScene {
 
   updateShip(delta) {
     if (!this.ship) return;
+    if (this.loadingBackgroundOnly) {
+      if (this.engineLight) {
+        this.engineLight.intensity = 0;
+      }
+      this.shipTrails.forEach((trail) => trail.clear());
+      return;
+    }
 
     const time = this.clock.elapsedTime;
 
@@ -788,7 +847,7 @@ export class StartScreenScene {
     const w = window.visualViewport?.width ?? window.innerWidth;
     const h = window.visualViewport?.height ?? window.innerHeight;
     const isLandscape = w > h;
-    const isDesktop = w > 900;
+    const isDesktop = w > 1050 && h > 1050;
 
     const useDesktop = isLandscape && isDesktop;
     const useLandscapeMobile = isLandscape && !isDesktop;
