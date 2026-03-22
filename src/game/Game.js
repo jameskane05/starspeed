@@ -70,6 +70,10 @@ export class Game {
     this.hud = null;
     this._hudLast = { health: null, missiles: null, boost: null };
     this._hudAccum = 0;
+    this.directionalHelperTarget = null;
+    this.directionalHelperRoot = null;
+    this._directionalHelperOpacity = 0;
+    this._spawnWarpPrewarmed = false;
 
     // Multiplayer state
     this.isMultiplayer = false;
@@ -207,8 +211,8 @@ export class Game {
     gamePlayerLifecycle.finishSoloRespawn(this);
   }
 
-  handleLocalPlayerRespawn() {
-    gamePlayerLifecycle.handleLocalPlayerRespawn(this);
+  handleLocalPlayerRespawn(data) {
+    gamePlayerLifecycle.handleLocalPlayerRespawn(this, data);
   }
 
   showKillFeed(killer, victim) {
@@ -414,6 +418,35 @@ export class Game {
     if (!state || state.phase !== "playing") return;
 
     const localPlayer = NetworkManager.getLocalPlayer();
+    if (localPlayer) {
+      const prevAlive = this._mpWasAlive;
+      const aliveNow = localPlayer.alive;
+      if (prevAlive === false && aliveNow === true) {
+        this.camera.position.set(localPlayer.x, localPlayer.y, localPlayer.z);
+        this.camera.quaternion.set(
+          localPlayer.qx,
+          localPlayer.qy,
+          localPlayer.qz,
+          localPlayer.qw,
+        );
+        this.player.velocity.set(0, 0, 0);
+        this.prediction?.applyServerState(
+          { x: localPlayer.x, y: localPlayer.y, z: localPlayer.z },
+          {
+            x: localPlayer.qx,
+            y: localPlayer.qy,
+            z: localPlayer.qz,
+            w: localPlayer.qw,
+          },
+          0,
+        );
+        this.prediction?.snapToServer(
+          this.camera.position,
+          this.camera.quaternion,
+        );
+      }
+      this._mpWasAlive = aliveNow;
+    }
     if (localPlayer && !localPlayer.alive) return;
 
     this.lastInputSeq = NetworkManager.sendInput({

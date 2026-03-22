@@ -34,6 +34,8 @@ export class Player extends Schema {
   // Class and team
   @type("string") shipClass: string = "fighter"; // "fighter" | "tank" | "rogue"
   @type("number") team: number = 0; // 0=none (FFA), 1=red, 2=blue
+  /** Normalized #RRGGBB; lobby palette + gameplay VFX */
+  @type("string") accentColor: string = "#00ffff";
   
   // Boost (server-authoritative)
   @type("number") boostFuel: number = 200;
@@ -97,6 +99,11 @@ export class Bot extends Schema {
   @type("number") qw: number = 1;
   @type("number") health: number = 100;
   @type("number") maxHealth: number = 100;
+  /** Server matchTime (seconds) when this bot may chase and shoot */
+  @type("number") aggroReadyAt: number = 0;
+  @type("number") spawnX: number = 0;
+  @type("number") spawnY: number = 0;
+  @type("number") spawnZ: number = 0;
 }
 
 export class GameState extends Schema {

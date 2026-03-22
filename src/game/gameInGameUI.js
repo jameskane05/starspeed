@@ -16,11 +16,133 @@
  * =============================================================================
  */
 
+import * as THREE from "three";
 import MenuManager from "../ui/MenuManager.js";
 import NetworkManager from "../network/NetworkManager.js";
 import { KeyBindings, getKeyDisplayName } from "./KeyBindings.js";
 import { GAME_STATES } from "../data/gameData.js";
 import { cleanupDestruction } from "../vfx/ShipDestruction.js";
+
+const _helperWorld = new THREE.Vector3();
+const _helperProjected = new THREE.Vector3();
+const _helperView = new THREE.Vector3();
+const _helperDir2 = new THREE.Vector2();
+const _helperDir3 = new THREE.Vector3();
+
+function normalizeAngle(angle) {
+  let out = angle;
+  while (out <= -Math.PI) out += Math.PI * 2;
+  while (out > Math.PI) out -= Math.PI * 2;
+  return out;
+}
+
+function lerpAngle(from, to, t) {
+  return from + normalizeAngle(to - from) * t;
+}
+
+function createDirectionalHelper3D() {
+  const root = new THREE.Group();
+  const materials = [];
+
+  const makeMaterial = (options) => {
+    const material = new THREE.MeshStandardMaterial({
+      transparent: true,
+      opacity: 0,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false,
+      ...options,
+    });
+    materials.push(material);
+    return material;
+  };
+
+  const frame = new THREE.Mesh(
+    new THREE.TorusGeometry(0.034, 0.0026, 10, 36),
+    makeMaterial({
+      color: 0x103640,
+      emissive: 0x00e8ff,
+      emissiveIntensity: 1.15,
+      metalness: 0.2,
+      roughness: 0.32,
+    }),
+  );
+  root.add(frame);
+
+  const tickGeometry = new THREE.BoxGeometry(0.006, 0.018, 0.004);
+  const tickMaterial = makeMaterial({
+    color: 0x8adfeb,
+    emissive: 0x00d8f5,
+    emissiveIntensity: 1.7,
+    metalness: 0.08,
+    roughness: 0.22,
+  });
+  const tickOffsets = [
+    [0, 0.048, 0],
+    [0, -0.048, 0],
+    [-0.048, 0, 0],
+    [0.048, 0, 0],
+  ];
+  for (const [x, y, z] of tickOffsets) {
+    const tick = new THREE.Mesh(tickGeometry, tickMaterial.clone());
+    materials.push(tick.material);
+    tick.position.set(x, y, z);
+    if (x !== 0) tick.rotation.z = Math.PI / 2;
+    root.add(tick);
+  }
+
+  const shaft = new THREE.Mesh(
+    new THREE.BoxGeometry(0.008, 0.024, 0.004),
+    makeMaterial({
+      color: 0xa7f7ff,
+      emissive: 0x00e8ff,
+      emissiveIntensity: 2.1,
+      metalness: 0.08,
+      roughness: 0.2,
+    }),
+  );
+  shaft.position.y = 0.014;
+  root.add(shaft);
+
+  const head = new THREE.Mesh(
+    new THREE.ConeGeometry(0.011, 0.02, 5),
+    makeMaterial({
+      color: 0xc8ffff,
+      emissive: 0x8affff,
+      emissiveIntensity: 2.45,
+      metalness: 0.08,
+      roughness: 0.18,
+    }),
+  );
+  head.position.y = 0.036;
+  root.add(head);
+
+  const finGeometry = new THREE.BoxGeometry(0.006, 0.014, 0.004);
+  const finMaterial = makeMaterial({
+    color: 0x0f3942,
+    emissive: 0x00cfe6,
+    emissiveIntensity: 1.0,
+    metalness: 0.3,
+    roughness: 0.32,
+  });
+  const finLeft = new THREE.Mesh(finGeometry, finMaterial);
+  finLeft.position.set(-0.012, 0.011, 0);
+  finLeft.rotation.z = 0.64;
+  root.add(finLeft);
+
+  const finRight = new THREE.Mesh(finGeometry, finMaterial.clone());
+  materials.push(finRight.material);
+  finRight.position.set(0.012, 0.011, 0);
+  finRight.rotation.z = -0.64;
+  root.add(finRight);
+
+  root.visible = false;
+  root.userData.materials = materials;
+  root.userData.frame = frame;
+  root.userData.currentAngle = 0;
+  root.userData.pendingAngle = null;
+  return root;
+}
 
 export function setup(game) {
   game.hud = {
@@ -63,6 +185,14 @@ export function setup(game) {
     game.missionPanelCollapsed = isMobileLayout(game);
   }
   syncMissionPanelState(game);
+
+  if (!game.directionalHelperRoot && game.camera) {
+    game.directionalHelperRoot = createDirectionalHelper3D();
+    game.camera.add(game.directionalHelperRoot);
+  }
+  if (game._directionalHelperOpacity == null) {
+    game._directionalHelperOpacity = 0;
+  }
 
   const gameMenuBtn = document.getElementById("game-menu-btn");
   const gameLeaderboardBtn = document.getElementById("game-leaderboard-btn");
@@ -359,6 +489,7 @@ export function leaveMatch(game) {
   if (game.missionPanel) {
     game.missionPanel.style.display = "none";
   }
+  game.directionalHelperTarget = null;
   game.missionPanelCollapsed = isMobileLayout(game);
   syncMissionPanelState(game);
   game.player = null;
@@ -413,6 +544,112 @@ export function updateHUD(game, delta) {
   });
 
   updateMissionPanel(game);
+}
+
+export function updateDirectionalHelper(game, delta) {
+  const helper = game.directionalHelperRoot;
+  if (!helper || !game.camera) return;
+
+  const target = game.directionalHelperTarget;
+  const worldPos = resolveDirectionalHelperTarget(target, _helperWorld);
+  const canShow =
+    game.gameManager?.isPlaying() &&
+    !game.isEscMenuOpen &&
+    worldPos &&
+    !game.xrManager?.isPresenting;
+
+  let targetOpacity = 0;
+  let targetScale = 0.84;
+  let desiredAngle = helper.userData.currentAngle ?? 0;
+  let desiredPosition = helper.position.clone();
+
+  if (canShow) {
+    _helperProjected.copy(worldPos).project(game.camera);
+    _helperView.copy(worldPos).applyMatrix4(game.camera.matrixWorldInverse);
+    const inFront = _helperView.z < 0;
+    const insideFrustum =
+      inFront &&
+      Math.abs(_helperProjected.x) <= 1 &&
+      Math.abs(_helperProjected.y) <= 1;
+    const vp = window.visualViewport;
+    const width = vp ? Math.round(vp.width) : window.innerWidth;
+    const height = vp ? Math.round(vp.height) : window.innerHeight;
+    const depth = 0.6;
+    const halfHeight =
+      Math.tan(THREE.MathUtils.degToRad(game.camera.fov * 0.5)) * depth;
+    const halfWidth = halfHeight * (width / Math.max(1, height));
+
+    if (insideFrustum) {
+      desiredPosition = _helperDir3.set(
+        THREE.MathUtils.clamp(_helperProjected.x, -0.92, 0.92) * halfWidth,
+        THREE.MathUtils.clamp(_helperProjected.y, -0.92, 0.92) * halfHeight,
+        -depth,
+      );
+      desiredAngle = 0;
+      targetOpacity = 0.28;
+      targetScale = 0.52;
+    } else {
+      _helperDir2.set(
+        inFront ? _helperProjected.x : _helperView.x,
+        inFront ? _helperProjected.y : _helperView.y,
+      );
+      if (_helperDir2.lengthSq() < 1e-6) {
+        _helperDir2.set(0, -1);
+      } else {
+        _helperDir2.normalize();
+      }
+      const radius = 0.72;
+      desiredPosition = _helperDir3.set(
+        _helperDir2.x * halfWidth * radius,
+        _helperDir2.y * halfHeight * radius,
+        -depth,
+      );
+      desiredAngle = Math.atan2(_helperDir2.y, _helperDir2.x) - Math.PI / 2;
+      targetOpacity = 1;
+      targetScale = 1;
+    }
+  }
+
+  const rate = 10;
+  const t = 1 - Math.exp(-rate * Math.max(0, delta || 0.016));
+  const currentAngle = helper.userData.currentAngle ?? 0;
+  const pendingAngle = helper.userData.pendingAngle;
+
+  if (targetOpacity > 0) {
+    if (pendingAngle != null) {
+      targetOpacity = 0;
+      if (game._directionalHelperOpacity <= 0.08) {
+        helper.userData.currentAngle = pendingAngle;
+        helper.userData.pendingAngle = null;
+      }
+    } else if (
+      game._directionalHelperOpacity > 0.28 &&
+      Math.abs(normalizeAngle(desiredAngle - currentAngle)) > Math.PI * 0.72
+    ) {
+      helper.userData.pendingAngle = desiredAngle;
+      targetOpacity = 0;
+    } else {
+      helper.userData.currentAngle = lerpAngle(currentAngle, desiredAngle, t * 0.8);
+      helper.position.lerp(desiredPosition, t * 0.9);
+    }
+  } else if (pendingAngle == null) {
+    helper.position.lerp(desiredPosition, t * 0.5);
+  }
+
+  game._directionalHelperOpacity +=
+    (targetOpacity - game._directionalHelperOpacity) * t;
+  const opacity = game._directionalHelperOpacity;
+  const scale = 0.84 + (targetScale - 0.84) * opacity;
+
+  helper.visible = opacity > 0.01;
+  helper.scale.setScalar(scale);
+  helper.rotation.set(0, 0, helper.userData.currentAngle ?? desiredAngle);
+  for (const material of helper.userData.materials ?? []) {
+    material.opacity = opacity * 0.82;
+  }
+  if (helper.userData.frame?.material) {
+    helper.userData.frame.material.emissiveIntensity = 0.55 + opacity * 1.1;
+  }
 }
 
 function updateMissionPanel(game) {
@@ -470,4 +707,23 @@ function syncMissionPanelState(game) {
 
 function isMobileLayout(game) {
   return Boolean(game?.gameManager?.state?.isMobile);
+}
+
+function resolveDirectionalHelperTarget(target, out) {
+  if (!target) return null;
+  if (typeof target.getWorldPosition === "function") {
+    const result = target.getWorldPosition(out);
+    if (!result) return null;
+    if (result !== out) out.copy(result);
+    return out;
+  }
+  if (target.object3D?.getWorldPosition) {
+    target.object3D.getWorldPosition(out);
+    return out;
+  }
+  if (target.position) {
+    out.copy(target.position);
+    return out;
+  }
+  return null;
 }

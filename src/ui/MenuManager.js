@@ -316,7 +316,11 @@ class MenuManager {
 
   showMatchmakingModal(message = "Finding match...") {
     this.matchmakingMessage = message;
-    if (this.currentScreen === SCREENS.MAIN_MENU) {
+    if (
+      this.currentScreen === SCREENS.MAIN_MENU ||
+      this.currentScreen === SCREENS.CREATE_GAME ||
+      this.currentScreen === SCREENS.JOIN_GAME
+    ) {
       this.render();
       setTimeout(() => this.resetFocus(), 50);
     }
@@ -325,7 +329,11 @@ class MenuManager {
   hideMatchmakingModal() {
     if (!this.matchmakingMessage) return;
     this.matchmakingMessage = "";
-    if (this.currentScreen === SCREENS.MAIN_MENU) {
+    if (
+      this.currentScreen === SCREENS.MAIN_MENU ||
+      this.currentScreen === SCREENS.CREATE_GAME ||
+      this.currentScreen === SCREENS.JOIN_GAME
+    ) {
       this.render();
       setTimeout(() => this.resetFocus(), 50);
     }
@@ -1476,7 +1484,7 @@ class MenuManager {
     botsEnabled = false,
   ) {
     this.emit("levelSelected", level);
-    this.showLoading("Creating arena...");
+    this.showMatchmakingModal("Creating match...");
     await NetworkManager.connect();
     await NetworkManager.createRoom({
       roomName,
@@ -1505,12 +1513,14 @@ class MenuManager {
       // Join existing room - will go to lobby
       await NetworkManager.joinRoom(publicRooms[0].roomId, {
         playerName: this.playerName,
+        quickMatch: true,
       });
     } else {
       // No rooms available - create and auto-start
       await NetworkManager.joinOrCreate({
         playerName: this.playerName,
         autoStart: true,
+        quickMatch: true,
       });
     }
   }

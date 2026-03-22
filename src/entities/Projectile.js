@@ -23,10 +23,19 @@ playerGeometry.rotateX(Math.PI / 2);
 const enemyGeometry = new THREE.CylinderGeometry(0.08, 0.08, 1.2, 6);
 enemyGeometry.rotateX(Math.PI / 2);
 
-const playerLaserColor = 0x00ffff;
-const playerLaserIntensity = 6.0;
+export const PLAYER_LASER_COLOR = 0x00ffff;
+export const PLAYER_LASER_INTENSITY = 6.0;
+const playerLaserColor = PLAYER_LASER_COLOR;
+const playerLaserIntensity = PLAYER_LASER_INTENSITY;
+/** Same HDR scale as player bolt so UnrealBloomPass threshold (~0.8) treats bot lasers like yours. */
+const playerLaserEnergy = 1.4 + playerLaserIntensity * 0.35;
+/** Visual for network-synced lasers from other human players (same bloom as local). */
+export const PLAYER_LASER_VISUAL = Object.freeze({
+  color: PLAYER_LASER_COLOR,
+  intensity: PLAYER_LASER_INTENSITY,
+});
 const playerMaterial = new THREE.MeshBasicMaterial({
-  color: new THREE.Color(playerLaserColor).multiplyScalar(1.4 + playerLaserIntensity * 0.35),
+  color: new THREE.Color(playerLaserColor).multiplyScalar(playerLaserEnergy),
   transparent: true,
   opacity: 1.0,
   depthWrite: false,
@@ -36,7 +45,7 @@ const playerMaterial = new THREE.MeshBasicMaterial({
 });
 
 const enemyMaterial = new THREE.MeshBasicMaterial({
-  color: 0xff8800,
+  color: new THREE.Color(0xff8800).multiplyScalar(playerLaserEnergy),
   transparent: true,
   opacity: 1.0,
   depthWrite: false,
@@ -67,10 +76,24 @@ export class Projectile {
 
     const geometry = isPlayerOwned ? playerGeometry : enemyGeometry;
     let material = isPlayerOwned ? playerMaterial : enemyMaterial;
-    if (!isPlayerOwned && visual?.color) {
+    if (isPlayerOwned && visual != null && visual.color !== undefined) {
+      material = playerMaterial.clone();
+      const boost = Math.max(
+        0,
+        Math.min(10, visual.intensity ?? PLAYER_LASER_INTENSITY),
+      );
+      const computedEnergy = Math.max(1.4 + boost * 0.35, playerLaserEnergy);
+      const energy =
+        typeof visual.energy === "number" && visual.energy > 0
+          ? visual.energy
+          : computedEnergy;
+      material.color = new THREE.Color(visual.color).multiplyScalar(energy);
+      material.opacity = Math.min(1, 0.82 + boost * 0.02);
+      material.toneMapped = false;
+    } else if (!isPlayerOwned && visual != null && visual.color !== undefined) {
       material = enemyMaterial.clone();
       const boost = Math.max(0, Math.min(10, visual.intensity ?? 1));
-      const energy = 1.4 + boost * 0.35;
+      const energy = Math.max(1.4 + boost * 0.35, playerLaserEnergy);
       material.color = new THREE.Color(visual.color).multiplyScalar(energy);
       material.opacity = Math.min(1, 0.82 + boost * 0.02);
       material.toneMapped = false;

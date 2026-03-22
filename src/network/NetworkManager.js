@@ -100,6 +100,7 @@ class NetworkManager {
     try {
       this.room = await this.client.joinById(roomId, {
         name: options.playerName || "Player",
+        quickMatch: options.quickMatch === true,
       });
       
       this.sessionId = this.room.sessionId;
@@ -126,6 +127,7 @@ class NetworkManager {
         isPublic: true,
         name: options.playerName || "Player",
         autoStart: options.autoStart || false,
+        quickMatch: options.quickMatch === true,
       });
       
       this.sessionId = this.room.sessionId;
@@ -169,6 +171,11 @@ class NetworkManager {
   setupRoomListeners(isHostHint = false) {
     if (!this.room) return;
 
+    // Fresh room: avoid stale ids so stateChange listeners and collections stay in sync
+    this._knownProjectiles = new Set();
+    this._knownPlayers = new Set();
+    this._knownCollectibles = new Set();
+
     // Wait for first state change to set up collection listeners and emit roomJoined
     this.room.onStateChange.once((state) => {
       this.setupCollectionListeners(state);
@@ -177,11 +184,6 @@ class NetworkManager {
       this.emit("roomJoined", { roomId: this.room.roomId, isHost });
     });
 
-    this._knownProjectiles = this._knownProjectiles || new Set();
-    this._knownPlayers = this._knownPlayers || new Set();
-    this._knownCollectibles = this._knownCollectibles || new Set();
-    this._knownBots = this._knownBots || new Set();
-    
     this.room.onStateChange((state) => {
       this.emit("stateChange", state);
       
@@ -239,23 +241,6 @@ class NetworkManager {
           if (!currentIds.has(id)) {
             this._knownCollectibles.delete(id);
             this.emit("collectibleRemove", { id });
-          }
-        });
-      }
-
-      if (state.bots) {
-        const currentIds = new Set();
-        state.bots.forEach((bot, id) => {
-          currentIds.add(id);
-          if (!this._knownBots.has(id)) {
-            this._knownBots.add(id);
-            this.emit("botAdd", { bot, id });
-          }
-        });
-        this._knownBots.forEach((id) => {
-          if (!currentIds.has(id)) {
-            this._knownBots.delete(id);
-            this.emit("botRemove", { id });
           }
         });
       }
@@ -443,14 +428,26 @@ class NetworkManager {
     this.room.send("chat", { text });
   }
 
-  sendSpawnPoints({ enemySpawns, playerSpawns, missileSpawns }) {
+  sendLobbyColor(color) {
+    if (!this.room || this.room.state.phase !== "lobby") return;
+    this.room.send("setLobbyColor", { color });
+  }
+
+  sendSpawnPoints({ enemySpawns, playerSpawns, missileSpawns, bounds }) {
     if (!this.room) return;
     const mapPts = (arr) => (arr || []).map((p) => ({ x: p.x, y: p.y, z: p.z }));
-    this.room.send("setSpawnPoints", {
+    const payload = {
       points: mapPts(enemySpawns),
       playerSpawns: mapPts(playerSpawns),
       missileSpawns: mapPts(missileSpawns),
-    });
+    };
+    if (bounds?.center && bounds?.size) {
+      payload.bounds = {
+        center: { x: bounds.center.x, y: bounds.center.y, z: bounds.center.z },
+        size: { x: bounds.size.x, y: bounds.size.y, z: bounds.size.z },
+      };
+    }
+    this.room.send("setSpawnPoints", payload);
   }
 
   leaveRoom() {

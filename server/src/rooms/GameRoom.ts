@@ -1,5 +1,12 @@
 import { Room, Client, matchMaker } from "colyseus";
 import { GameState, Player, Projectile, Collectible, Bot } from "./schema/GameState.js";
+import {
+  LOBBY_COLOR_PALETTE,
+  normalizeLobbyHex,
+  paletteIncludesNormalized,
+  pickFirstFreeAccentColor,
+  pickRandomFreeAccentColor,
+} from "../../../src/data/lobbyColors.js";
 
 const SHIP_CLASSES = {
   fighter: { speed: 1.0, health: 100, missiles: 6, maxMissiles: 6, laserSpeed: 200, missileSpeed: 56, missileDamage: 75 },
@@ -32,12 +39,31 @@ const COLLECTIBLE_RESPAWN_TIME = 15;
 
 const BOT_MAX_COUNT = 8;
 const BOT_SPEED = 12;
-const BOT_LASER_SPEED = 180;
+const BOT_WANDER_SPEED = 7;
+/** Match client Projectile: enemy (non-player) default speed is 18 */
+const BOT_LASER_SPEED = 18;
 const BOT_LASER_DAMAGE = 25;
 const BOT_FIRE_INTERVAL = 1.2;
+/** Same as Enemy.js: 25m laser range */
 const BOT_ATTACK_RANGE_SQ = 625;
+/** Same as Enemy.js detectionRange / detectionRangeSq */
+const BOT_DETECTION_RANGE_SQ = 2500;
+/** Same as Enemy: stop closing inside ~8m */
+const BOT_CLOSE_HOLD_SQ = 64;
 const BOT_HIT_RADIUS = 2.5;
 const BOT_RESPAWN_TIME = 15;
+const BOT_LOS_CHECK_TICKS = 8;
+/** Match solo: no extra spawn delay once AI uses detection + LOS */
+const BOT_AGGRO_DELAY = 0;
+
+type BotBrain = {
+  mode: "wander" | "attack";
+  waypoint: { x: number; y: number; z: number };
+  wanderCooldown: number;
+  wanderInterval: number;
+  losCounter: number;
+  hasLOS: boolean;
+};
 
 export class GameRoom extends Room {
   // State is typed via setState()
@@ -51,7 +77,17 @@ export class GameRoom extends Room {
   private lastBoostTime: Map<string, number> = new Map();
   private botIdCounter = 0;
   private botFireCooldowns: Map<string, number> = new Map();
+  private botBrain: Map<string, BotBrain> = new Map();
   private botRespawnQueue: { botId: string; timer: number; x: number; y: number; z: number }[] = [];
+  /** From host setSpawnPoints(bounds); used for wander clamp + coarse LOS along segment */
+  private levelBoundsAabb: {
+    minX: number;
+    minY: number;
+    minZ: number;
+    maxX: number;
+    maxY: number;
+    maxZ: number;
+  } | null = null;
 
   async onCreate(options: any) {
     this.setState(new GameState());
@@ -111,6 +147,22 @@ export class GameRoom extends Room {
     this.onMessage("setLevel", (client, data) => this.handleSetLevel(client, data));
     this.onMessage("chat", (client, data) => this.handleChat(client, data));
     this.onMessage("kick", (client, data) => this.handleKick(client, data));
+    this.onMessage("setLobbyColor", (client, data) =>
+      this.handleSetLobbyColor(client, data),
+    );
+  }
+
+  private handleSetLobbyColor(client: Client, data: any) {
+    if (this.state.phase !== "lobby") return;
+    const player = this.state.players.get(client.sessionId);
+    if (!player) return;
+    const requested = normalizeLobbyHex(String(data?.color ?? ""));
+    if (!paletteIncludesNormalized(requested)) return;
+    for (const [sessionId, p] of this.state.players) {
+      if (sessionId === client.sessionId) continue;
+      if (normalizeLobbyHex(p.accentColor) === requested) return;
+    }
+    player.accentColor = requested;
   }
 
   private handleKick(client: Client, data: any) {
@@ -144,6 +196,7 @@ export class GameRoom extends Room {
     this.levelSpawnPoints = [];
     this.levelPlayerSpawns = [];
     this.levelMissileSpawns = [];
+    this.levelBoundsAabb = null;
     console.log(`[GameRoom] Host changed map to ${level}, cleared ready status`);
   }
 
@@ -176,7 +229,50 @@ export class GameRoom extends Room {
       }
     }
 
+    const bc = data?.bounds?.center;
+    const bs = data?.bounds?.size;
+    if (
+      bc &&
+      bs &&
+      typeof bc.x === "number" &&
+      typeof bc.y === "number" &&
+      typeof bc.z === "number" &&
+      typeof bs.x === "number" &&
+      typeof bs.y === "number" &&
+      typeof bs.z === "number"
+    ) {
+      const cx = bc.x;
+      const cy = bc.y;
+      const cz = bc.z;
+      const sx = bs.x;
+      const sy = bs.y;
+      const sz = bs.z;
+      this.levelBoundsAabb = {
+        minX: cx - sx * 0.5,
+        maxX: cx + sx * 0.5,
+        minY: cy - sy * 0.5,
+        maxY: cy + sy * 0.5,
+        minZ: cz - sz * 0.5,
+        maxZ: cz + sz * 0.5,
+      };
+    }
+
     console.log(`[GameRoom] Spawn points from host: ${enemySpawns.length} enemy, ${playerSpawns.length} player, ${missileSpawns.length} missile`);
+
+    const hasLevelSpawnsNow =
+      this.levelSpawnPoints.length > 0 || this.levelPlayerSpawns.length > 0;
+    if (
+      this.state.phase === "playing" &&
+      this.state.botsEnabled &&
+      hasLevelSpawnsNow &&
+      (enemySpawns.length > 0 || playerSpawns.length > 0)
+    ) {
+      this.state.bots.clear();
+      this.botFireCooldowns.clear();
+      this.botBrain.clear();
+      this.botRespawnQueue = [];
+      this.spawnBots();
+    }
   }
 
   private handleChat(client: Client, data: any) {
@@ -210,7 +306,17 @@ export class GameRoom extends Room {
       const team2Count = players.filter(p => p.team === 2).length;
       player.team = team1Count <= team2Count ? 1 : 2;
     }
-    
+
+    const accentPicker =
+      options?.quickMatch === true
+        ? pickRandomFreeAccentColor
+        : pickFirstFreeAccentColor;
+    player.accentColor = accentPicker(
+      this.state.players,
+      LOBBY_COLOR_PALETTE,
+      client.sessionId,
+    );
+
     this.state.players.set(client.sessionId, player);
     
     // First player becomes host
@@ -219,8 +325,7 @@ export class GameRoom extends Room {
     }
     
     if (this.state.phase === "playing") {
-      const pool = this.levelPlayerSpawns.length > 0 ? this.levelPlayerSpawns : SPAWN_POINTS;
-      const spawnIndex = Math.floor(Math.random() * pool.length);
+      const spawnIndex = this.getRandomSpawnIndexForPlayers();
       this.spawnPlayer(player, spawnIndex);
       console.log(`[GameRoom] ${player.name} joined mid-game and spawned`);
     } else {
@@ -331,7 +436,11 @@ export class GameRoom extends Room {
     
     // Only update missiles, not lasers
     if (proj.type !== "missile") return;
-    
+
+    const prevX = proj.x;
+    const prevY = proj.y;
+    const prevZ = proj.z;
+
     // Update position and direction from client (for homing)
     proj.x = data.x;
     proj.y = data.y;
@@ -339,6 +448,15 @@ export class GameRoom extends Room {
     proj.dx = data.dx;
     proj.dy = data.dy;
     proj.dz = data.dz;
+
+    // Missiles are not integrated in updateProjectiles(), so prev→current was always
+    // a zero-length segment there (point test only). Fast homing can tunnel through
+    // targets between ticks; swept test here uses each client update segment.
+    const toRemove: string[] = [];
+    this.checkSweptCollision(proj, data.id, prevX, prevY, prevZ, toRemove);
+    if (toRemove.includes(data.id)) {
+      this.state.projectiles.delete(data.id);
+    }
   }
 
   private spawnProjectile(player: Player, data: any, type: string, speed: number, damage: number) {
@@ -413,6 +531,7 @@ export class GameRoom extends Room {
     this.state.team2Score = 0;
     this.state.bots.clear();
     this.botFireCooldowns.clear();
+    this.botBrain.clear();
     this.botRespawnQueue = [];
 
     let spawnIndex = 0;
@@ -424,12 +543,47 @@ export class GameRoom extends Room {
     this.spawnInitialCollectibles();
 
     if (this.state.botsEnabled) {
-      this.spawnBots();
+      this.scheduleInitialBotSpawn();
     }
 
     this.tickInterval = setInterval(() => this.tick(), 1000 / TICK_RATE);
 
     console.log(`[GameRoom] Match started!`);
+  }
+
+  /**
+   * Do not spawn bots in startMatch() synchronously — host setSpawnPoints often arrives
+   * after startMatch, so levelSpawnPoints were empty and bots used the tiny default ring.
+   * Retry until level data exists, then fallback once.
+   */
+  private scheduleInitialBotSpawn() {
+    const trySpawn = () => {
+      if (this.state.phase !== "playing" || !this.state.botsEnabled) return;
+      if (this.state.bots.size > 0) return;
+      const hasLevel =
+        this.levelSpawnPoints.length > 0 || this.levelPlayerSpawns.length > 0;
+      if (!hasLevel) return;
+      this.spawnBots();
+    };
+
+    trySpawn();
+    setTimeout(trySpawn, 50);
+    setTimeout(trySpawn, 200);
+    setTimeout(trySpawn, 500);
+    setTimeout(() => {
+      if (this.state.phase !== "playing" || !this.state.botsEnabled) return;
+      if (this.state.bots.size > 0) return;
+      const hasLevel =
+        this.levelSpawnPoints.length > 0 || this.levelPlayerSpawns.length > 0;
+      if (hasLevel) {
+        this.spawnBots();
+      } else {
+        console.warn(
+          "[GameRoom] Bots: still no level spawn data from host; using fallback SPAWN_POINTS",
+        );
+        this.spawnBots();
+      }
+    }, 1200);
   }
 
   private spawnBots() {
@@ -480,8 +634,13 @@ export class GameRoom extends Room {
       bot.qw = Math.cos(angle / 2);
       bot.health = 100;
       bot.maxHealth = 100;
+      bot.spawnX = pt.x;
+      bot.spawnY = pt.y;
+      bot.spawnZ = pt.z;
+      bot.aggroReadyAt = this.state.matchTime + BOT_AGGRO_DELAY;
       this.state.bots.set(botId, bot);
       this.botFireCooldowns.set(botId, 0);
+      this.initBotBrain(botId, bot);
     }
     console.log(`[GameRoom] Spawned ${count} bots`);
   }
@@ -492,13 +651,72 @@ export class GameRoom extends Room {
     bot.x = x;
     bot.y = y;
     bot.z = z;
+    bot.spawnX = x;
+    bot.spawnY = y;
+    bot.spawnZ = z;
     const angle = Math.atan2(-x, -z);
     bot.qy = Math.sin(angle / 2);
     bot.qw = Math.cos(angle / 2);
     bot.health = 100;
     bot.maxHealth = 100;
+    bot.aggroReadyAt = this.state.matchTime + BOT_AGGRO_DELAY;
     this.state.bots.set(botId, bot);
     this.botFireCooldowns.set(botId, 0);
+    this.initBotBrain(botId, bot);
+  }
+
+  private initBotBrain(botId: string, bot: Bot) {
+    const wp = this.pickWanderWaypoint(bot);
+    this.botBrain.set(botId, {
+      mode: "wander",
+      waypoint: wp,
+      wanderCooldown: 0,
+      wanderInterval: 4 + Math.random() * 4,
+      losCounter: 0,
+      hasLOS: false,
+    });
+  }
+
+  private pickWanderWaypoint(bot: Bot) {
+    let x = bot.spawnX + (Math.random() - 0.5) * 40 * 0.7;
+    let y = bot.spawnY + (Math.random() - 0.5) * 20 * 0.7;
+    let z = bot.spawnZ + (Math.random() - 0.5) * 40 * 0.7;
+    const b = this.levelBoundsAabb;
+    if (b) {
+      const pad = 2;
+      x = Math.max(b.minX + pad, Math.min(b.maxX - pad, x));
+      y = Math.max(b.minY + pad, Math.min(b.maxY - pad, y));
+      z = Math.max(b.minZ + pad, Math.min(b.maxZ - pad, z));
+    }
+    return { x, y, z };
+  }
+
+  /** Coarse LOS without server physics: elevation limit + segment samples inside level AABB (see Enemy.checkLOS + castRay). */
+  private botHasApproxLineOfSight(bot: Bot, px: number, py: number, pz: number): boolean {
+    const dx = px - bot.x;
+    const dy = py - bot.y;
+    const dz = pz - bot.z;
+    const distSq = dx * dx + dy * dy + dz * dz;
+    if (distSq < 1e-4) return true;
+    const horizSq = dx * dx + dz * dz;
+    if (horizSq < 1e-6) {
+      return Math.abs(dy) < 35;
+    }
+    const elev = Math.abs(dy) / Math.sqrt(horizSq);
+    if (elev > 2.2) return false;
+
+    const b = this.levelBoundsAabb;
+    if (!b) return true;
+    for (let i = 1; i <= 5; i++) {
+      const t = i / 6;
+      const sx = bot.x + dx * t;
+      const sy = bot.y + dy * t;
+      const sz = bot.z + dz * t;
+      if (sx < b.minX || sx > b.maxX || sy < b.minY || sy > b.maxY || sz < b.minZ || sz > b.maxZ) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private updateBots(dt: number) {
@@ -509,7 +727,13 @@ export class GameRoom extends Room {
     if (alivePlayers.length === 0) return;
 
     this.state.bots.forEach((bot: Bot, botId: string) => {
-      let nearest: Player | null = null;
+      let brain = this.botBrain.get(botId);
+      if (!brain) {
+        this.initBotBrain(botId, bot);
+        brain = this.botBrain.get(botId)!;
+      }
+
+      let nearestAny: Player | null = null;
       let nearestDistSq = Infinity;
       for (const p of alivePlayers) {
         const dx = p.x - bot.x;
@@ -518,40 +742,107 @@ export class GameRoom extends Room {
         const dSq = dx * dx + dy * dy + dz * dz;
         if (dSq < nearestDistSq) {
           nearestDistSq = dSq;
-          nearest = p;
+          nearestAny = p;
         }
       }
-      if (!nearest) return;
+      if (!nearestAny) return;
 
-      const dx = nearest.x - bot.x;
-      const dy = nearest.y - bot.y;
-      const dz = nearest.z - bot.z;
-      const len = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6;
-      const dirX = dx / len;
-      const dirY = dy / len;
-      const dirZ = dz / len;
-
-      const lookY = Math.atan2(-dx, -dz);
-      bot.qx = 0;
-      bot.qy = Math.sin(lookY / 2);
-      bot.qz = 0;
-      bot.qw = Math.cos(lookY / 2);
-
-      if (nearestDistSq > 36) {
-        bot.x += dirX * BOT_SPEED * dt;
-        bot.y += dirY * BOT_SPEED * dt;
-        bot.z += dirZ * BOT_SPEED * dt;
+      let nearestIn: Player | null = null;
+      let nearestInDistSq = Infinity;
+      for (const p of alivePlayers) {
+        const dx = p.x - bot.x;
+        const dy = p.y - bot.y;
+        const dz = p.z - bot.z;
+        const dSq = dx * dx + dy * dy + dz * dz;
+        if (dSq <= BOT_DETECTION_RANGE_SQ && dSq < nearestInDistSq) {
+          nearestInDistSq = dSq;
+          nearestIn = p;
+        }
       }
 
+      brain.losCounter++;
+      if (brain.losCounter >= BOT_LOS_CHECK_TICKS) {
+        brain.losCounter = 0;
+        brain.hasLOS = nearestIn
+          ? this.botHasApproxLineOfSight(bot, nearestIn.x, nearestIn.y, nearestIn.z)
+          : false;
+      }
+
+      if (brain.hasLOS) {
+        brain.mode = "attack";
+      } else if (brain.mode === "attack" && nearestDistSq >= BOT_DETECTION_RANGE_SQ) {
+        brain.mode = "wander";
+      }
+
+      if (nearestDistSq > BOT_DETECTION_RANGE_SQ && brain.mode === "wander") {
+        return;
+      }
+
+      const canAggro = this.state.matchTime >= bot.aggroReadyAt;
       let cooldown = this.botFireCooldowns.get(botId) ?? 0;
       cooldown -= dt;
       this.botFireCooldowns.set(botId, cooldown);
-      if (cooldown <= 0 && nearestDistSq < BOT_ATTACK_RANGE_SQ) {
-        const muzzleX = bot.x - dirX * 2;
-        const muzzleY = bot.y - dirY * 2;
-        const muzzleZ = bot.z - dirZ * 2;
-        this.spawnProjectileFromBot(botId, muzzleX, muzzleY, muzzleZ, dirX, dirY, dirZ);
-        this.botFireCooldowns.set(botId, BOT_FIRE_INTERVAL);
+
+      if (brain.mode === "attack" && nearestIn && canAggro) {
+        const dx = nearestIn.x - bot.x;
+        const dy = nearestIn.y - bot.y;
+        const dz = nearestIn.z - bot.z;
+        const len = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6;
+        const dirX = dx / len;
+        const dirY = dy / len;
+        const dirZ = dz / len;
+
+        const lookY = Math.atan2(-dx, -dz);
+        bot.qx = 0;
+        bot.qy = Math.sin(lookY / 2);
+        bot.qz = 0;
+        bot.qw = Math.cos(lookY / 2);
+
+        if (nearestInDistSq > BOT_CLOSE_HOLD_SQ) {
+          bot.x += dirX * BOT_SPEED * dt;
+          bot.y += dirY * BOT_SPEED * dt;
+          bot.z += dirZ * BOT_SPEED * dt;
+        }
+
+        if (
+          brain.hasLOS &&
+          cooldown <= 0 &&
+          nearestInDistSq < BOT_ATTACK_RANGE_SQ
+        ) {
+          const muzzleX = bot.x - dirX * 2;
+          const muzzleY = bot.y - dirY * 2;
+          const muzzleZ = bot.z - dirZ * 2;
+          this.spawnProjectileFromBot(botId, muzzleX, muzzleY, muzzleZ, dirX, dirY, dirZ);
+          this.botFireCooldowns.set(botId, BOT_FIRE_INTERVAL);
+        }
+      } else if (brain.mode === "wander") {
+        brain.wanderCooldown += dt;
+        const wx = brain.waypoint.x - bot.x;
+        const wy = brain.waypoint.y - bot.y;
+        const wz = brain.waypoint.z - bot.z;
+        const distW = Math.sqrt(wx * wx + wy * wy + wz * wz) || 1e-6;
+        if (distW < 3 || brain.wanderCooldown >= brain.wanderInterval) {
+          brain.waypoint = this.pickWanderWaypoint(bot);
+          brain.wanderInterval = 3 + Math.random() * 5;
+          brain.wanderCooldown = 0;
+        }
+        const wx2 = brain.waypoint.x - bot.x;
+        const wy2 = brain.waypoint.y - bot.y;
+        const wz2 = brain.waypoint.z - bot.z;
+        const lenW = Math.sqrt(wx2 * wx2 + wy2 * wy2 + wz2 * wz2) || 1e-6;
+        const nx = wx2 / lenW;
+        const ny = wy2 / lenW;
+        const nz = wz2 / lenW;
+        if (canAggro) {
+          bot.x += nx * BOT_WANDER_SPEED * dt;
+          bot.y += ny * BOT_WANDER_SPEED * dt;
+          bot.z += nz * BOT_WANDER_SPEED * dt;
+        }
+        const lookY = Math.atan2(-nx, -nz);
+        bot.qx = 0;
+        bot.qy = Math.sin(lookY / 2);
+        bot.qz = 0;
+        bot.qw = Math.cos(lookY / 2);
       }
     });
 
@@ -686,6 +977,17 @@ export class GameRoom extends Room {
     return newName;
   }
 
+  /** Random index into the same pool spawnPlayer() uses (player → enemy → default). */
+  private getRandomSpawnIndexForPlayers(): number {
+    if (this.levelPlayerSpawns.length > 0) {
+      return Math.floor(Math.random() * this.levelPlayerSpawns.length);
+    }
+    if (this.levelSpawnPoints.length > 0) {
+      return Math.floor(Math.random() * this.levelSpawnPoints.length);
+    }
+    return Math.floor(Math.random() * SPAWN_POINTS.length);
+  }
+
   private spawnPlayer(player: Player, spawnIndex: number) {
     const classStats = SHIP_CLASSES[player.shipClass as keyof typeof SHIP_CLASSES];
     let x: number, y: number, z: number, qy: number, qw: number;
@@ -780,8 +1082,9 @@ export class GameRoom extends Room {
       
       if (proj.lifetime <= 0) {
         toRemove.push(id);
-      } else {
-        // Check swept collision along the projectile path
+      } else if (proj.type !== "missile") {
+        // Lasers: swept segment from tick integration. Missiles: swept in handleMissileUpdate
+        // (per client segment); doing it here would be prev===current (point-only).
         this.checkSweptCollision(proj, id, prevX, prevY, prevZ, toRemove);
       }
     });
@@ -878,6 +1181,11 @@ export class GameRoom extends Room {
         const distSqBot = dbx * dbx + dby * dby + dbz * dbz;
         if (distSqBot < BOT_HIT_RADIUS * BOT_HIT_RADIUS) {
           bot.health -= proj.damage;
+          const br = this.botBrain.get(botId);
+          if (br) {
+            br.mode = "attack";
+            br.hasLOS = true;
+          }
           toRemove.push(projId);
 
           this.broadcast("hit", {
@@ -895,12 +1203,13 @@ export class GameRoom extends Room {
             const deathZ = bot.z;
             this.state.bots.delete(botId);
             this.botFireCooldowns.delete(botId);
+            this.botBrain.delete(botId);
             this.botRespawnQueue.push({
               botId,
               timer: BOT_RESPAWN_TIME,
-              x: deathX,
-              y: deathY,
-              z: deathZ,
+              x: bot.spawnX,
+              y: bot.spawnY,
+              z: bot.spawnZ,
             });
             this.broadcast("botDeath", { botId, x: deathX, y: deathY, z: deathZ });
           }
@@ -1067,11 +1376,19 @@ export class GameRoom extends Room {
         player.respawnTime -= dt;
         
         if (player.respawnTime <= 0) {
-          const pool = this.levelPlayerSpawns.length > 0 ? this.levelPlayerSpawns : SPAWN_POINTS;
-          const spawnIndex = Math.floor(Math.random() * pool.length);
+          const spawnIndex = this.getRandomSpawnIndexForPlayers();
           this.spawnPlayer(player, spawnIndex);
-          
-          this.broadcast("respawn", { playerId: player.id });
+
+          this.broadcast("respawn", {
+            playerId: player.id,
+            x: player.x,
+            y: player.y,
+            z: player.z,
+            qx: player.qx,
+            qy: player.qy,
+            qz: player.qz,
+            qw: player.qw,
+          });
         }
       }
     });
@@ -1110,6 +1427,7 @@ export class GameRoom extends Room {
     this.state.projectiles.clear();
     this.state.bots.clear();
     this.botFireCooldowns.clear();
+    this.botBrain.clear();
     this.botRespawnQueue = [];
     
     // Determine winner

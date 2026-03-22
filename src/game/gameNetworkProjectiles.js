@@ -17,13 +17,31 @@
  */
 
 import * as THREE from "three";
-import { Projectile } from "../entities/Projectile.js";
+import {
+  Projectile,
+  PLAYER_LASER_INTENSITY,
+  PLAYER_LASER_VISUAL,
+} from "../entities/Projectile.js";
 import { Missile } from "../entities/Missile.js";
 import { KineticMissile } from "../entities/KineticMissile.js";
 import { Explosion } from "../entities/Explosion.js";
 import { LaserImpact } from "../entities/LaserImpact.js";
 import { Collectible } from "../entities/Collectible.js";
 import NetworkManager from "../network/NetworkManager.js";
+
+function laserVisualForOwnerId(ownerId) {
+  const state = NetworkManager.getState();
+  const p = state?.players?.get?.(ownerId);
+  const hex = p?.accentColor;
+  if (!hex) return PLAYER_LASER_VISUAL;
+  const col = new THREE.Color();
+  try {
+    col.set(hex);
+  } catch {
+    return PLAYER_LASER_VISUAL;
+  }
+  return { color: col.getHex(), intensity: PLAYER_LASER_INTENSITY };
+}
 import proceduralAudio from "../audio/ProceduralAudio.js";
 import sfxManager from "../audio/sfxManager.js";
 
@@ -149,27 +167,40 @@ export function spawnNetworkProjectile(game, id, data) {
     proceduralAudio.missileFire();
   } else {
     const isPlayerOwned = data.ownerId === NetworkManager.sessionId;
+    const isBotOwner =
+      typeof data.ownerId === "string" && data.ownerId.startsWith("bot_");
+    /** Other humans' bolts use enemy collision path + per-player accent. */
+    const remoteHumanVisual =
+      !isPlayerOwned && !isBotOwner
+        ? laserVisualForOwnerId(data.ownerId)
+        : null;
+
     const remote = game.remotePlayers.get(data.ownerId);
     const gunPos = remote?.getWeaponSpawnPoint?.();
     if (gunPos) {
       position.copy(gunPos).addScaledVector(direction, -1);
     }
 
-    const splatLight = game._createProjectileSplatLight?.(isPlayerOwned, null);
+    const splatLight = game._createProjectileSplatLight?.(
+      isPlayerOwned,
+      remoteHumanVisual,
+    );
     const projectile = new Projectile(
       game.scene,
       position,
       direction,
       isPlayerOwned,
       data.speed,
-      null,
+      remoteHumanVisual,
       splatLight,
     );
     game.networkProjectiles.set(id, { type: "projectile", obj: projectile });
 
     if (remote?.triggerGunRecoil) remote.triggerGunRecoil();
 
-    const flashColor = isPlayerOwned ? 0x00ffff : 0xff8800;
+    const flashColor = isBotOwner
+      ? 0xff8800
+      : remoteHumanVisual?.color ?? 0x00ffff;
     game.dynamicLights?.flash(position, flashColor, {
       intensity: 10,
       distance: 16,

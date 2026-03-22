@@ -133,7 +133,7 @@ export function finishSoloRespawn(game) {
   if (game.player?.cockpit) game.player.cockpit.visible = true;
 }
 
-export function handleLocalPlayerRespawn(game) {
+export function handleLocalPlayerRespawn(game, data = null) {
   const overlay = document.getElementById("respawn-overlay");
   overlay.classList.remove("active");
   if (game.player?.cockpit) game.player.cockpit.visible = true;
@@ -147,13 +147,36 @@ export function handleLocalPlayerRespawn(game) {
     game.player.maxBoostFuel =
       localPlayer.maxBoostFuel ?? game.player.maxBoostFuel;
     game.player.lastDamageTime = 0;
-    game.camera.position.set(localPlayer.x, localPlayer.y, localPlayer.z);
-    game.camera.quaternion.set(
-      localPlayer.qx,
-      localPlayer.qy,
-      localPlayer.qz,
-      localPlayer.qw,
-    );
+    game.player.velocity?.set(0, 0, 0);
+
+    const usePayload =
+      data &&
+      typeof data.x === "number" &&
+      typeof data.y === "number" &&
+      typeof data.z === "number";
+    if (usePayload) {
+      game.camera.position.set(data.x, data.y, data.z);
+      game.camera.quaternion.set(data.qx, data.qy, data.qz, data.qw);
+      if (game.prediction) {
+        game.prediction.applyServerState(
+          { x: data.x, y: data.y, z: data.z },
+          { x: data.qx, y: data.qy, z: data.qz, w: data.qw },
+          0,
+        );
+        game.prediction.snapToServer(
+          game.camera.position,
+          game.camera.quaternion,
+        );
+      }
+    } else {
+      game.camera.position.set(localPlayer.x, localPlayer.y, localPlayer.z);
+      game.camera.quaternion.set(
+        localPlayer.qx,
+        localPlayer.qy,
+        localPlayer.qz,
+        localPlayer.qw,
+      );
+    }
 
     game._hudLast.health = null;
     game._hudLast.missiles = null;

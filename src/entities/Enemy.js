@@ -20,6 +20,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { castSphere, castRay } from "../physics/Physics.js";
+import { beginSpawnWarp } from "../vfx/spawnWarp.js";
 
 const _direction = new THREE.Vector3();
 const _targetQuat = new THREE.Quaternion();
@@ -405,6 +406,7 @@ export class Enemy {
     this.laserColor = 0xff8800;
     this.laserIntensity = 1.0;
     this.usesSharedTemplateModel = false;
+    this.spawnWarp = null;
 
     this.modelIndex =
       shipModels.length > 0
@@ -463,6 +465,10 @@ export class Enemy {
     }
 
     scene.add(this.mesh);
+    this.spawnWarp = beginSpawnWarp(this.mesh, {
+      duration: 2.45,
+      color: this.laserColor,
+    });
   }
 
   _pickNewWaypoint() {
@@ -514,6 +520,10 @@ export class Enemy {
 
   update(delta, playerPos, fireCallback, frameCount = 0, cullDistance = 200) {
     if (this.disposed) return;
+
+    if (this.spawnWarp?.active) {
+      this.spawnWarp.update(delta);
+    }
 
     this.fireCooldown -= delta;
 
@@ -689,18 +699,16 @@ export class Enemy {
     }
 
     scene.remove(this.mesh);
-
-    if (!this.usesSharedTemplateModel) {
-      this.mesh.traverse((child) => {
-        if (!child.isMesh) return;
-        if (child.geometry) child.geometry.dispose();
-        if (child.material) {
-          const mats = Array.isArray(child.material)
-            ? child.material
-            : [child.material];
-          for (const m of mats) m?.dispose?.();
-        }
-      });
-    }
+    this.spawnWarp?.dispose?.();
+    this.mesh.traverse((child) => {
+      if (!child.isMesh) return;
+      if (!this.usesSharedTemplateModel && child.geometry) child.geometry.dispose();
+      if (child.material) {
+        const mats = Array.isArray(child.material)
+          ? child.material
+          : [child.material];
+        for (const m of mats) m?.dispose?.();
+      }
+    });
   }
 }

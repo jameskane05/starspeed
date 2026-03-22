@@ -1,9 +1,108 @@
 import * as THREE from "three";
 import { trainingGroundsMission } from "./trainingGroundsMission.js";
+import { beginSpawnWarp } from "../vfx/spawnWarp.js";
 
 const MISSIONS = {
   trainingGrounds: trainingGroundsMission,
 };
+
+function createCheckpointVisual(
+  radius,
+  tube,
+  color = 0x00e8ff,
+  accent = 0x8affff,
+) {
+  const group = new THREE.Group();
+
+  const ringMaterial = new THREE.MeshStandardMaterial({
+    color,
+    emissive: color,
+    emissiveIntensity: 2.6,
+    metalness: 0.35,
+    roughness: 0.28,
+    transparent: true,
+    opacity: 0.9,
+  });
+  const accentMaterial = new THREE.MeshStandardMaterial({
+    color: accent,
+    emissive: accent,
+    emissiveIntensity: 4.2,
+    metalness: 0.15,
+    roughness: 0.2,
+    transparent: true,
+    opacity: 0.95,
+  });
+  const greebleMaterial = new THREE.MeshStandardMaterial({
+    color: 0x0d2c34,
+    emissive: color,
+    emissiveIntensity: 1.2,
+    metalness: 0.75,
+    roughness: 0.35,
+  });
+
+  const outerRing = new THREE.Mesh(
+    new THREE.TorusGeometry(radius, tube, 20, 72),
+    ringMaterial,
+  );
+  group.add(outerRing);
+
+  const innerRing = new THREE.Mesh(
+    new THREE.TorusGeometry(radius * 0.72, tube * 0.32, 16, 56),
+    accentMaterial.clone(),
+  );
+  innerRing.rotation.y = Math.PI / 2;
+  group.add(innerRing);
+
+  const arcGeometry = new THREE.TorusGeometry(radius * 1.12, tube * 0.16, 12, 48, 1.55);
+
+  const arcPivotA = new THREE.Group();
+  const arcA = new THREE.Mesh(arcGeometry, accentMaterial.clone());
+  arcA.rotation.z = 0.45;
+  arcPivotA.add(arcA);
+  group.add(arcPivotA);
+
+  const arcPivotB = new THREE.Group();
+  const arcB = new THREE.Mesh(arcGeometry, accentMaterial.clone());
+  arcB.rotation.z = Math.PI + 0.85;
+  arcB.rotation.y = Math.PI / 2;
+  arcPivotB.add(arcB);
+  group.add(arcPivotB);
+
+  const nodeGeometry = new THREE.BoxGeometry(tube * 1.4, tube * 1.4, tube * 3.6);
+  const strutGeometry = new THREE.BoxGeometry(tube * 0.42, tube * 0.42, radius * 0.58);
+  for (let i = 0; i < 6; i++) {
+    const angle = (i / 6) * Math.PI * 2;
+    const node = new THREE.Mesh(nodeGeometry, greebleMaterial.clone());
+    node.position.set(
+      Math.cos(angle) * radius * 0.92,
+      Math.sin(angle) * radius * 0.92,
+      0,
+    );
+    node.lookAt(0, 0, 0);
+    group.add(node);
+
+    const strut = new THREE.Mesh(strutGeometry, greebleMaterial.clone());
+    strut.position.set(
+      Math.cos(angle) * radius * 0.56,
+      Math.sin(angle) * radius * 0.56,
+      0,
+    );
+    strut.lookAt(0, 0, 0);
+    strut.rotateX(Math.PI / 2);
+    group.add(strut);
+  }
+
+  const coreGeometry = new THREE.CircleGeometry(radius * 0.18, 6);
+  const core = new THREE.Mesh(coreGeometry, accentMaterial.clone());
+  group.add(core);
+
+  group.userData.arcPivotA = arcPivotA;
+  group.userData.arcPivotB = arcPivotB;
+  group.userData.innerRing = innerRing;
+  group.userData.pulseMaterial = outerRing.material;
+
+  return group;
+}
 
 function cloneObjectives(objectives = []) {
   return objectives.map((objective, index) => ({
@@ -110,7 +209,7 @@ export class MissionManager {
 
   update(delta) {
     if (!this.isActive() || !this.gameManager.isPlaying()) return;
-    this.updateCheckpoints();
+    this.updateCheckpoints(delta);
     this.currentStep?.update?.(this, delta);
   }
 
@@ -160,15 +259,14 @@ export class MissionManager {
     const color = options.color ?? 0x00e8ff;
     const radius = options.radius ?? 5;
     const tube = options.tube ?? 0.45;
-    const geometry = new THREE.TorusGeometry(radius, tube, 16, 48);
-    const material = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.85,
-    });
     this.checkpointGroup = new THREE.Group();
     this.checkpoints = points.map((point, index) => {
-      const mesh = new THREE.Mesh(geometry, material.clone());
+      const mesh = createCheckpointVisual(
+        radius,
+        tube,
+        color,
+        options.accentColor ?? 0x8affff,
+      );
       mesh.position.copy(point);
       mesh.lookAt(this.getPlayerPosition());
       mesh.visible = index === 0;
@@ -178,15 +276,43 @@ export class MissionManager {
         position: point.clone(),
         radius: options.triggerRadius ?? radius + 1.5,
         mesh,
+        spawnWarp: null,
         reached: false,
       };
     });
     this.activeCheckpointIndex = 0;
+    this.game.directionalHelperTarget = {
+      type: "checkpoint",
+      getWorldPosition: (out) => {
+        const checkpoint = this.checkpoints[this.activeCheckpointIndex];
+        if (!checkpoint || checkpoint.reached || !checkpoint.mesh?.visible) {
+          return null;
+        }
+        return out.copy(checkpoint.position);
+      },
+    };
     this.game.scene.add(this.checkpointGroup);
+    this._activateCheckpoint(this.checkpoints[0]);
   }
 
-  updateCheckpoints() {
+  updateCheckpoints(delta = 0) {
     if (!this.checkpoints.length) return;
+    const elapsed = this.game.clock?.getElapsedTime?.() ?? performance.now() / 1000;
+    for (const checkpointEntry of this.checkpoints) {
+      const mesh = checkpointEntry.mesh;
+      checkpointEntry.spawnWarp?.update(delta);
+      if (!mesh?.visible) continue;
+      mesh.userData.arcPivotA.rotation.z += delta * 0.9;
+      mesh.userData.arcPivotB.rotation.z -= delta * 1.35;
+      mesh.userData.innerRing.rotation.z -= delta * 0.75;
+      mesh.rotation.z = Math.sin(elapsed * 1.8 + checkpointEntry.index * 0.7) * 0.08;
+      const pulse = 0.78 + (Math.sin(elapsed * 3.4 + checkpointEntry.index) + 1) * 0.12;
+      if (mesh.userData.pulseMaterial) {
+        mesh.userData.pulseMaterial.emissiveIntensity = 2.2 + pulse * 1.4;
+        mesh.userData.pulseMaterial.opacity = 0.82 + pulse * 0.08;
+      }
+    }
+
     const checkpoint = this.checkpoints[this.activeCheckpointIndex];
     if (!checkpoint || checkpoint.reached) return;
 
@@ -205,7 +331,7 @@ export class MissionManager {
     this.activeCheckpointIndex += 1;
     const nextCheckpoint = this.checkpoints[this.activeCheckpointIndex];
     if (nextCheckpoint) {
-      nextCheckpoint.mesh.visible = true;
+      this._activateCheckpoint(nextCheckpoint);
       return;
     }
 
@@ -225,6 +351,19 @@ export class MissionManager {
     this.checkpointGroup = null;
     this.checkpoints = [];
     this.activeCheckpointIndex = 0;
+    if (this.game.directionalHelperTarget?.type === "checkpoint") {
+      this.game.directionalHelperTarget = null;
+    }
+  }
+
+  _activateCheckpoint(checkpoint) {
+    if (!checkpoint?.mesh) return;
+    checkpoint.mesh.visible = true;
+    checkpoint.spawnWarp?.dispose?.();
+    checkpoint.spawnWarp = beginSpawnWarp(checkpoint.mesh, {
+      duration: 2.2,
+      color: 0x8affff,
+    });
   }
 
   spawnEnemyWave(positions = []) {

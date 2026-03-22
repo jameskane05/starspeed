@@ -1233,10 +1233,104 @@
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .player-name {
   font-weight: 600;
+  min-width: 0;
+}
+
+.lobby-color-swatch {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35) inset;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.lobby-color-swatch:hover,
+.lobby-color-swatch:focus-visible {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 8px rgba(0, 240, 255, 0.35);
+  outline: none;
+}
+
+.lobby-color-swatch.readonly {
+  cursor: default;
+  pointer-events: none;
+}
+
+.lobby-color-wrap {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.lobby-color-popover {
+  display: none;
+  position: fixed;
+  z-index: 10050;
+  padding: 0.6rem;
+  background: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 240, 255, 0.12);
+  min-width: 200px;
+  max-width: min(280px, calc(100vw - 24px));
+  pointer-events: auto;
+}
+
+.lobby-color-popover.active {
+  display: block;
+}
+
+.lobby-color-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.lobby-color-option {
+  width: 100%;
+  aspect-ratio: 1;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 0;
+  cursor: pointer;
+  background: var(--swatch);
+  transition: transform 0.1s, box-shadow 0.15s;
+}
+
+.lobby-color-option:hover:not(:disabled) {
+  transform: scale(1.06);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.35);
+}
+
+.lobby-color-option.taken {
+  cursor: not-allowed;
+  opacity: 0.45;
+  position: relative;
+}
+
+.lobby-color-option.taken::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  background: linear-gradient(
+    to top right,
+    transparent calc(50% - 1px),
+    rgba(0, 0, 0, 0.85) calc(50% - 1px),
+    rgba(0, 0, 0, 0.85) calc(50% + 1px),
+    transparent calc(50% + 1px)
+  );
 }
 
 .player-class {
@@ -1257,7 +1351,9 @@
 .player-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .mute-btn {

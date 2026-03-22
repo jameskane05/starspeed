@@ -25,6 +25,7 @@ import {
   reapplyShipMaterials,
 } from "../entities/Enemy.js";
 import { prefractureModels } from "../vfx/ShipDestruction.js";
+import { prewarmSpawnWarp } from "../vfx/spawnWarp.js";
 import { GAME_STATES } from "../data/gameData.js";
 import MenuManager from "../ui/MenuManager.js";
 import engineAudio from "../audio/EngineAudio.js";
@@ -152,6 +153,9 @@ export async function startSoloDebug(game) {
 export async function ensureEnemyShipAssetsLoaded(game, loadingTracker = null) {
   if (game.enemyShipAssetsPromise) {
     await game.enemyShipAssetsPromise;
+    if (!game._spawnWarpPrewarmed) {
+      prewarmEnemySpawnWarp(game);
+    }
     loadingTracker?.completeTask("solo-enemy-assets");
     return;
   }
@@ -161,5 +165,21 @@ export async function ensureEnemyShipAssetsLoaded(game, loadingTracker = null) {
     await reapplyShipMaterials(shipModels);
   })();
   await game.enemyShipAssetsPromise;
+  prewarmEnemySpawnWarp(game);
   loadingTracker?.completeTask("solo-enemy-assets");
+}
+
+function prewarmEnemySpawnWarp(game) {
+  if (game._spawnWarpPrewarmed) return;
+  const template = shipModels[0];
+  if (!template || !game.renderer || !game.camera) return;
+
+  const clone = template.clone();
+  clone.scale.setScalar(2.0);
+  clone.rotation.set(0, Math.PI, 0);
+
+  prewarmSpawnWarp(game.renderer, game.camera, clone, {
+    color: template.userData?.enemyLaserColor ?? 0xff8800,
+  });
+  game._spawnWarpPrewarmed = true;
 }

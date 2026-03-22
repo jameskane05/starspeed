@@ -26,10 +26,13 @@ import NetworkManager from "../network/NetworkManager.js";
 import proceduralAudio from "../audio/ProceduralAudio.js";
 import engineAudio from "../audio/EngineAudio.js";
 import * as gameInGameUI from "./gameInGameUI.js";
+import { syncNetworkBotsWithState } from "./gameMultiplayer.js";
 
 const _audioForward = new THREE.Vector3();
 const _audioUp = new THREE.Vector3();
 const _unitForward = new THREE.Vector3();
+const _networkBotTargetPos = new THREE.Vector3();
+const _networkBotTargetQuat = new THREE.Quaternion();
 
 function restoreBaseCameraLayers(game) {
   if (!game.camera) return;
@@ -169,13 +172,17 @@ export function tick(game, delta, timestamp, frame) {
     });
 
     if (game.isMultiplayer) {
+      syncNetworkBotsWithState(game);
       const bots = NetworkManager.getState()?.bots;
       if (bots) {
+        const smooth = 1 - Math.exp(-18 * delta);
         bots.forEach((bot, id) => {
           const entry = game.networkBots.get(id);
           if (entry?.mesh) {
-            entry.mesh.position.set(bot.x, bot.y, bot.z);
-            entry.mesh.quaternion.set(bot.qx, bot.qy, bot.qz, bot.qw);
+            _networkBotTargetPos.set(bot.x, bot.y, bot.z);
+            entry.mesh.position.lerp(_networkBotTargetPos, smooth);
+            _networkBotTargetQuat.set(bot.qx, bot.qy, bot.qz, bot.qw);
+            entry.mesh.quaternion.slerp(_networkBotTargetQuat, smooth);
           }
         });
       }
@@ -215,6 +222,18 @@ export function tick(game, delta, timestamp, frame) {
       ...game.enemies,
       ...Array.from(game.remotePlayers.values()),
     ];
+    if (game.isMultiplayer && game.networkBots?.size) {
+      const roomState = NetworkManager.getState();
+      roomState?.bots?.forEach?.((bot, id) => {
+        const entry = game.networkBots.get(id);
+        if (!entry?.mesh) return;
+        missileTargets.push({
+          mesh: entry.mesh,
+          health: bot.health ?? 0,
+          alive: (bot.health ?? 0) > 0,
+        });
+      });
+    }
     game.missiles.forEach((m) => m.update(delta, missileTargets));
 
     if (game.isMultiplayer) {
@@ -292,6 +311,7 @@ export function tick(game, delta, timestamp, frame) {
     game.checkCollisions();
 
     game.updateHUD(delta);
+    gameInGameUI.updateDirectionalHelper(game, delta);
     gameInGameUI.updateLeaderboardTimer(game);
     game.sendInputToServer(delta);
 

@@ -25,7 +25,7 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { EngineTrail } from "../vfx/EngineTrail.js";
 import { DynamicLightPool } from "../vfx/DynamicLightPool.js";
-import { Projectile } from "../entities/Projectile.js";
+import { Projectile, PLAYER_LASER_INTENSITY } from "../entities/Projectile.js";
 import { Missile } from "../entities/Missile.js";
 import sfxManager from "../audio/sfxManager.js";
 import proceduralAudio from "../audio/ProceduralAudio.js";
@@ -43,6 +43,27 @@ const Z_MIN = -1200; // Further away for depth
 const Z_MAX = 80; // Emitter in front of ship
 const GUN_RETRACT_AMOUNT = 0.06;
 const GUN_RETRACT_RECOVERY = 6;
+
+/** Menu ship engine ribbon gradient (orange → peachy white along the ribbon). */
+const START_SCREEN_TRAIL = {
+  colorStart: 0xff4500,
+  colorEnd: 0xffcc99,
+};
+
+/**
+ * Bolt + muzzle flash: match the trail’s bright core (near colorEnd), not
+ * colorStart — otherwise the laser reads flat orange vs the white-hot ribbon.
+ */
+const START_SCREEN_LASER_BOLT_COLOR = (() => {
+  const c = new THREE.Color(START_SCREEN_TRAIL.colorEnd);
+  c.lerp(new THREE.Color(0xffffff), 0.42);
+  return c.getHex();
+})();
+
+/**
+ * HDR multiplier for menu bolts (warm tints need more than cyan for same bloom).
+ */
+const START_SCREEN_LASER_HDR_ENERGY = 7.0;
 
 function createGlowTexture(size = 64) {
   const canvas = document.createElement("canvas");
@@ -406,19 +427,24 @@ export class StartScreenScene {
       -1,
     );
     const direction = this.getShipForwardDirection();
+    const laserVisual = {
+      color: START_SCREEN_LASER_BOLT_COLOR,
+      intensity: PLAYER_LASER_INTENSITY,
+      energy: START_SCREEN_LASER_HDR_ENERGY,
+    };
     const projectile = new Projectile(
       this.scene,
       spawnPos,
       direction,
       true,
       null,
-      null,
+      laserVisual,
       null,
     );
     this.projectiles.push(projectile);
-    this.dynamicLights?.flash(spawnPos, 0x00ffff, {
-      intensity: 10,
-      distance: 16,
+    this.dynamicLights?.flash(spawnPos, START_SCREEN_LASER_BOLT_COLOR, {
+      intensity: 22,
+      distance: 22,
       ttl: 0.05,
       fade: 0.12,
     });
@@ -607,16 +633,16 @@ export class StartScreenScene {
                 maxPoints: 160,
                 trailTime: 6,
                 width: 1.2,
-                colorStart: 0xff4500,
-                colorEnd: 0xffcc99,
+                colorStart: START_SCREEN_TRAIL.colorStart,
+                colorEnd: START_SCREEN_TRAIL.colorEnd,
                 emissiveIntensity: 2.8,
               }),
               new EngineTrail(this.scene, {
                 maxPoints: 160,
                 trailTime: 6,
                 width: 1.2,
-                colorStart: 0xff4500,
-                colorEnd: 0xffcc99,
+                colorStart: START_SCREEN_TRAIL.colorStart,
+                colorEnd: START_SCREEN_TRAIL.colorEnd,
                 emissiveIntensity: 2.8,
               }),
             ];

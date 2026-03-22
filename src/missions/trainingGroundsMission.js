@@ -18,31 +18,58 @@ function setWeaponPermissions(
 }
 
 function getCheckpointPositions(game) {
-  const enemySpawns = game.spawnPoints ?? [];
-  if (enemySpawns.length >= 3) {
-    return enemySpawns.slice(0, 3).map((pos) => pos.clone());
-  }
-
   const playerPos = (
+    game.player?.camera?.position ??
+    game.camera?.position ??
     game.playerSpawnPoints?.[0] ??
-    game.camera.position ??
     new THREE.Vector3(0, 0, 0)
   ).clone();
-  return [
-    playerPos.clone().add(new THREE.Vector3(0, 0, -20)),
-    playerPos.clone().add(new THREE.Vector3(12, 4, -32)),
-    playerPos.clone().add(new THREE.Vector3(-10, 8, -44)),
-  ];
+  const playerQuat = (
+    game.player?.camera?.quaternion ??
+    game.camera?.quaternion ??
+    null
+  )?.clone?.();
+
+  const forward = new THREE.Vector3(0, 0, -1);
+  const right = new THREE.Vector3(1, 0, 0);
+  if (playerQuat) {
+    forward.applyQuaternion(playerQuat);
+    right.applyQuaternion(playerQuat);
+  }
+  forward.y = 0;
+  right.y = 0;
+  if (forward.lengthSq() === 0) {
+    forward.set(0, 0, -1);
+  } else {
+    forward.normalize();
+  }
+  if (right.lengthSq() === 0) {
+    right.set(1, 0, 0);
+  } else {
+    right.normalize();
+  }
+
+  const first = playerPos.clone().addScaledVector(forward, 20);
+  const second = first
+    .clone()
+    .addScaledVector(forward, 20)
+    .addScaledVector(right, 10);
+  const third = second
+    .clone()
+    .addScaledVector(forward, 20)
+    .addScaledVector(right, -20);
+
+  return [first, second, third];
 }
 
 function getAllEnemySpawnPositions(game) {
   const enemySpawns = game.spawnPoints ?? [];
   if (!enemySpawns.length) {
     const origin = (
+    game.camera.position ??
       game.playerSpawnPoints?.[0] ??
-      game.camera.position ??
       new THREE.Vector3(0, 0, 0)
-    ).clone();
+  ).clone();
     return Array.from({ length: 3 }, (_, index) =>
       origin.clone().add(new THREE.Vector3(index * 8 - 8, 3 + index * 2, -35)),
     );

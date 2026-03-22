@@ -45,6 +45,9 @@ import {
 } from "./gameFirstViewLoading.js";
 import { loadShipModels, shipModels } from "../entities/Enemy.js";
 
+/** In-flight addNetworkBot per id (async); syncNetworkBotsWithState may call every frame until done. */
+const pendingNetworkBotAdds = new Set();
+
 function hashBotId(id) {
   let h = 0;
   const s = String(id || "");
@@ -104,26 +107,35 @@ function disposeNetworkBotEntry(game, entry) {
 
 export async function addNetworkBot(game, id, bot) {
   if (game.networkBots.has(id)) return;
-  await loadShipModels();
-  const { root, usesSharedShip } = buildBotShipGroup(id);
-  if (root.children.length === 0) {
-    const fallback = createBotPlaceholderMesh(game.scene);
-    game.networkBots.set(id, { mesh: fallback, usesSharedShip: false });
-    fallback.position.set(bot.x, bot.y, bot.z);
-    fallback.quaternion.set(bot.qx, bot.qy, bot.qz, bot.qw);
-    return;
+  if (pendingNetworkBotAdds.has(id)) return;
+  pendingNetworkBotAdds.add(id);
+  try {
+    await loadShipModels();
+    if (game.networkBots.has(id)) return;
+
+    const { root, usesSharedShip } = buildBotShipGroup(id);
+    if (root.children.length === 0) {
+      const fallback = createBotPlaceholderMesh(game.scene);
+      game.networkBots.set(id, { mesh: fallback, usesSharedShip: false });
+      fallback.position.set(bot.x, bot.y, bot.z);
+      fallback.quaternion.set(bot.qx, bot.qy, bot.qz, bot.qw);
+      return;
+    }
+    game.scene.add(root);
+    root.position.set(bot.x, bot.y, bot.z);
+    root.quaternion.set(bot.qx, bot.qy, bot.qz, bot.qw);
+    game.networkBots.set(id, { mesh: root, usesSharedShip });
+  } finally {
+    pendingNetworkBotAdds.delete(id);
   }
-  game.scene.add(root);
-  root.position.set(bot.x, bot.y, bot.z);
-  root.quaternion.set(bot.qx, bot.qy, bot.qz, bot.qw);
-  game.networkBots.set(id, { mesh: root, usesSharedShip });
 }
 
 export function removeNetworkBot(game, id, deathData = null) {
   const entry = game.networkBots.get(id);
-  if (!entry) return;
-  disposeNetworkBotEntry(game, entry);
-  game.networkBots.delete(id);
+  if (entry) {
+    disposeNetworkBotEntry(game, entry);
+    game.networkBots.delete(id);
+  }
   if (deathData && deathData.x !== undefined) {
     const pos = new THREE.Vector3(deathData.x, deathData.y, deathData.z);
     const explosion = new Explosion(
@@ -139,12 +151,47 @@ export function removeNetworkBot(game, id, deathData = null) {
   }
 }
 
+/** Single source of truth: Colyseus state.bots ↔ scene meshes (no duplicate botAdd + start-game race). */
+export function syncNetworkBotsWithState(game) {
+  if (!game.isMultiplayer || !game.scene) return;
+  const state = NetworkManager.getState();
+  if (!state?.botsEnabled) {
+    for (const id of [...game.networkBots.keys()]) {
+      removeNetworkBot(game, id);
+    }
+    return;
+  }
+  if (!state.bots) return;
+
+  const ids = new Set();
+  state.bots.forEach((bot, id) => {
+    ids.add(id);
+    if (!game.networkBots.has(id)) {
+      void addNetworkBot(game, id, bot).catch((err) =>
+        console.warn("[Multiplayer] addNetworkBot failed", err),
+      );
+    }
+  });
+  for (const id of [...game.networkBots.keys()]) {
+    if (!ids.has(id)) {
+      removeNetworkBot(game, id);
+    }
+  }
+}
+
 function pushLevelSpawnsToServer(game) {
   game._extractSpawnPoints();
+  const ne = game.spawnPoints?.length ?? 0;
+  const np = game.playerSpawnPoints?.length ?? 0;
+  const nm = game.missileSpawnPoints?.length ?? 0;
+  console.log(
+    `[Multiplayer] spawn sync → server (host=${NetworkManager.isHost()}): ${ne} enemy, ${np} player, ${nm} missile`,
+  );
   NetworkManager.sendSpawnPoints({
     enemySpawns: game.spawnPoints,
     playerSpawns: game.playerSpawnPoints,
     missileSpawns: game.missileSpawnPoints,
+    bounds: game._levelBounds || null,
   });
 }
 
@@ -164,7 +211,11 @@ export function setupNetworkListeners(game) {
     if (roomState?.level) {
       game.gameManager.setState({ currentLevel: roomState.level });
     }
-    void hostSyncSpawnsAfterPreload(game);
+    const push = () => void hostSyncSpawnsAfterPreload(game);
+    push();
+    queueMicrotask(push);
+    setTimeout(push, 80);
+    setTimeout(push, 400);
   });
 
   NetworkManager.on("playerJoin", ({ player, sessionId, isLocal }) => {
@@ -261,7 +312,7 @@ export function setupNetworkListeners(game) {
       if (remote && remote.mesh) {
         victimPos = remote.mesh.position.clone();
         const deathQuat = remote.mesh.quaternion.clone();
-        const remoteScale = remote.shipMesh?.scale?.x ?? 0.5;
+        const remoteScale = remote.shipMesh?.scale?.x ?? 1;
         spawnDestruction(
           game.scene,
           victimPos,
@@ -294,7 +345,7 @@ export function setupNetworkListeners(game) {
 
   NetworkManager.on("respawn", (data) => {
     if (data.playerId === NetworkManager.sessionId) {
-      game.handleLocalPlayerRespawn();
+      game.handleLocalPlayerRespawn(data);
       proceduralAudio.respawn();
     }
   });
@@ -339,18 +390,6 @@ export function setupNetworkListeners(game) {
 
   NetworkManager.on("collectiblePickup", (data) => {
     game.handleCollectiblePickup(data);
-  });
-
-  NetworkManager.on("botAdd", ({ bot, id }) => {
-    if (game.isMultiplayer && game.scene) {
-      void addNetworkBot(game, id, bot).catch((err) =>
-        console.warn("[Multiplayer] addNetworkBot failed", err),
-      );
-    }
-  });
-
-  NetworkManager.on("botRemove", ({ id }) => {
-    removeNetworkBot(game, id);
   });
 
   NetworkManager.on("botDeath", (data) => {
@@ -462,13 +501,6 @@ export async function startMultiplayerGame(game) {
 
   if (state?.botsEnabled && state?.bots) {
     await game.ensureEnemyShipAssetsLoaded();
-    const pending = [];
-    state.bots.forEach((bot, id) => {
-      if (!game.networkBots.has(id)) pending.push([id, bot]);
-    });
-    for (const [id, bot] of pending) {
-      await addNetworkBot(game, id, bot);
-    }
   }
 
   if (!game.input.mobile.shouldSkipPointerLock()) {
@@ -523,11 +555,14 @@ export function onMatchEnd(game) {
 }
 
 export function cleanupMultiplayer(game) {
+  game._mpWasAlive = undefined;
+  game._levelSpawnCache = null;
   game.remotePlayers.forEach((remote) => remote.dispose());
   game.remotePlayers.clear();
 
   game.networkBots.forEach((entry) => disposeNetworkBotEntry(game, entry));
   game.networkBots.clear();
+  pendingNetworkBotAdds.clear();
 
   game.networkProjectiles.forEach((data) => {
     if (data.type === "missile") {

@@ -317,13 +317,20 @@ class SceneManager {
     const missile = [];
     model.updateMatrixWorld(true);
     model.traverse((child) => {
-      if (!child.isMesh) return;
-      const pos = new THREE.Vector3();
-      child.getWorldPosition(pos);
       const name = child.name || "";
-      if (name.startsWith("Enemy")) enemy.push(pos.clone());
-      else if (name.startsWith("Spawn")) player.push(pos.clone());
-      else if (name.startsWith("Missile")) missile.push(pos.clone());
+      if (name.startsWith("Enemy")) {
+        const pos = new THREE.Vector3();
+        child.getWorldPosition(pos);
+        enemy.push(pos.clone());
+      } else if (name.startsWith("Spawn")) {
+        const pos = new THREE.Vector3();
+        child.getWorldPosition(pos);
+        player.push(pos.clone());
+      } else if (name.startsWith("Missile")) {
+        const pos = new THREE.Vector3();
+        child.getWorldPosition(pos);
+        missile.push(pos.clone());
+      }
     });
     return { enemy, player, missile };
   }

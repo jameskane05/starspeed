@@ -14,22 +14,25 @@ import { LEVELS } from "../../data/gameData.js";
 import { SCREENS } from "../MenuManager.js";
 
 export function renderCreateGame(manager) {
+  const matchmakingActive = Boolean(manager.matchmakingMessage);
+  const dis = matchmakingActive ? "disabled" : "";
+
   manager.menuContent.innerHTML = `
     <div class="menu-screen create-game">
       <div class="create-game-wrapper">
         <div class="menu-header create-game-header">
-          <button class="back-btn" id="btn-back">← BACK</button>
+          <button class="back-btn" id="btn-back" ${dis}>← BACK</button>
           <h2>CREATE MATCH</h2>
         </div>
         <div class="menu-content">
         <div class="form-row form-row-top">
           <div class="form-group form-group-room-name">
             <label>ROOM NAME</label>
-            <input type="text" id="room-name" value="${manager.playerName}'s Arena" maxlength="24" />
+            <input type="text" id="room-name" value="${manager.playerName}'s Arena" maxlength="24" ${dis} />
           </div>
           <div class="form-group form-group-map">
             <label>MAP</label>
-            <select id="level-select" class="menu-select">
+            <select id="level-select" class="menu-select" ${dis}>
               ${Object.values(LEVELS)
                 .map(
                   (level) => `
@@ -44,15 +47,15 @@ export function renderCreateGame(manager) {
           <div class="form-group">
             <label>GAME MODE</label>
             <div class="mode-select stacked">
-              <button class="mode-btn selected" data-mode="ffa">FREE FOR ALL</button>
+              <button class="mode-btn selected" data-mode="ffa" ${dis}>FREE FOR ALL</button>
               <button class="mode-btn disabled" data-mode="team" disabled>TEAM BATTLE</button>
             </div>
           </div>
           <div class="form-group">
             <label>VISIBILITY</label>
             <div class="visibility-select stacked">
-              <button class="vis-btn selected" data-public="true">PUBLIC</button>
-              <button class="vis-btn" data-public="false">PRIVATE</button>
+              <button class="vis-btn selected" data-public="true" ${dis}>PUBLIC</button>
+              <button class="vis-btn" data-public="false" ${dis}>PRIVATE</button>
             </div>
           </div>
         </div>
@@ -60,32 +63,44 @@ export function renderCreateGame(manager) {
           <div class="form-group">
             <label>KILL LIMIT</label>
             <div class="limit-select">
-              <button class="limit-btn" data-limit="10">10</button>
-              <button class="limit-btn selected" data-limit="20">20</button>
-              <button class="limit-btn" data-limit="30">30</button>
-              <button class="limit-btn" data-limit="50">50</button>
+              <button class="limit-btn" data-limit="10" ${dis}>10</button>
+              <button class="limit-btn selected" data-limit="20" ${dis}>20</button>
+              <button class="limit-btn" data-limit="30" ${dis}>30</button>
+              <button class="limit-btn" data-limit="50" ${dis}>50</button>
             </div>
           </div>
           <div class="form-group">
             <label>MAX PLAYERS</label>
             <div class="players-select">
-              <button class="players-btn" data-players="2">2</button>
-              <button class="players-btn" data-players="4">4</button>
-              <button class="players-btn" data-players="6">6</button>
-              <button class="players-btn selected" data-players="8">8</button>
+              <button class="players-btn" data-players="2" ${dis}>2</button>
+              <button class="players-btn" data-players="4" ${dis}>4</button>
+              <button class="players-btn" data-players="6" ${dis}>6</button>
+              <button class="players-btn selected" data-players="8" ${dis}>8</button>
             </div>
           </div>
           <div class="form-group form-group-bots">
             <label class="ready-checkbox ready-checkbox-bots">
-              <input type="checkbox" id="bots-enabled" />
+              <input type="checkbox" id="bots-enabled" ${dis} />
               <span class="ready-checkmark"></span>
               <span class="ready-label">BOTS</span>
             </label>
           </div>
         </div>
-        <button class="menu-btn primary large" id="btn-create-room">LAUNCH ARENA</button>
+        <button class="menu-btn primary large" id="btn-create-room" ${dis}>LAUNCH ARENA</button>
       </div>
       </div>
+      ${
+        matchmakingActive
+          ? `
+      <div class="matchmaking-modal">
+        <div class="matchmaking-modal-content">
+          <div class="matchmaking-modal-title">MATCHMAKING</div>
+          <div class="matchmaking-modal-message">${manager.matchmakingMessage}</div>
+        </div>
+      </div>
+      `
+          : ""
+      }
     </div>
   `;
 

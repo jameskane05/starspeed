@@ -13,7 +13,30 @@
 
 import NetworkManager from "../../network/NetworkManager.js";
 import { LEVELS } from "../../data/gameData.js";
-import { SCREENS } from "../MenuManager.js";
+import {
+  LOBBY_COLOR_PALETTE,
+  normalizeLobbyHex,
+} from "../../data/lobbyColors.js";
+function isPaletteColorTakenByOther(players, sessionId, hex) {
+  const n = normalizeLobbyHex(hex);
+  for (const [sid, p] of players) {
+    if (sid === sessionId) continue;
+    if (normalizeLobbyHex(p.accentColor || "#00ffff") === n) return true;
+  }
+  return false;
+}
+
+function positionLobbyColorPopover() {
+  const btn = document.getElementById("btn-lobby-color");
+  const pop = document.getElementById("lobby-color-popover");
+  if (!btn || !pop) return;
+  const r = btn.getBoundingClientRect();
+  pop.style.position = "fixed";
+  pop.style.top = `${r.bottom + 6}px`;
+  pop.style.right = `${window.innerWidth - r.right}px`;
+  pop.style.left = "auto";
+  pop.style.bottom = "auto";
+}
 
 export function escapeHtml(text) {
   const div = document.createElement("div");
@@ -94,6 +117,32 @@ export function renderLobby(manager) {
   const canStart =
     isHost && players.length >= 1 && (allReady || players.length === 1);
 
+  const localAccent = (p) => normalizeLobbyHex(p.accentColor || "#00ffff");
+
+  const colorPickerHtml =
+    !isCountdown && state.phase === "lobby"
+      ? `
+      <div class="lobby-color-popover" id="lobby-color-popover">
+        <div class="lobby-color-grid">
+          ${LOBBY_COLOR_PALETTE.map((hex) => {
+            const taken = isPaletteColorTakenByOther(
+              players,
+              NetworkManager.sessionId,
+              hex,
+            );
+            return `
+            <button type="button" class="lobby-color-option${taken ? " taken" : ""}"
+              data-color="${hex}"
+              style="--swatch:${hex}"
+              ${taken ? "disabled" : ""}
+              aria-label="${taken ? "Taken" : "Select color"}"
+            ></button>`;
+          }).join("")}
+        </div>
+      </div>
+    `
+      : "";
+
   manager.menuContent.innerHTML = `
     <div class="menu-screen lobby">
       <div class="lobby-wrapper">
@@ -133,7 +182,20 @@ export function renderLobby(manager) {
           <div class="player-list">
             ${players
               .map(
-                ([sessionId, player]) => `
+                ([sessionId, player]) => {
+                  const accent = localAccent(player);
+                  const showPicker =
+                    sessionId === NetworkManager.sessionId &&
+                    !isCountdown &&
+                    state.phase === "lobby";
+                  const swatchEl = showPicker
+                    ? `
+                  <div class="lobby-color-wrap">
+                    <button type="button" class="lobby-color-swatch" id="btn-lobby-color" style="background:${accent}" aria-label="Choose accent color"></button>
+                  </div>`
+                    : `
+                  <span class="lobby-color-swatch readonly" style="background:${accent}" title="" aria-hidden="true"></span>`;
+                  return `
               <div class="player-card ${player.ready ? "ready" : ""} ${sessionId === NetworkManager.sessionId ? "local" : ""} ${state.mode === "team" ? `team-${player.team}` : ""}">
                 <div class="player-info">
                   <span class="player-name">${player.name}${state.hostId === sessionId ? " ★" : ""}</span>
@@ -156,12 +218,17 @@ export function renderLobby(manager) {
                       : ""
                   }
                   <div class="player-status">${player.ready ? "READY" : "..."}</div>
+                  ${swatchEl}
                 </div>
               </div>
-            `,
+            `;
+                },
               )
               .join("")}
           </div>
+          ${
+            !isCountdown && state.phase === "lobby" ? colorPickerHtml : ""
+          }
           
           <div class="chat-section">
             <div class="chat-messages" id="chat-messages">
@@ -270,8 +337,59 @@ export function renderLobby(manager) {
     ) {
       tooltip.classList.remove("active");
     }
+    const colorPop = document.getElementById("lobby-color-popover");
+    if (
+      colorPop?.classList.contains("active") &&
+      !e.target.closest(".lobby-color-wrap") &&
+      !e.target.closest("#lobby-color-popover")
+    ) {
+      colorPop.classList.remove("active");
+    }
   };
   document.addEventListener("click", manager._shareTooltipOutsideClick);
+
+  if (manager._lobbyColorOverlayCleanup) {
+    manager._lobbyColorOverlayCleanup();
+    manager._lobbyColorOverlayCleanup = null;
+  }
+
+  const swatchBtn = document.getElementById("btn-lobby-color");
+  const colorPop = document.getElementById("lobby-color-popover");
+  if (swatchBtn && colorPop) {
+    swatchBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const opening = !colorPop.classList.contains("active");
+      if (opening) {
+        colorPop.classList.add("active");
+        requestAnimationFrame(() => positionLobbyColorPopover());
+      } else {
+        colorPop.classList.remove("active");
+      }
+    });
+    colorPop.querySelectorAll(".lobby-color-option:not(.taken)").forEach((opt) => {
+      opt.addEventListener("click", (e) => {
+        e.stopPropagation();
+        NetworkManager.sendLobbyColor(opt.dataset.color);
+        colorPop.classList.remove("active");
+      });
+    });
+
+    const closeColorPop = () =>
+      document.getElementById("lobby-color-popover")?.classList.remove("active");
+    const playerListEl = document.querySelector(".lobby .player-list");
+    const onListScroll = () => closeColorPop();
+    const onResize = () => closeColorPop();
+    if (playerListEl) {
+      playerListEl.addEventListener("scroll", onListScroll, { passive: true });
+    }
+    window.addEventListener("resize", onResize);
+    manager._lobbyColorOverlayCleanup = () => {
+      if (playerListEl) {
+        playerListEl.removeEventListener("scroll", onListScroll);
+      }
+      window.removeEventListener("resize", onResize);
+    };
+  }
 
   document.getElementById("chk-ready")?.addEventListener("change", () => {
     NetworkManager.toggleReady();

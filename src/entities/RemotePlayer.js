@@ -32,6 +32,36 @@ const TEAM_COLORS = {
   2: 0x4488ff,
 };
 
+function trailColorHexFromPlayerData(playerData, teamMode, team, shipClass) {
+  const hex = playerData.accentColor;
+  if (hex) {
+    const c = new THREE.Color();
+    try {
+      c.set(hex);
+      return c.getHex();
+    } catch {
+      /* fallback below */
+    }
+  }
+  if (teamMode && team > 0) return TEAM_COLORS[team];
+  return SHIP_COLORS[shipClass] ?? 0x00f0ff;
+}
+
+function nameLabelColorFromPlayerData(playerData, teamMode, team) {
+  const hex = playerData.accentColor;
+  if (hex) {
+    const c = new THREE.Color();
+    try {
+      c.set(hex);
+      return `#${c.getHexString()}`;
+    } catch {
+      /* fallback below */
+    }
+  }
+  if (teamMode && team > 0) return team === 1 ? "#ff4455" : "#4488ff";
+  return "#00f0ff";
+}
+
 let exteriorModel = null;
 let exteriorLoading = null;
 
@@ -58,8 +88,7 @@ async function loadExteriorModel() {
 }
 
 const _engineColorBlack = new THREE.Color(0x000000);
-const _engineColorGlow = new THREE.Color(0xbbddff);
-const _engineColorBoost = new THREE.Color(0xddffff);
+const _white = new THREE.Color(0xffffff);
 const _velocity = new THREE.Vector3();
 const _enginePos = new THREE.Vector3();
 const GUN_RETRACT_AMOUNT = 0.06;
@@ -92,6 +121,10 @@ export class RemotePlayer {
     this.gunRetractionR = 0;
     this.fireFromLeft = true;
     this.missileFromLeft = true;
+    this.accentColor = playerData.accentColor || "";
+    this._engineTintIdle = new THREE.Color();
+    this._engineTintBoost = new THREE.Color();
+    this._refreshEngineFaceTints();
 
     this.interpolation = new Interpolation({
       bufferSize: 5,
@@ -117,12 +150,24 @@ export class RemotePlayer {
     scene.add(this.mesh);
   }
 
+  _refreshEngineFaceTints() {
+    const hex = trailColorHexFromPlayerData(
+      { accentColor: this.accentColor },
+      this.teamMode,
+      this.team,
+      this.shipClass,
+    );
+    const base = new THREE.Color(hex);
+    this._engineTintIdle.copy(base).lerp(_white, 0.48);
+    this._engineTintBoost.copy(base).lerp(_white, 0.08);
+  }
+
   async createShipMesh() {
     const model = await loadExteriorModel();
 
     if (model) {
       const clone = model.clone();
-      clone.scale.setScalar(0.5);
+      clone.scale.setScalar(1);
       clone.rotation.set(0, Math.PI, 0);
 
       clone.traverse((child) => {
@@ -152,10 +197,12 @@ export class RemotePlayer {
           "[RemotePlayer] Ship model missing Engine_L and/or Engine_R; trail VFX disabled.",
         );
       } else {
-        const trailColor =
-          this.teamMode && this.team > 0
-            ? TEAM_COLORS[this.team]
-            : (SHIP_COLORS[this.shipClass] ?? 0x00f0ff);
+        const trailColor = trailColorHexFromPlayerData(
+          { accentColor: this.accentColor },
+          this.teamMode,
+          this.team,
+          this.shipClass,
+        );
         this.engineTrails = [
           new EngineTrail(this.scene, {
             maxPoints: 64,
@@ -180,10 +227,12 @@ export class RemotePlayer {
       const geo = new THREE.ConeGeometry(0.5, 1.5, 8);
       geo.rotateX(Math.PI / 2);
 
-      const color =
-        this.teamMode && this.team > 0
-          ? TEAM_COLORS[this.team]
-          : SHIP_COLORS[this.shipClass] || 0x00f0ff;
+      const color = trailColorHexFromPlayerData(
+        { accentColor: this.accentColor },
+        this.teamMode,
+        this.team,
+        this.shipClass,
+      );
 
       const mat = new THREE.MeshStandardMaterial({
         color: color,
@@ -198,9 +247,12 @@ export class RemotePlayer {
     }
 
     const engineGlow = new THREE.PointLight(
-      this.teamMode && this.team > 0
-        ? TEAM_COLORS[this.team]
-        : SHIP_COLORS[this.shipClass],
+      trailColorHexFromPlayerData(
+        { accentColor: this.accentColor },
+        this.teamMode,
+        this.team,
+        this.shipClass,
+      ),
       2,
       8,
     );
@@ -220,12 +272,11 @@ export class RemotePlayer {
 
     ctx.font = "bold 24px Rajdhani, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillStyle =
-      this.teamMode && this.team > 0
-        ? this.team === 1
-          ? "#ff4455"
-          : "#4488ff"
-        : "#00f0ff";
+    ctx.fillStyle = nameLabelColorFromPlayerData(
+      { accentColor: this.accentColor },
+      this.teamMode,
+      this.team,
+    );
     ctx.fillText(this.name, 128, 40);
 
     const texture = new THREE.CanvasTexture(canvas);
@@ -242,12 +293,25 @@ export class RemotePlayer {
   }
 
   updateFromServer(playerData, timestamp = Date.now()) {
+    const prevAccent = this.accentColor;
+    const prevTeam = this.team;
+    const prevClass = this.shipClass;
     this.health = playerData.health;
     this.maxHealth = playerData.maxHealth;
     this.alive = playerData.alive;
     this.shipClass = playerData.shipClass;
     this.team = playerData.team;
     this.isBoosting = playerData.isBoosting ?? false;
+    if (playerData.accentColor !== undefined) {
+      this.accentColor = playerData.accentColor || "";
+    }
+    if (
+      this.accentColor !== prevAccent ||
+      this.team !== prevTeam ||
+      this.shipClass !== prevClass
+    ) {
+      this._refreshEngineFaceTints();
+    }
 
     if (this.alive) {
       this.interpolation.pushState(
@@ -297,14 +361,15 @@ export class RemotePlayer {
     const boostGlow = this.isBoosting ? 1 : 0;
     for (const mat of this.engineMaterials) {
       if (!mat.color || !mat.emissive) continue;
+      const tintEnd = boostGlow > 0 ? this._engineTintBoost : this._engineTintIdle;
       mat.color.lerpColors(
         _engineColorBlack,
-        boostGlow > 0 ? _engineColorBoost : _engineColorGlow,
+        tintEnd,
         this.engineGlowT,
       );
       mat.emissive.lerpColors(
         _engineColorBlack,
-        boostGlow > 0 ? _engineColorBoost : _engineColorGlow,
+        tintEnd,
         this.engineGlowT,
       );
       mat.emissiveIntensity =

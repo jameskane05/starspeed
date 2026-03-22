@@ -26,7 +26,10 @@ import {
   SplatEditRgbaBlendMode,
 } from "@sparkjsdev/spark";
 import { castSphere, checkSphereCollision } from "../physics/Physics.js";
-import { Projectile } from "../entities/Projectile.js";
+import {
+  Projectile,
+  PLAYER_LASER_INTENSITY,
+} from "../entities/Projectile.js";
 import { Missile } from "../entities/Missile.js";
 import { KineticMissile } from "../entities/KineticMissile.js";
 import { Explosion } from "../entities/Explosion.js";
@@ -142,7 +145,9 @@ export function createProjectileSplatLight(game, isPlayerOwned, visual) {
   if (!game.projectileSplatLayer) return null;
   try {
     const color = isPlayerOwned
-      ? new THREE.Color(0.04, 0.06, 0.08)
+      ? visual?.color !== undefined
+        ? new THREE.Color(visual.color).multiplyScalar(0.08)
+        : new THREE.Color(0.04, 0.06, 0.08)
       : visual?.color
         ? new THREE.Color(visual.color).multiplyScalar(0.08)
         : new THREE.Color(0.07, 0.04, 0.03);
@@ -157,6 +162,20 @@ export function createProjectileSplatLight(game, isPlayerOwned, visual) {
   } catch {
     return null;
   }
+}
+
+function getLocalPlayerLaserVisual(game) {
+  if (!game.isMultiplayer) return null;
+  const lp = NetworkManager.getLocalPlayer();
+  const hex = lp?.accentColor;
+  if (!hex) return null;
+  const col = new THREE.Color();
+  try {
+    col.set(hex);
+  } catch {
+    return null;
+  }
+  return { color: col.getHex(), intensity: PLAYER_LASER_INTENSITY };
 }
 
 export function firePlayerWeapon(game) {
@@ -187,21 +206,23 @@ export function firePlayerWeapon(game) {
     NetworkManager.sendFire("laser", spawnPos, _fireDir);
   }
 
-  const splatLight = createProjectileSplatLight(game, true, null);
+  const laserVisual = getLocalPlayerLaserVisual(game);
+  const splatLight = createProjectileSplatLight(game, true, laserVisual);
   const projectile = new Projectile(
     game.scene,
     spawnPos,
     _fireDir,
     true,
     null,
-    null,
+    laserVisual,
     splatLight,
   );
   game.projectiles.push(projectile);
 
   sfxManager.play("laser", spawnPos);
 
-  game.dynamicLights?.flash(spawnPos, 0x00ffff, {
+  const flashHex = laserVisual?.color ?? 0x00ffff;
+  game.dynamicLights?.flash(spawnPos, flashHex, {
     intensity: 10,
     distance: 16,
     ttl: 0.05,
@@ -580,6 +601,16 @@ export function checkCollisions(game) {
         if (remote.mesh) {
           const distSq = missilePos.distanceToSquared(remote.mesh.position);
           if (distSq < 4) {
+            exploded = true;
+            break;
+          }
+        }
+      }
+      if (!exploded && game.networkBots?.size) {
+        for (const [, entry] of game.networkBots) {
+          if (!entry?.mesh) continue;
+          const distSq = missilePos.distanceToSquared(entry.mesh.position);
+          if (distSq < 9) {
             exploded = true;
             break;
           }
