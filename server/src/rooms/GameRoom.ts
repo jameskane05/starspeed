@@ -6,7 +6,7 @@ import {
   paletteIncludesNormalized,
   pickFirstFreeAccentColor,
   pickRandomFreeAccentColor,
-} from "../../../src/data/lobbyColors.js";
+} from "../shared/lobbyColors.js";
 
 const SHIP_CLASSES = {
   fighter: { speed: 1.0, health: 100, missiles: 6, maxMissiles: 6, laserSpeed: 200, missileSpeed: 56, missileDamage: 75 },
