@@ -24,7 +24,10 @@ const CLOUD_SERVER_URL =
   "https://us-ord-23ba76a6.colyseus.cloud";
 const LOCAL_SERVER_URL = "ws://localhost:2567";
 
-const isLocalDev = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+const isLocalDev =
+  typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1");
 
 class NetworkManager {
   constructor() {
@@ -33,15 +36,17 @@ class NetworkManager {
     this.sessionId = null;
     this.eventListeners = {};
     this.connected = false;
-    this.serverUrl = isLocalDev ? LOCAL_SERVER_URL : (CLOUD_SERVER_URL || LOCAL_SERVER_URL);
-    
+    this.serverUrl = isLocalDev
+      ? LOCAL_SERVER_URL
+      : CLOUD_SERVER_URL || LOCAL_SERVER_URL;
+
     this.inputSequence = 0;
     this.pendingInputs = [];
   }
 
   async connect(serverUrl = null) {
     if (serverUrl) this.serverUrl = serverUrl;
-    
+
     try {
       this.client = new Colyseus.Client(this.serverUrl);
       this.connected = true;
@@ -72,16 +77,16 @@ class NetworkManager {
         maxPlayers: options.maxPlayers || 8,
         botsEnabled: options.botsEnabled === true,
       };
-      
+
       if (options.roomId) {
         createOptions.roomId = options.roomId;
       }
-      
+
       this.room = await this.client.create("game_room", createOptions);
-      
+
       this.sessionId = this.room.sessionId;
       this.setupRoomListeners(true);
-      
+
       console.log("[Network] Room created:", this.room.roomId);
       return this.room;
     } catch (err) {
@@ -102,10 +107,10 @@ class NetworkManager {
         name: options.playerName || "Player",
         quickMatch: options.quickMatch === true,
       });
-      
+
       this.sessionId = this.room.sessionId;
       this.setupRoomListeners(false);
-      
+
       console.log("[Network] Joined room:", roomId);
       return this.room;
     } catch (err) {
@@ -129,10 +134,10 @@ class NetworkManager {
         autoStart: options.autoStart || false,
         quickMatch: options.quickMatch === true,
       });
-      
+
       this.sessionId = this.room.sessionId;
       this.setupRoomListeners(false);
-      
+
       console.log("[Network] Joined/created room:", this.room.roomId);
       return this.room;
     } catch (err) {
@@ -144,11 +149,11 @@ class NetworkManager {
 
   async getAvailableRooms() {
     if (!this.client) return [];
-    
+
     try {
       const response = await this.client.http.get("/api/rooms");
-      const rooms = Array.isArray(response) ? response : (response?.data || []);
-      return rooms.filter(r => r.metadata?.isPublic !== false);
+      const rooms = Array.isArray(response) ? response : response?.data || [];
+      return rooms.filter((r) => r.metadata?.isPublic !== false);
     } catch (err) {
       console.error("[Network] Failed to get rooms:", err);
       return [];
@@ -157,11 +162,11 @@ class NetworkManager {
 
   async checkRoomExists(roomId) {
     if (!this.client || !roomId) return false;
-    
+
     try {
       const response = await this.client.http.get("/api/rooms");
-      const rooms = Array.isArray(response) ? response : (response?.data || []);
-      return rooms.some(r => r.roomId.toUpperCase() === roomId.toUpperCase());
+      const rooms = Array.isArray(response) ? response : response?.data || [];
+      return rooms.some((r) => r.roomId.toUpperCase() === roomId.toUpperCase());
     } catch (err) {
       console.error("[Network] Failed to check room:", err);
       return false;
@@ -186,7 +191,7 @@ class NetworkManager {
 
     this.room.onStateChange((state) => {
       this.emit("stateChange", state);
-      
+
       // Manually track players since onAdd may not fire reliably
       if (state.players) {
         const currentIds = new Set();
@@ -194,10 +199,22 @@ class NetworkManager {
           currentIds.add(sessionId);
           if (!this._knownPlayers.has(sessionId)) {
             this._knownPlayers.add(sessionId);
-            console.log("[Network] New player detected via state change:", sessionId, player.name);
-            this.emit("playerJoin", { player, sessionId, isLocal: sessionId === this.sessionId });
+            console.log(
+              "[Network] New player detected via state change:",
+              sessionId,
+              player.name,
+            );
+            this.emit("playerJoin", {
+              player,
+              sessionId,
+              isLocal: sessionId === this.sessionId,
+            });
           }
-          this.emit("playerUpdate", { player, sessionId, isLocal: sessionId === this.sessionId });
+          this.emit("playerUpdate", {
+            player,
+            sessionId,
+            isLocal: sessionId === this.sessionId,
+          });
         });
         // Remove players that no longer exist
         this._knownPlayers.forEach((sessionId) => {
@@ -207,7 +224,7 @@ class NetworkManager {
           }
         });
       }
-      
+
       // Manually track projectiles since onAdd may not fire reliably
       if (state.projectiles) {
         const currentIds = new Set();
@@ -215,7 +232,10 @@ class NetworkManager {
           currentIds.add(id);
           if (!this._knownProjectiles.has(id)) {
             this._knownProjectiles.add(id);
-            console.log("[Network] New projectile detected via state change:", id);
+            console.log(
+              "[Network] New projectile detected via state change:",
+              id,
+            );
             this.emit("projectileSpawn", { projectile, id });
           }
         });
@@ -294,10 +314,18 @@ class NetworkManager {
     if (state.players) {
       state.players.onAdd = (player, sessionId) => {
         console.log("[Network] Player onAdd fired:", sessionId);
-        this.emit("playerJoin", { player, sessionId, isLocal: sessionId === this.sessionId });
-        
+        this.emit("playerJoin", {
+          player,
+          sessionId,
+          isLocal: sessionId === this.sessionId,
+        });
+
         player.onChange = () => {
-          this.emit("playerUpdate", { player, sessionId, isLocal: sessionId === this.sessionId });
+          this.emit("playerUpdate", {
+            player,
+            sessionId,
+            isLocal: sessionId === this.sessionId,
+          });
         };
       };
 
@@ -310,9 +338,15 @@ class NetworkManager {
     // Projectiles collection
     if (state.projectiles) {
       state.projectiles.onAdd = (projectile, id) => {
-        console.log("[Network] Projectile spawned:", id, projectile.type, "owner:", projectile.ownerId);
+        console.log(
+          "[Network] Projectile spawned:",
+          id,
+          projectile.type,
+          "owner:",
+          projectile.ownerId,
+        );
         this.emit("projectileSpawn", { projectile, id });
-        
+
         // Listen for position/direction updates (for homing missiles)
         projectile.onChange = () => {
           this.emit("projectileUpdate", { projectile, id });
@@ -348,30 +382,33 @@ class NetworkManager {
       console.log("[Network] sendInput: phase is", this.room.state.phase);
       return;
     }
-    
+
     this.inputSequence++;
     const input = {
       ...inputData,
       seq: this.inputSequence,
     };
-    
+
     this.pendingInputs.push(input);
-    
+
     if (this.pendingInputs.length > 64) {
       this.pendingInputs.shift();
     }
-    
+
     this.room.send("input", input);
-    
+
     return this.inputSequence;
   }
 
   sendFire(weapon, position, direction, extraData = {}) {
     if (!this.room || this.room.state.phase !== "playing") {
-      console.log("[Network] sendFire blocked - phase:", this.room?.state?.phase);
+      console.log(
+        "[Network] sendFire blocked - phase:",
+        this.room?.state?.phase,
+      );
       return;
     }
-    
+
     console.log("[Network] Sending fire:", weapon);
     this.room.send("fire", {
       ...extraData,
@@ -435,10 +472,27 @@ class NetworkManager {
 
   sendSpawnPoints({ enemySpawns, playerSpawns, missileSpawns, bounds }) {
     if (!this.room) return;
-    const mapPts = (arr) => (arr || []).map((p) => ({ x: p.x, y: p.y, z: p.z }));
+    const mapPts = (arr) =>
+      (arr || []).map((p) => ({ x: p.x, y: p.y, z: p.z }));
+    const mapPlayerSpawns = (arr) =>
+      (arr || []).map((p) => {
+        const o = { x: p.x, y: p.y, z: p.z };
+        if (
+          p.qx !== undefined &&
+          p.qy !== undefined &&
+          p.qz !== undefined &&
+          p.qw !== undefined
+        ) {
+          o.qx = p.qx;
+          o.qy = p.qy;
+          o.qz = p.qz;
+          o.qw = p.qw;
+        }
+        return o;
+      });
     const payload = {
       points: mapPts(enemySpawns),
-      playerSpawns: mapPts(playerSpawns),
+      playerSpawns: mapPlayerSpawns(playerSpawns),
       missileSpawns: mapPts(missileSpawns),
     };
     if (bounds?.center && bounds?.size) {
@@ -488,11 +542,13 @@ class NetworkManager {
   }
 
   getPendingInputs(afterSeq) {
-    return this.pendingInputs.filter(input => input.seq > afterSeq);
+    return this.pendingInputs.filter((input) => input.seq > afterSeq);
   }
 
   clearProcessedInputs(upToSeq) {
-    this.pendingInputs = this.pendingInputs.filter(input => input.seq > upToSeq);
+    this.pendingInputs = this.pendingInputs.filter(
+      (input) => input.seq > upToSeq,
+    );
   }
 
   on(event, callback) {
@@ -513,7 +569,7 @@ class NetworkManager {
 
   emit(event, data) {
     if (this.eventListeners[event]) {
-      this.eventListeners[event].forEach(cb => cb(data));
+      this.eventListeners[event].forEach((cb) => cb(data));
     }
   }
 }

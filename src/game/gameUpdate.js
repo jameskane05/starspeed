@@ -34,6 +34,49 @@ const _unitForward = new THREE.Vector3();
 const _networkBotTargetPos = new THREE.Vector3();
 const _networkBotTargetQuat = new THREE.Quaternion();
 
+const MISSILE_BOT_POOL_START = 32;
+
+function buildMissileTargets(game) {
+  let mt = game._missileTargetsScratch;
+  if (!mt) mt = game._missileTargetsScratch = [];
+  mt.length = 0;
+  for (let i = 0; i < game.enemies.length; i++) {
+    mt.push(game.enemies[i]);
+  }
+  game.remotePlayers.forEach((remote) => {
+    mt.push(remote);
+  });
+  if (game.isMultiplayer && game.networkBots?.size) {
+    const roomState = NetworkManager.getState();
+    const bots = roomState?.bots;
+    if (!bots) return mt;
+    let pool = game._missileBotTargetPool;
+    if (!pool) {
+      pool = game._missileBotTargetPool = [];
+      for (let k = 0; k < MISSILE_BOT_POOL_START; k++) {
+        pool.push({ mesh: null, health: 0, alive: true });
+      }
+    }
+    let bi = 0;
+    bots.forEach((bot, id) => {
+      const entry = game.networkBots.get(id);
+      if (!entry?.mesh) return;
+      let d = pool[bi];
+      if (!d) {
+        d = { mesh: null, health: 0, alive: true };
+        pool.push(d);
+      }
+      bi++;
+      const h = bot.health ?? 0;
+      d.mesh = entry.mesh;
+      d.health = h;
+      d.alive = h > 0;
+      mt.push(d);
+    });
+  }
+  return mt;
+}
+
 function restoreBaseCameraLayers(game) {
   if (!game.camera) return;
   if (game._baseCameraLayerMask == null) {
@@ -81,6 +124,10 @@ export function tick(game, delta, timestamp, frame) {
     proceduralAudio.shieldRechargeStop();
     proceduralAudio.boosterRechargeStop();
     game._boostFuelRechargePrev = null;
+    if (game.sparkRenderer) {
+      game._boostDoFApertureAngle = 0;
+      game.sparkRenderer.apertureAngle = 0;
+    }
   }
 
   if (game.xrManager) {
@@ -183,6 +230,7 @@ export function tick(game, delta, timestamp, frame) {
             entry.mesh.position.lerp(_networkBotTargetPos, smooth);
             _networkBotTargetQuat.set(bot.qx, bot.qy, bot.qz, bot.qw);
             entry.mesh.quaternion.slerp(_networkBotTargetQuat, smooth);
+            entry.spawnWarp?.update?.(delta);
           }
         });
       }
@@ -200,6 +248,16 @@ export function tick(game, delta, timestamp, frame) {
     }
 
     if (!game.isMultiplayer) {
+      // Respawns before enemy.update so pooled bots get spawnWarp.update() the same frame
+      // they become visible (otherwise first paint can miss dissolve / look like a pop-in).
+      game.tickEnemyRespawns(delta);
+    }
+
+    // Before solo enemy.update: wave spawns (training / mission) run here so new bots get
+    // spawnWarp.update(delta) in the same frame they are activated.
+    game.missionManager?.update(delta);
+
+    if (!game.isMultiplayer) {
       const cullDist =
         game.gameManager.getPerformanceProfile().enemyCullDistance ?? 200;
       for (let i = 0; i < game.enemies.length; i++) {
@@ -211,29 +269,11 @@ export function tick(game, delta, timestamp, frame) {
           cullDist,
         );
       }
-      game.tickEnemyRespawns(delta);
     }
-
-    game.missionManager?.update(delta);
 
     game.projectiles.forEach((proj) => proj.update(delta));
 
-    const missileTargets = [
-      ...game.enemies,
-      ...Array.from(game.remotePlayers.values()),
-    ];
-    if (game.isMultiplayer && game.networkBots?.size) {
-      const roomState = NetworkManager.getState();
-      roomState?.bots?.forEach?.((bot, id) => {
-        const entry = game.networkBots.get(id);
-        if (!entry?.mesh) return;
-        missileTargets.push({
-          mesh: entry.mesh,
-          health: bot.health ?? 0,
-          alive: (bot.health ?? 0) > 0,
-        });
-      });
-    }
+    const missileTargets = buildMissileTargets(game);
     game.missiles.forEach((m) => m.update(delta, missileTargets));
 
     if (game.isMultiplayer) {

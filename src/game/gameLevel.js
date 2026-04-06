@@ -68,7 +68,9 @@ export async function preloadLevel(game) {
 
         loads.push(
           game.sceneManager
-            .loadObject(obj, (progress) => tracker?.updateTask(taskId, progress))
+            .loadObject(obj, (progress) =>
+              tracker?.updateTask(taskId, progress),
+            )
             .then((result) => {
               tracker?.completeTask(taskId);
               return result;
@@ -110,7 +112,9 @@ export async function loadLevelAndStart(game) {
   });
 
   const objectsToLoad = getSceneObjectsForState(game.gameManager.getState());
-  const toLoad = objectsToLoad.filter((obj) => !game.sceneManager.hasObject(obj.id));
+  const toLoad = objectsToLoad.filter(
+    (obj) => !game.sceneManager.hasObject(obj.id),
+  );
   const n = toLoad.length;
   const progressByIndex = n ? new Array(n).fill(0) : [];
   const report = (index, p) => {
@@ -137,19 +141,34 @@ export async function loadLevelAndStart(game) {
   MenuManager.loadingComplete();
 }
 
-function saveLevelSpawnCache(game, level, enemyArr, playerArr, missileArr) {
+function saveLevelSpawnCache(
+  game,
+  level,
+  enemyArr,
+  playerArr,
+  missileArr,
+  goalArr = [],
+  playerMarkerQuats = null,
+) {
   if (
     enemyArr.length === 0 &&
     playerArr.length === 0 &&
-    missileArr.length === 0
+    missileArr.length === 0 &&
+    goalArr.length === 0
   ) {
     return;
   }
+  const markerQuats =
+    playerMarkerQuats && playerMarkerQuats.length === playerArr.length
+      ? playerMarkerQuats
+      : playerArr.map((_, i) => playerMarkerQuats?.[i] ?? null);
   game._levelSpawnCache = {
     level,
     enemy: enemyArr.map((v) => v.clone()),
     player: playerArr.map((v) => v.clone()),
     missile: missileArr.map((v) => v.clone()),
+    goals: goalArr.map((v) => v.clone()),
+    playerMarkerQuats: markerQuats.map((q) => (q ? q.clone() : null)),
   };
 }
 
@@ -164,10 +183,30 @@ function applyLevelBounds(game) {
   }
 }
 
+function extractOrderedGoalsFromObject(root) {
+  if (!root?.traverse) return [];
+  const goalOrder = ["Goal", "Goal.001", "Goal.002"];
+  const goalMap = new Map();
+  root.updateMatrixWorld?.(true);
+  root.traverse((child) => {
+    const name = child?.name;
+    if (!goalOrder.includes(name)) return;
+    const pos = new THREE.Vector3();
+    child.getWorldPosition(pos);
+    goalMap.set(name, pos);
+  });
+  return goalOrder
+    .map((name) => goalMap.get(name))
+    .filter(Boolean)
+    .map((goalPosition) => goalPosition.clone());
+}
+
 export function extractSpawnPoints(game) {
   game.spawnPoints = [];
   game.playerSpawnPoints = [];
+  game.playerSpawnMarkerQuaternions = [];
   game.missileSpawnPoints = [];
+  game.trainingGoalPoints = [];
   game.dynamicSceneElementManager?.setElements([]);
 
   const level = game.gameManager.getState().currentLevel;
@@ -181,23 +220,39 @@ export function extractSpawnPoints(game) {
   }
 
   if (levelData?.userData?.extractedSpawnPoints) {
-    const { enemy, player, missile } =
-      levelData.userData.extractedSpawnPoints;
+    const {
+      enemy,
+      player,
+      playerMarkerQuaternions = [],
+      missile,
+      goals = [],
+    } = levelData.userData.extractedSpawnPoints;
     game.spawnPoints = enemy.map((v) => v.clone());
     game.playerSpawnPoints = player.map((v) => v.clone());
+    game.playerSpawnMarkerQuaternions = game.playerSpawnPoints.map((_, i) =>
+      playerMarkerQuaternions[i]
+        ? playerMarkerQuaternions[i].clone()
+        : null,
+    );
     game.missileSpawnPoints = missile.map((v) => v.clone());
+    game.trainingGoalPoints =
+      goals.length > 0
+        ? goals.map((v) => v.clone())
+        : extractOrderedGoalsFromObject(levelData);
     saveLevelSpawnCache(
       game,
       level,
       game.spawnPoints,
       game.playerSpawnPoints,
       game.missileSpawnPoints,
+      game.trainingGoalPoints,
+      game.playerSpawnMarkerQuaternions,
     );
     game.dynamicSceneElementManager?.setElements(
       levelData.userData.dynamicSceneElements || [],
     );
     console.log(
-      `[Game] Parsed ${levelDataId}: ${game.spawnPoints.length} enemies, ${game.playerSpawnPoints.length} player spawns, ${game.missileSpawnPoints.length} missile pickups`,
+      `[Game] Parsed ${levelDataId}: ${game.spawnPoints.length} enemies, ${game.playerSpawnPoints.length} player spawns, ${game.missileSpawnPoints.length} missile pickups, ${game.trainingGoalPoints.length} goals`,
     );
     applyLevelBounds(game);
     return;
@@ -207,14 +262,20 @@ export function extractSpawnPoints(game) {
     game._levelSpawnCache &&
     game._levelSpawnCache.level === level &&
     (game._levelSpawnCache.enemy.length > 0 ||
-      game._levelSpawnCache.player.length > 0)
+      game._levelSpawnCache.player.length > 0 ||
+      game._levelSpawnCache.goals?.length > 0)
   ) {
     const c = game._levelSpawnCache;
     game.spawnPoints = c.enemy.map((v) => v.clone());
     game.playerSpawnPoints = c.player.map((v) => v.clone());
+    game.playerSpawnMarkerQuaternions = game.playerSpawnPoints.map((_, i) => {
+      const q = c.playerMarkerQuats?.[i];
+      return q ? q.clone() : null;
+    });
     game.missileSpawnPoints = c.missile.map((v) => v.clone());
+    game.trainingGoalPoints = (c.goals || []).map((v) => v.clone());
     console.log(
-      `[Game] Restored ${level} spawns from cache (${game.spawnPoints.length} enemies, ${game.playerSpawnPoints.length} player spawns, ${game.missileSpawnPoints.length} missile pickups)`,
+      `[Game] Restored ${level} spawns from cache (${game.spawnPoints.length} enemies, ${game.playerSpawnPoints.length} player spawns, ${game.missileSpawnPoints.length} missile pickups, ${game.trainingGoalPoints.length} goals)`,
     );
     applyLevelBounds(game);
     return;
@@ -229,6 +290,7 @@ export function extractSpawnPoints(game) {
 
   if (spawnModel) {
     spawnModel.updateMatrixWorld(true);
+    const spawnEntries = [];
     spawnModel.traverse((child) => {
       const name = child.name || "";
       if (
@@ -241,9 +303,24 @@ export function extractSpawnPoints(game) {
       const pos = new THREE.Vector3();
       child.getWorldPosition(pos);
       if (name.startsWith("Enemy")) game.spawnPoints.push(pos.clone());
-      else if (name.startsWith("Spawn")) game.playerSpawnPoints.push(pos.clone());
-      else if (name.startsWith("Missile")) game.missileSpawnPoints.push(pos.clone());
+      else if (name.startsWith("Spawn")) {
+        const quat = new THREE.Quaternion();
+        child.getWorldQuaternion(quat);
+        spawnEntries.push({
+          name,
+          position: pos.clone(),
+          quaternion: quat.clone(),
+        });
+      } else if (name.startsWith("Missile"))
+        game.missileSpawnPoints.push(pos.clone());
     });
+    spawnEntries.sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { numeric: true }),
+    );
+    for (const e of spawnEntries) {
+      game.playerSpawnPoints.push(e.position);
+      game.playerSpawnMarkerQuaternions.push(e.quaternion);
+    }
     game.sceneManager.removeObject(spawnId);
     saveLevelSpawnCache(
       game,
@@ -251,6 +328,8 @@ export function extractSpawnPoints(game) {
       game.spawnPoints,
       game.playerSpawnPoints,
       game.missileSpawnPoints,
+      game.trainingGoalPoints,
+      game.playerSpawnMarkerQuaternions,
     );
     console.log(
       `[Game] Parsed ${spawnId}: ${game.spawnPoints.length} enemies, ${game.playerSpawnPoints.length} player spawns, ${game.missileSpawnPoints.length} missile pickups`,
@@ -285,6 +364,8 @@ export function extractSpawnPoints(game) {
       game.spawnPoints,
       game.playerSpawnPoints,
       game.missileSpawnPoints,
+      game.trainingGoalPoints,
+      game.playerSpawnMarkerQuaternions,
     );
     console.log(
       `[Game] Extracted ${game.spawnPoints.length} spawn points from occlusion mesh (fallback)`,

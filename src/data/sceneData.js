@@ -39,6 +39,28 @@ export const sceneObjects = {
     },
   },
 
+  charonLevelData: {
+    id: "charonLevelData",
+    type: "gltf",
+    path: "./splats/charon-data.glb",
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: 1,
+    priority: 95,
+    preload: false,
+    gizmo: false,
+    options: {
+      occluder: true,
+      debugWireframe: false,
+      physicsCollider: true,
+      combinedLevel: { geometryName: "LevelGeometry" },
+    },
+    criteria: {
+      currentLevel: "charon",
+      currentState: { $in: [GAME_STATES.PLAYING, GAME_STATES.PAUSED] },
+    },
+  },
+
   newworldLevel: {
     id: "newworldLevel",
     type: "splat",
@@ -217,6 +239,7 @@ export const LEVEL_OBJECT_IDS = [
   "level",
   "levelOcclusion",
   "charonLevel",
+  "charonLevelData",
   "newworldLevel",
   "newworldLevelData",
   "redarenaLevel",

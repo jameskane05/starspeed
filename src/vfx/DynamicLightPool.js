@@ -41,10 +41,15 @@ export class DynamicLightPool {
     for (const light of this.lights) {
       light.intensity = 1;
     }
-    // Add temporary lights to cover enemy ship lights that will be added later
+    // Temporary lights: match Enemy ship PointLight (distance 8, decay 1.5) and
+    // spawnWarp PointLight (distance 18, decay 2). Caller should pass enough
+    // slots for concurrent enemies — e.g. spawnPoints * 2 while warp is active.
     const temps = [];
     for (let i = 0; i < extraLightCount; i++) {
-      const t = new THREE.PointLight(0xffffff, 1, 8, 2);
+      const shipStyle = i % 2 === 0;
+      const t = shipStyle
+        ? new THREE.PointLight(0xffffff, 1, 8, 1.5)
+        : new THREE.PointLight(0xffffff, 1, 18, 2);
       this.scene.add(t);
       temps.push(t);
     }

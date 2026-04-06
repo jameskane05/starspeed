@@ -652,6 +652,8 @@ export function updateDirectionalHelper(game, delta) {
   }
 }
 
+export function cycleEnemyTargetReticle(_game) {}
+
 function updateMissionPanel(game) {
   if (!game.missionPanel) return;
   const state = game.gameManager?.getState?.();

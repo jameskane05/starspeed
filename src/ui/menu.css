@@ -1251,7 +1251,9 @@
   cursor: pointer;
   padding: 0;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35) inset;
-  transition: box-shadow 0.15s, border-color 0.15s;
+  transition:
+    box-shadow 0.15s,
+    border-color 0.15s;
 }
 
 .lobby-color-swatch:hover,
@@ -1280,7 +1282,9 @@
   background: var(--bg-dark);
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 240, 255, 0.12);
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(0, 240, 255, 0.12);
   min-width: 200px;
   max-width: min(280px, calc(100vw - 24px));
   pointer-events: auto;
@@ -1305,7 +1309,9 @@
   padding: 0;
   cursor: pointer;
   background: var(--swatch);
-  transition: transform 0.1s, box-shadow 0.15s;
+  transition:
+    transform 0.1s,
+    box-shadow 0.15s;
 }
 
 .lobby-color-option:hover:not(:disabled) {
@@ -4313,6 +4319,20 @@
   align-items: center;
   justify-content: center;
   background: transparent;
+}
+
+.first-view-loading-overlay.first-view-loading-overlay--blocking {
+  background: rgba(0, 10, 16, 0.9);
+  backdrop-filter: blur(6px);
+}
+
+.first-view-loading-prewarm-msg {
+  font-family: "Orbitron", "Rajdhani", sans-serif;
+  font-size: 0.95rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-cyan, #5ee8ff);
+  margin-top: 0.5rem;
 }
 
 .first-view-loading-content {

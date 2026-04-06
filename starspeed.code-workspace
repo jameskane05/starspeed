@@ -1,0 +1,14 @@
+{
+  "folders": [
+	{
+		"path": "."
+	},
+	{
+		"path": "../shadow"
+	},
+	{
+		"path": "../Descent"
+	}
+],
+  "settings": {}
+}

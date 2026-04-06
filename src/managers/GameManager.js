@@ -20,9 +20,13 @@
 import { GAME_STATES, initialState } from "../data/gameData.js";
 import {
   getSceneObjectsForState,
+  getSceneObject,
   LEVEL_OBJECT_IDS,
 } from "../data/sceneData.js";
-import { DEFAULT_PROFILE, getPerformanceProfile } from "../data/performanceSettings.js";
+import {
+  DEFAULT_PROFILE,
+  getPerformanceProfile,
+} from "../data/performanceSettings.js";
 
 const SETTINGS_KEY = "starspeed-settings";
 
@@ -42,7 +46,11 @@ class GameManager {
 
     // Load saved settings and apply performance profile to initial state
     this.savedSettings = this.loadSettings();
-    this.state.performanceProfile = this.savedSettings.performanceProfile || DEFAULT_PROFILE;
+    this.state.performanceProfile =
+      this.savedSettings.performanceProfile || DEFAULT_PROFILE;
+    if (this.savedSettings.shipAutoLeveling !== undefined) {
+      this.state.shipAutoLeveling = !!this.savedSettings.shipAutoLeveling;
+    }
   }
 
   loadSettings() {
@@ -82,7 +90,17 @@ class GameManager {
 
   getLookSensitivity() {
     const v = this.savedSettings?.lookSensitivity;
-    return v != null ? Math.max(0, Math.min(1, Number(v))) : 0.8;
+    return v != null ? Math.max(0, Math.min(1, Number(v))) : 0.65;
+  }
+
+  getShipAutoLeveling() {
+    return this.state.shipAutoLeveling !== false;
+  }
+
+  setShipAutoLeveling(enabled) {
+    const on = !!enabled;
+    this.setSetting("shipAutoLeveling", on);
+    this.setState({ shipAutoLeveling: on });
   }
 
   setPerformanceProfile(profile) {
@@ -132,17 +150,17 @@ class GameManager {
       newState.currentState !== oldState.currentState
     ) {
       console.log(
-        `[GameManager] State: ${this.getStateName(oldState.currentState)} → ${this.getStateName(newState.currentState)}`
+        `[GameManager] State: ${this.getStateName(oldState.currentState)} → ${this.getStateName(newState.currentState)}`,
       );
     }
 
     this.emit("state:changed", this.state, oldState);
 
-    // Update scene objects if currentState or currentLevel changed
     if (
       this.sceneManager &&
-      (newState.currentState !== oldState.currentState ||
-        newState.currentLevel !== oldState.currentLevel)
+      (this.state.currentState !== oldState.currentState ||
+        this.state.currentLevel !== oldState.currentLevel ||
+        this.state.multiplayerLobbyWarmup !== oldState.multiplayerLobbyWarmup)
     ) {
       this.updateSceneForState();
     }
@@ -192,11 +210,23 @@ class GameManager {
     const toUnload = new Set(
       options.preloadOnly
         ? []
-        : Array.from(this.loadedScenes).filter((id) => !objectIdsToLoad.has(id)),
+        : Array.from(this.loadedScenes).filter(
+            (id) => !objectIdsToLoad.has(id),
+          ),
     );
 
     for (const id of LEVEL_OBJECT_IDS) {
       if (this.sceneManager.hasObject(id) && !objectIdsToLoad.has(id)) {
+        if (
+          this.state.multiplayerLobbyWarmup &&
+          this.state.currentState === GAME_STATES.MENU
+        ) {
+          const obj = getSceneObject(id);
+          const lv = obj?.criteria?.currentLevel;
+          if (lv !== undefined && lv === this.state.currentLevel) {
+            continue;
+          }
+        }
         toUnload.add(id);
       }
     }
@@ -209,7 +239,7 @@ class GameManager {
 
     // Filter out already loaded objects
     const newObjects = objectsToLoad.filter(
-      (obj) => !this.loadedScenes.has(obj.id)
+      (obj) => !this.loadedScenes.has(obj.id),
     );
 
     // Load new objects
@@ -294,4 +324,3 @@ class GameManager {
 }
 
 export default GameManager;
-

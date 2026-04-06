@@ -56,6 +56,8 @@ import sfxManager from "../audio/sfxManager.js";
 import sfxSounds from "../audio/sfxData.js";
 import engineAudio from "../audio/EngineAudio.js";
 import { XRManager } from "../xr/XRManager.js";
+import { getDebugMissionSpawn } from "../utils/debugSpawner.js";
+import { initCheckpointVisualPool } from "../missions/MissionManager.js";
 
 export async function init(game) {
   initPhysics();
@@ -101,6 +103,8 @@ export async function init(game) {
   const splatSettings = splatProfile.splat ?? {};
   const maxPagedSplats = splatSettings.maxPagedSplats ?? 256 * 65536;
 
+  // Spark DoF: focalDistance + apertureAngle (radians, full width). Max boost angle =
+  // thin lens: 2 * atan((apertureDiameter/2) / focal) — must match focalDistance passed below.
   const boostDoFFocalDistance = 100;
   const boostDoFApertureSize = 0.4;
   const boostDoFApertureAngle =
@@ -280,7 +284,7 @@ export async function init(game) {
   MenuManager.on("gameStart", async () => await game.startMultiplayerGame());
   MenuManager.on("campaignStart", () => game.startSoloDebug());
   MenuManager.on("trainingGroundsStart", (levelId) =>
-    game.startTrainingGrounds(levelId || "arenatech"),
+    game.startTrainingGrounds(levelId || "newworld"),
   );
   MenuManager.on("levelSelected", (level) => {
     game.gameManager.setState({ currentLevel: level });
@@ -295,8 +299,24 @@ export async function init(game) {
 
   game._initProjectileSplatLayer();
 
+  game._checkpointVisualPoolInitPromise = initCheckpointVisualPool(game);
+
   const params = new URLSearchParams(window.location.search);
-  if (params.has("solo")) {
+  const debugMissionSpawn = getDebugMissionSpawn();
+  if (debugMissionSpawn) {
+    game.pendingMissionConfig = {
+      missionId: debugMissionSpawn.missionId,
+      levelId: debugMissionSpawn.levelId,
+      ...(debugMissionSpawn.debugStepId
+        ? { debugStepId: debugMissionSpawn.debugStepId }
+        : {}),
+    };
+    game.gameManager.setState({
+      currentLevel: debugMissionSpawn.levelId,
+      missionLevelId: debugMissionSpawn.levelId,
+    });
+    void game.startSoloDebug();
+  } else if (params.has("solo")) {
     const mapLevel = params.get("map");
     const soloLevel = params.get("solo");
     const level =

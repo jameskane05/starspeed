@@ -9,9 +9,9 @@
  * - init(): create AudioContext, master gain; subscribe to AudioSettings
  * - UI: beeps, clicks, hover; combat: laser, shield hit, explosion, collect pickup
  * - setListenerPosition/Forward/Up for spatial audio
- * - shieldRecharge / boosterRecharge loops; low health warning; volume from AudioSettings
+ * - shieldRecharge / boosterRecharge loops; checkpoint stingers (grit / waveshaper); low health warning
  *
- * RELATED: AudioSettings.js, sfxManager.js, gameCombat.js, gameUpdate.js.
+ * RELATED: AudioSettings.js, sfxManager.js, gameCombat.js, gameUpdate.js, MissionManager.js.
  *
  * =============================================================================
  */
@@ -429,6 +429,208 @@ class ProceduralAudio {
     });
   }
 
+  /**
+   * Training / checkpoint ring clear – gritty stack + ripping arp (rock / stinger)
+   */
+  checkpointGoalSuccess() {
+    if (!this.ctx) return;
+    this.resume();
+    if (this.ctx.state === "suspended") return;
+
+    const now = this.ctx.currentTime;
+    const totalEnd = now + 2.05;
+
+    const thump = this.ctx.createOscillator();
+    const thumpG = this.ctx.createGain();
+    thump.type = "square";
+    thump.frequency.setValueAtTime(98, now);
+    thump.frequency.exponentialRampToValueAtTime(38, now + 0.18);
+    thumpG.gain.setValueAtTime(0.11, now);
+    thumpG.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    thump.connect(thumpG);
+    thumpG.connect(this.masterGain);
+    thump.start(now);
+    thump.stop(now + 0.24);
+
+    const thumpSub = this.ctx.createOscillator();
+    const thumpSubG = this.ctx.createGain();
+    thumpSub.type = "sine";
+    thumpSub.frequency.setValueAtTime(74, now);
+    thumpSub.frequency.exponentialRampToValueAtTime(36, now + 0.16);
+    thumpSubG.gain.setValueAtTime(0.2, now);
+    thumpSubG.gain.exponentialRampToValueAtTime(0.001, now + 0.23);
+    thumpSub.connect(thumpSubG);
+    thumpSubG.connect(this.masterGain);
+    thumpSub.start(now);
+    thumpSub.stop(now + 0.25);
+
+    const padShaper = this._gritShaper(2.65);
+    const padBus = this.ctx.createGain();
+    padBus.gain.value = 1;
+    const padFreqs = [155.56, 185.0, 207.65, 246.94];
+    padFreqs.forEach((f, i) => {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.value = f * (1 + i * 0.0015);
+      g.gain.setValueAtTime(0.001, now);
+      g.gain.linearRampToValueAtTime(0.052 - i * 0.007, now + 0.14);
+      g.gain.linearRampToValueAtTime(0.038, now + 0.88);
+      g.gain.exponentialRampToValueAtTime(0.001, totalEnd);
+      osc.connect(g);
+      g.connect(padBus);
+      osc.start(now);
+      osc.stop(totalEnd + 0.04);
+    });
+    const padOut = this.ctx.createGain();
+    padOut.gain.value = 0.55;
+    padBus.connect(padShaper);
+    padShaper.connect(padOut);
+    padOut.connect(this.masterGain);
+
+    const arpShaper = this._gritShaper(3.2);
+    const arpBus = this.ctx.createGain();
+    arpBus.gain.value = 1;
+    const arpMain = [523.25, 659.25, 783.99, 1046.5, 1318.51, 1567.98, 2093.0];
+    const step = 0.082;
+    arpMain.forEach((freq, i) => {
+      const t0 = now + i * step;
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.value = freq * (1 + (i % 3) * 0.0018);
+      g.gain.setValueAtTime(0.001, t0);
+      g.gain.linearRampToValueAtTime(0.11, t0 + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.16);
+      osc.connect(g);
+      g.connect(arpBus);
+      osc.start(t0);
+      osc.stop(t0 + 0.18);
+    });
+    const arpOut = this.ctx.createGain();
+    arpOut.gain.value = 0.68;
+    arpBus.connect(arpShaper);
+    arpShaper.connect(arpOut);
+    arpOut.connect(this.masterGain);
+
+    const arpEchoBus = this.ctx.createGain();
+    arpEchoBus.gain.value = 1;
+    const arpEcho = [659.25, 783.99, 1046.5, 1318.51, 1567.98];
+    arpEcho.forEach((freq, i) => {
+      const t0 = now + 0.5 + i * step;
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.value = freq;
+      g.gain.setValueAtTime(0.001, t0);
+      g.gain.linearRampToValueAtTime(0.072, t0 + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.14);
+      osc.connect(g);
+      g.connect(arpEchoBus);
+      osc.start(t0);
+      osc.stop(t0 + 0.16);
+    });
+    const echoShaper = this._gritShaper(2.9);
+    const echoOut = this.ctx.createGain();
+    echoOut.gain.value = 0.52;
+    arpEchoBus.connect(echoShaper);
+    echoShaper.connect(echoOut);
+    echoOut.connect(this.masterGain);
+
+    const noiseBurst = this._createNoise(0.11);
+    const nFil = this.ctx.createBiquadFilter();
+    nFil.type = "bandpass";
+    nFil.frequency.setValueAtTime(900, now + 1.02);
+    nFil.frequency.exponentialRampToValueAtTime(4800, now + 1.38);
+    nFil.Q.value = 0.85;
+    const nG = this.ctx.createGain();
+    nG.gain.setValueAtTime(0.001, now + 1.02);
+    nG.gain.linearRampToValueAtTime(0.11, now + 1.08);
+    nG.gain.exponentialRampToValueAtTime(0.001, now + 1.48);
+    noiseBurst.connect(nFil);
+    nFil.connect(nG);
+    nG.connect(this.masterGain);
+    noiseBurst.start(now + 1.02);
+    noiseBurst.stop(now + 1.5);
+
+    const scrape = this.ctx.createOscillator();
+    const scrapeG = this.ctx.createGain();
+    scrape.type = "sawtooth";
+    scrape.frequency.setValueAtTime(420, now + 1.06);
+    scrape.frequency.exponentialRampToValueAtTime(2400, now + 1.25);
+    scrapeG.gain.setValueAtTime(0.001, now + 1.04);
+    scrapeG.gain.linearRampToValueAtTime(0.04, now + 1.1);
+    scrapeG.gain.exponentialRampToValueAtTime(0.001, now + 1.42);
+    const scrapeShape = this._gritShaper(4);
+    scrape.connect(scrapeG);
+    scrapeG.connect(scrapeShape);
+    scrapeShape.connect(this.masterGain);
+    scrape.start(now + 1.04);
+    scrape.stop(now + 1.45);
+
+    const fanShaper = this._gritShaper(2.4);
+    const fanBus = this.ctx.createGain();
+    fanBus.gain.value = 1;
+    const fan = [1046.5, 1318.51, 1567.98];
+    fan.forEach((freq, i) => {
+      const t0 = now + 1.34 + i * 0.05;
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = "square";
+      osc.frequency.value = freq;
+      g.gain.setValueAtTime(0.001, t0);
+      g.gain.linearRampToValueAtTime(0.072, t0 + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.1);
+      osc.connect(g);
+      g.connect(fanBus);
+      osc.start(t0);
+      osc.stop(t0 + 0.12);
+    });
+    const fanOut = this.ctx.createGain();
+    fanOut.gain.value = 0.45;
+    fanBus.connect(fanShaper);
+    fanShaper.connect(fanOut);
+    fanOut.connect(this.masterGain);
+  }
+
+  /**
+   * Checkpoint ring spoke (approach) – short rising pitch per clockwise step as rim bricks bloom.
+   */
+  checkpointRimSpokePulse(cwRank) {
+    if (!this.ctx) return;
+    this.resume();
+    if (this.ctx.state === "suspended") return;
+
+    const rank = Math.max(0, Math.min(5, cwRank | 0));
+    const now = this.ctx.currentTime;
+    const semitone = 2 ** (1 / 12);
+    const f0 = 300 * semitone ** rank;
+    const f1 = f0 * 1.06;
+
+    const bus = this.ctx.createGain();
+    bus.gain.value = 0.55;
+
+    const addVoice = (type, freqMul, peak, tEnd) => {
+      const o = this.ctx.createOscillator();
+      o.type = type;
+      o.frequency.setValueAtTime(f0 * freqMul, now);
+      o.frequency.exponentialRampToValueAtTime(f1 * freqMul, now + 0.055);
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.0005, now);
+      g.gain.linearRampToValueAtTime(peak, now + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0005, now + tEnd);
+      o.connect(g);
+      g.connect(bus);
+      o.start(now);
+      o.stop(now + tEnd + 0.02);
+    };
+
+    addVoice("triangle", 1, 0.11, 0.16);
+    addVoice("sine", 2, 0.045, 0.14);
+
+    bus.connect(this.masterGain);
+  }
+
   // ============================================
   // FEEDBACK SOUNDS
   // ============================================
@@ -651,6 +853,19 @@ class ProceduralAudio {
   // ============================================
   // HELPERS
   // ============================================
+
+  _gritShaper(drive = 3) {
+    const shaper = this.ctx.createWaveShaper();
+    const len = 2048;
+    const c = new Float32Array(len);
+    for (let i = 0; i < len; i++) {
+      const x = (i * 2) / (len - 1) - 1;
+      c[i] = Math.tanh(x * drive);
+    }
+    shaper.curve = c;
+    shaper.oversample = "4x";
+    return shaper;
+  }
 
   /**
    * Create white noise source

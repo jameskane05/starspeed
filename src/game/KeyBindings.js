@@ -37,6 +37,7 @@ export const DEFAULT_BINDINGS = {
   pause: 'Escape',
   toggleHeadlight: 'KeyL',
   switchMissileMode: 'KeyG',
+  toggleEnemyTargetReticle: 'KeyT',
   missile: 'Digit1',
   kineticMissile: 'Digit2',
 };
@@ -59,6 +60,7 @@ export const ACTION_LABELS = {
   pause: 'Escape Menu',
   toggleHeadlight: 'Toggle Headlight',
   switchMissileMode: 'Switch Missile Mode',
+  toggleEnemyTargetReticle: 'Enemy Target (missions)',
   missile: 'Homing Missile (1)',
   kineticMissile: 'Kinetic Missile (2)',
 };

@@ -3,23 +3,23 @@ import { Schema, type, MapSchema } from "@colyseus/schema";
 export class Player extends Schema {
   @type("string") id: string = "";
   @type("string") name: string = "";
-  
+
   // Position
   @type("number") x: number = 0;
   @type("number") y: number = 0;
   @type("number") z: number = 0;
-  
+
   // Rotation (quaternion)
   @type("number") qx: number = 0;
   @type("number") qy: number = 0;
   @type("number") qz: number = 0;
   @type("number") qw: number = 1;
-  
+
   // Velocity (for interpolation)
   @type("number") vx: number = 0;
   @type("number") vy: number = 0;
   @type("number") vz: number = 0;
-  
+
   // Stats
   @type("number") health: number = 100;
   @type("number") maxHealth: number = 100;
@@ -27,16 +27,16 @@ export class Player extends Schema {
   @type("number") maxMissiles: number = 6;
   @type("number") kills: number = 0;
   @type("number") deaths: number = 0;
-  
+
   // Weapon upgrades
   @type("boolean") hasLaserUpgrade: boolean = false;
-  
+
   // Class and team
   @type("string") shipClass: string = "fighter"; // "fighter" | "tank" | "rogue"
   @type("number") team: number = 0; // 0=none (FFA), 1=red, 2=blue
   /** Normalized #RRGGBB; lobby palette + gameplay VFX */
   @type("string") accentColor: string = "#00ffff";
-  
+
   // Boost (server-authoritative)
   @type("number") boostFuel: number = 200;
   @type("number") maxBoostFuel: number = 200;
@@ -49,7 +49,7 @@ export class Player extends Schema {
 
   // Input sequence for reconciliation
   @type("number") lastProcessedInput: number = 0;
-  
+
   // Server-side only (not synced)
   lastDamageTime: number = 0;
 }
@@ -57,17 +57,17 @@ export class Player extends Schema {
 export class Projectile extends Schema {
   @type("string") id: string = "";
   @type("string") ownerId: string = "";
-  
+
   // Position
   @type("number") x: number = 0;
   @type("number") y: number = 0;
   @type("number") z: number = 0;
-  
+
   // Direction
   @type("number") dx: number = 0;
   @type("number") dy: number = 0;
   @type("number") dz: number = 0;
-  
+
   @type("number") speed: number = 60;
   @type("number") damage: number = 25;
   @type("string") type: string = "laser"; // "laser" | "missile"
@@ -78,12 +78,12 @@ export class Projectile extends Schema {
 export class Collectible extends Schema {
   @type("string") id: string = "";
   @type("string") type: string = "missile"; // "missile" | "laser_upgrade"
-  
+
   // Position
   @type("number") x: number = 0;
   @type("number") y: number = 0;
   @type("number") z: number = 0;
-  
+
   // Rotation (for visual spinning)
   @type("number") rotY: number = 0;
 }
@@ -124,7 +124,7 @@ export class GameState extends Schema {
   @type({ map: Projectile }) projectiles = new MapSchema<Projectile>();
   @type({ map: Collectible }) collectibles = new MapSchema<Collectible>();
   @type({ map: Bot }) bots = new MapSchema<Bot>();
-  
+
   // Team scores (for team mode)
   @type("number") team1Score: number = 0;
   @type("number") team2Score: number = 0;

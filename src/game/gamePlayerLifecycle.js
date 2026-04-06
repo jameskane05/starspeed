@@ -17,6 +17,7 @@
 
 import * as THREE from "three";
 import NetworkManager from "../network/NetworkManager.js";
+import { applyAuthoredPlayerSpawn } from "../utils/playerSpawnOrientation.js";
 
 export function showDamageIndicator(game, hitWorldPos) {
   const camPos = game.camera.position.clone();
@@ -113,18 +114,17 @@ export function finishSoloRespawn(game) {
   game.player.lastDamageTime = 0;
 
   if (game.playerSpawnPoints?.length > 0) {
-    const sp =
-      game.playerSpawnPoints[
-        Math.floor(Math.random() * game.playerSpawnPoints.length)
-      ];
-    game.camera.position.copy(sp);
+    applyAuthoredPlayerSpawn(
+      game,
+      Math.floor(Math.random() * game.playerSpawnPoints.length),
+    );
   } else {
     game.camera.position.set(0, 0, 0);
+    game.camera.quaternion.setFromAxisAngle(
+      new THREE.Vector3(0, 1, 0),
+      -Math.PI / 2,
+    );
   }
-  game.camera.quaternion.setFromAxisAngle(
-    new THREE.Vector3(0, 1, 0),
-    -Math.PI / 2,
-  );
 
   game._hudLast.health = null;
   game._hudLast.missiles = null;

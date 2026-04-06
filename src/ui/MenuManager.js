@@ -128,7 +128,9 @@ class MenuManager {
     this.startScene = new StartScreenScene();
     this.initialLoadingTracker.reset();
     this.initialLoadingTracker.registerTask("main-menu-logo");
-    const mainMenuLogoPromise = preloadImage("/images/ui/Starspeed_WordMark.png")
+    const mainMenuLogoPromise = preloadImage(
+      "/images/ui/Starspeed_WordMark.png",
+    )
       .catch((error) => {
         console.warn("[MenuManager] Main menu logo preload failed:", error);
       })
@@ -591,7 +593,8 @@ class MenuManager {
 
   renderGameplaySection() {
     const gm = window.gameManager;
-    const lookSensitivity = gm?.getLookSensitivity?.() ?? 0.8;
+    const lookSensitivity = gm?.getLookSensitivity?.() ?? 0.65;
+    const shipAutoLevel = gm?.getShipAutoLeveling?.() !== false;
 
     return `
       <div class="options-section gameplay-section">
@@ -601,7 +604,17 @@ class MenuManager {
           <input type="range" id="look-sensitivity" class="options-slider" min="0" max="1" step="0.05" value="${lookSensitivity}">
         </div>
         <p class="options-hint" style="margin-top: 8px; opacity: 0.5; font-size: 12px;">
-          Affects mouse, gamepad, keyboard, and mobile look. 0.8 = normal. 1.0 = 100% (ship max turn rate).
+          Affects mouse, gamepad, keyboard, and mobile look. 0.65 ≈ default; 0.8 ≈ previous “normal.” 1.0 = stronger.
+        </p>
+        <div class="keybind-row" style="grid-template-columns: 1fr 1fr; margin-top: 20px;">
+          <span class="keybind-action">SHIP AUTO-LEVEL</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="ship-auto-level-toggle" ${shipAutoLevel ? "checked" : ""}>
+            <span class="toggle-label" id="ship-auto-level-toggle-label">${shipAutoLevel ? "ON" : "OFF"}</span>
+          </label>
+        </div>
+        <p class="options-hint" style="margin-top: 8px; opacity: 0.5; font-size: 12px;">
+          When on, roll gently settles to the nearest 90° bank relative to level (Descent-style). Turn off for fully free roll.
         </p>
       </div>
     `;
@@ -930,12 +943,23 @@ class MenuManager {
   setupGameplayListeners() {
     const slider = document.getElementById("look-sensitivity");
     const valSpan = document.getElementById("look-sensitivity-val");
-    if (!slider) return;
-    slider.addEventListener("input", () => {
-      const val = parseFloat(slider.value);
-      if (valSpan) valSpan.textContent = val.toFixed(2);
-      window.gameManager?.setSetting("lookSensitivity", val);
-    });
+    if (slider) {
+      slider.addEventListener("input", () => {
+        const val = parseFloat(slider.value);
+        if (valSpan) valSpan.textContent = val.toFixed(2);
+        window.gameManager?.setSetting("lookSensitivity", val);
+      });
+    }
+
+    const shipToggle = document.getElementById("ship-auto-level-toggle");
+    if (shipToggle) {
+      shipToggle.addEventListener("change", () => {
+        const enabled = shipToggle.checked;
+        const label = document.getElementById("ship-auto-level-toggle-label");
+        if (label) label.textContent = enabled ? "ON" : "OFF";
+        window.gameManager?.setShipAutoLeveling?.(enabled);
+      });
+    }
   }
 
   setupControlsListeners() {

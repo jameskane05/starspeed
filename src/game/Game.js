@@ -54,7 +54,10 @@ export class Game {
     this.level = null;
     this.enemies = [];
     this.spawnPoints = [];
+    this.playerSpawnPoints = [];
+    this.playerSpawnMarkerQuaternions = [];
     this.enemyRespawnQueue = [];
+    this.trainingGoalPoints = [];
     this.projectiles = [];
     this.missiles = [];
     this.explosions = [];
@@ -73,6 +76,7 @@ export class Game {
     this.directionalHelperTarget = null;
     this.directionalHelperRoot = null;
     this._directionalHelperOpacity = 0;
+    this._enemyReticleEnemy = null;
     this._spawnWarpPrewarmed = false;
 
     // Multiplayer state
@@ -111,7 +115,13 @@ export class Game {
     return gameSolo.startSoloDebug(this);
   }
 
-  async startTrainingGrounds(levelId = "arenatech") {
+  async startTrainingGrounds(levelId = "newworld") {
+    const levelDataId = `${levelId}LevelData`;
+    if (this.sceneManager?.hasObject?.(levelDataId)) {
+      this.sceneManager.removeObject(levelDataId);
+    }
+    this._levelSpawnCache = null;
+    this.trainingGoalPoints = [];
     this.pendingMissionConfig = {
       missionId: "trainingGrounds",
       levelId,
@@ -376,6 +386,10 @@ export class Game {
     const nextMode =
       this.getSelectedMissileMode() === "kinetic" ? "homing" : "kinetic";
     return this.setMissileMode(nextMode);
+  }
+
+  cycleEnemyTargetReticle() {
+    gameInGameUI.cycleEnemyTargetReticle(this);
   }
 
   fireSelectedMissile() {

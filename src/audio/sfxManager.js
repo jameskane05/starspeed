@@ -3,8 +3,8 @@
  * =============================================================================
  *
  * ROLE: Loads and plays SFX from sfxData (or passed sounds data). Uses
- * ProceduralAudio context and gain. Supports round-robin, spatial, volume/pitch
- * variation. Singleton; init(soundsData) called from gameInit.
+ * ProceduralAudio context and gain. Spatial defs use PannerNode (3D) against
+ * the AudioContext listener; falls back to StereoPanner + manual rolloff.
  *
  * KEY RESPONSIBILITIES:
  * - _loadAll() from data; play(id, position) for spatial or non-spatial
@@ -103,47 +103,58 @@ class SFXManager {
     const gain = this.ctx.createGain();
     gain.gain.value = this.sfxVolume * resolvedVol * volumeScale;
 
-    if (position && def?.spatial) {
-      const panner = this.ctx.createStereoPanner
-        ? this.ctx.createStereoPanner()
-        : null;
+    let spatialOut = null;
 
-      if (!panner) {
-        source.connect(gain);
-        gain.connect(this.masterGain);
-      } else {
-        // Cheap stereo pan based on listener-relative position
+    if (position && def?.spatial) {
+      if (typeof this.ctx.createPanner === "function") {
+        const panner = this.ctx.createPanner();
+        panner.panningModel = "equalpower";
+        panner.distanceModel = "inverse";
+        panner.refDistance = def.refDistance ?? 25;
+        panner.maxDistance = def.maxDistance ?? 500;
+        panner.rolloffFactor = def.rolloffFactor ?? 1;
+        panner.coneInnerAngle = 360;
+        panner.coneOuterAngle = 360;
+        panner.setPosition(position.x, position.y, position.z);
+        source.connect(panner);
+        panner.connect(gain);
+        spatialOut = panner;
+      } else if (this.ctx.createStereoPanner) {
+        const panner = this.ctx.createStereoPanner();
         const lp = proceduralAudio.listenerPosition;
         const lf = proceduralAudio.listenerForward;
         if (lp && lf) {
           const dx = position.x - lp.x;
           const dz = position.z - lp.z;
           const right = -lf.z * dx + lf.x * dz;
-          panner.pan.value = Math.max(-1, Math.min(1, right * 0.05));
+          panner.pan.value = Math.max(-1, Math.min(1, right * 0.12));
         }
-
-        const dist = lp ? Math.sqrt(
-          (position.x - lp.x) ** 2 +
-          (position.y - lp.y) ** 2 +
-          (position.z - lp.z) ** 2
-        ) : 1;
+        const dist = lp
+          ? Math.sqrt(
+              (position.x - lp.x) ** 2 +
+                (position.y - lp.y) ** 2 +
+                (position.z - lp.z) ** 2,
+            )
+          : 1;
         const ref = def.refDistance ?? 1;
         const rolloff = def.rolloffFactor ?? 1;
         const attenuation = ref / (ref + rolloff * Math.max(0, dist - ref));
         gain.gain.value *= attenuation;
-
         source.connect(panner);
         panner.connect(gain);
-        gain.connect(this.masterGain);
+        spatialOut = panner;
       }
-    } else {
-      source.connect(gain);
-      gain.connect(this.masterGain);
     }
+
+    if (!spatialOut) {
+      source.connect(gain);
+    }
+    gain.connect(this.masterGain);
 
     source.start(0);
     source.onended = () => {
       gain.disconnect();
+      spatialOut?.disconnect();
       source.disconnect();
     };
   }

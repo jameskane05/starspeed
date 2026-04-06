@@ -139,6 +139,11 @@ export class Input {
       return;
     }
     
+    if (e.code === 'KeyU' && !e.repeat && this.game.gameManager?.isPlaying()) {
+      e.preventDefault();
+      this.game.missionManager?.debugReplayCheckpointWarp?.();
+      return;
+    }
     if (e.code === 'Backquote') {
       e.preventDefault();
       this.game.showControlsHelp?.(true);
@@ -155,6 +160,8 @@ export class Input {
       } else if (KeyBindings.isKeyBound('kineticMissile', e.code)) {
         this.game.setMissileMode?.('kinetic');
         this.game.fireSelectedMissile?.();
+      } else if (KeyBindings.isKeyBound('toggleEnemyTargetReticle', e.code)) {
+        this.game.cycleEnemyTargetReticle?.();
       }
     }
   }

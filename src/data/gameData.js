@@ -39,6 +39,7 @@ export const LEVELS = {
     preview: "/ships/hull_lights_emit.png",
     ambientColor: 0xff4444,
     ambientIntensity: 4,
+    multiplayerSelectable: false,
   },
   arenatech: {
     id: "arenatech",
@@ -47,6 +48,7 @@ export const LEVELS = {
     preview: "/ships/hull_lights_emit.png",
     ambientColor: 0xc8b8a8,
     ambientIntensity: 3,
+    multiplayerSelectable: false,
   },
   charon: {
     id: "charon",
@@ -55,6 +57,10 @@ export const LEVELS = {
     preview: "/ships/hull_lights_emit.png",
   },
 };
+
+export function multiplayerMapLevels() {
+  return Object.values(LEVELS).filter((l) => l.multiplayerSelectable !== false);
+}
 
 export const SHIP_CLASSES = {
   fighter: {
@@ -118,6 +124,8 @@ export const initialState = {
   selectedMissileMode: "homing",
   playerLaserEnabled: true,
   playerMissilesEnabled: true,
+  /** Roll toward wings-level (world up) when not manually rolling — Descent-style ship auto-leveling */
+  shipAutoLeveling: true,
 
   // Player stats
   playerHealth: 100,
@@ -133,6 +141,9 @@ export const initialState = {
 
   // Current level/environment
   currentLevel: "newworld",
+
+  /** True while in a Colyseus lobby (MENU) before match start — keeps preloaded level from being unloaded. */
+  multiplayerLobbyWarmup: false,
 
   // Performance
   performanceProfile: null, // Set on init from saved settings or auto-detected

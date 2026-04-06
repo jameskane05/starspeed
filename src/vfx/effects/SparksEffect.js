@@ -67,7 +67,17 @@ export class SparksEffect {
    * - Color: white to grey (1,1,1 to 0.631,0.631,0.631)
    * - Gravity modifier: 0.5
    */
-  emitElectricalSparks(position, normal, count = 80) {
+  /**
+   * @param {number | null} colorHex — laser / impact tint (e.g. accent); null keeps cool-white default
+   */
+  emitElectricalSparks(position, normal, count = 80, colorHex = null) {
+    const base = new THREE.Color();
+    if (colorHex != null) {
+      base.setHex(colorHex);
+    } else {
+      base.setRGB(0.85, 0.9, 1.0);
+    }
+
     // Normalize the incoming normal
     _dir.set(normal.x, normal.y, normal.z);
     const len = _dir.length();
@@ -91,25 +101,28 @@ export class SparksEffect {
       const coneAngle = (60 * Math.PI) / 180;
       const cosAngle = Math.cos(coneAngle);
       const z = cosAngle + Math.random() * (1 - cosAngle); // uniform in [cosAngle, 1]
-      const r = Math.sqrt(1 - z * z);
+      const ringR = Math.sqrt(1 - z * z);
       const theta = Math.random() * Math.PI * 2;
 
       const vx =
         _dir.x * z +
-        tangent.x * r * Math.cos(theta) +
-        bitangent.x * r * Math.sin(theta);
+        tangent.x * ringR * Math.cos(theta) +
+        bitangent.x * ringR * Math.sin(theta);
       const vy =
         _dir.y * z +
-        tangent.y * r * Math.cos(theta) +
-        bitangent.y * r * Math.sin(theta);
+        tangent.y * ringR * Math.cos(theta) +
+        bitangent.y * ringR * Math.sin(theta);
       const vz =
         _dir.z * z +
-        tangent.z * r * Math.cos(theta) +
-        bitangent.z * r * Math.sin(theta);
+        tangent.z * ringR * Math.cos(theta) +
+        bitangent.z * ringR * Math.sin(theta);
 
       const speed = 8 + Math.random() * 20;
 
-      const bright = 0.7 + Math.random() * 0.3;
+      const bright = 0.65 + Math.random() * 0.35;
+      const cr = Math.min(1, base.r * bright + Math.random() * 0.2);
+      const cg = Math.min(1, base.g * bright + Math.random() * 0.2);
+      const cb = Math.min(1, base.b * bright + Math.random() * 0.22);
 
       this.particles.lineSparks.emit({
         x: position.x,
@@ -118,9 +131,9 @@ export class SparksEffect {
         vx: vx * speed,
         vy: vy * speed,
         vz: vz * speed,
-        r: bright,
-        g: bright,
-        b: 1.0,
+        r: cr,
+        g: cg,
+        b: cb,
         alpha: 1.0,
         life: 0.15 + Math.random() * 0.35,
         drag: 0.92,

@@ -5,12 +5,12 @@
  * ROLE: Renders create-game form: room name, map (LEVELS), game mode, player
  * limit. Binds create and back; used by MenuManager when currentScreen is CREATE_GAME.
  *
- * RELATED: MenuManager.js, gameData.js.
+ * RELATED: MenuManager.js, gameData.js (multiplayerMapLevels).
  *
  * =============================================================================
  */
 
-import { LEVELS } from "../../data/gameData.js";
+import { multiplayerMapLevels } from "../../data/gameData.js";
 import { SCREENS } from "../MenuManager.js";
 
 export function renderCreateGame(manager) {
@@ -33,7 +33,7 @@ export function renderCreateGame(manager) {
           <div class="form-group form-group-map">
             <label>MAP</label>
             <select id="level-select" class="menu-select" ${dis}>
-              ${Object.values(LEVELS)
+              ${multiplayerMapLevels()
                 .map(
                   (level) => `
                 <option value="${level.id}" ${level.id === "newworld" ? "selected" : ""}>${level.name}</option>

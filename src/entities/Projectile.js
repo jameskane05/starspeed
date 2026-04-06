@@ -58,7 +58,15 @@ const _forward = new THREE.Vector3(0, 0, 1);
 const _tempVec = new THREE.Vector3();
 
 export class Projectile {
-  constructor(scene, position, direction, isPlayerOwned, speed = null, visual = null, splatLight = null) {
+  constructor(
+    scene,
+    position,
+    direction,
+    isPlayerOwned,
+    speed = null,
+    visual = null,
+    splatLight = null,
+  ) {
     this.scene = scene;
     this.direction = direction.clone();
     if (this.direction.lengthSq() > 0.0001) {
@@ -103,6 +111,14 @@ export class Projectile {
     this.mesh.position.copy(position);
     this.mesh.quaternion.setFromUnitVectors(_forward, this.direction);
     scene.add(this.mesh);
+
+    this.impactColor = isPlayerOwned
+      ? visual?.color != null
+        ? visual.color
+        : PLAYER_LASER_COLOR
+      : visual?.color != null
+        ? visual.color
+        : 0xff8800;
 
     if (this.splatLight) {
       this.splatLight.position.copy(position);

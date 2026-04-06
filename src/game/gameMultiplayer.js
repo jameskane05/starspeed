@@ -43,7 +43,12 @@ import {
   hideFirstViewLoading,
   waitForFirstViewReady,
 } from "./gameFirstViewLoading.js";
+import { markerQuaternionToCameraQuaternion } from "../utils/playerSpawnOrientation.js";
 import { loadShipModels, shipModels } from "../entities/Enemy.js";
+import {
+  beginCheckpointDissolve,
+  ENEMY_SPAWN_DISSOLVE_DURATION,
+} from "../vfx/checkpointDissolveWarp.js";
 
 /** In-flight addNetworkBot per id (async); syncNetworkBotsWithState may call every frame until done. */
 const pendingNetworkBotAdds = new Set();
@@ -90,8 +95,21 @@ function buildBotShipGroup(id) {
   return { root, usesSharedShip: true };
 }
 
+const NETWORK_BOT_DISSOLVE_COLOR = 0xff6600;
+
+function attachNetworkBotSpawnDissolve(game, root) {
+  return beginCheckpointDissolve(root, game, {
+    duration: ENEMY_SPAWN_DISSOLVE_DURATION,
+    edgeColor: NETWORK_BOT_DISSOLVE_COLOR,
+    particleColor: NETWORK_BOT_DISSOLVE_COLOR,
+    particleDecimation: 8,
+    particleSize: 26,
+  });
+}
+
 function disposeNetworkBotEntry(game, entry) {
   if (!entry?.mesh) return;
+  entry.spawnWarp?.dispose?.();
   game.scene.remove(entry.mesh);
   if (!entry.usesSharedShip) {
     entry.mesh.traverse?.((child) => {
@@ -116,15 +134,17 @@ export async function addNetworkBot(game, id, bot) {
     const { root, usesSharedShip } = buildBotShipGroup(id);
     if (root.children.length === 0) {
       const fallback = createBotPlaceholderMesh(game.scene);
-      game.networkBots.set(id, { mesh: fallback, usesSharedShip: false });
       fallback.position.set(bot.x, bot.y, bot.z);
       fallback.quaternion.set(bot.qx, bot.qy, bot.qz, bot.qw);
+      const spawnWarp = attachNetworkBotSpawnDissolve(game, fallback);
+      game.networkBots.set(id, { mesh: fallback, usesSharedShip: false, spawnWarp });
       return;
     }
     game.scene.add(root);
     root.position.set(bot.x, bot.y, bot.z);
     root.quaternion.set(bot.qx, bot.qy, bot.qz, bot.qw);
-    game.networkBots.set(id, { mesh: root, usesSharedShip });
+    const spawnWarp = attachNetworkBotSpawnDissolve(game, root);
+    game.networkBots.set(id, { mesh: root, usesSharedShip, spawnWarp });
   } finally {
     pendingNetworkBotAdds.delete(id);
   }
@@ -187,9 +207,21 @@ function pushLevelSpawnsToServer(game) {
   console.log(
     `[Multiplayer] spawn sync → server (host=${NetworkManager.isHost()}): ${ne} enemy, ${np} player, ${nm} missile`,
   );
+  const playerSpawns = (game.playerSpawnPoints || []).map((p, i) => {
+    const o = { x: p.x, y: p.y, z: p.z };
+    const mq = game.playerSpawnMarkerQuaternions?.[i];
+    if (mq) {
+      const cq = markerQuaternionToCameraQuaternion(mq);
+      o.qx = cq.x;
+      o.qy = cq.y;
+      o.qz = cq.z;
+      o.qw = cq.w;
+    }
+    return o;
+  });
   NetworkManager.sendSpawnPoints({
     enemySpawns: game.spawnPoints,
-    playerSpawns: game.playerSpawnPoints,
+    playerSpawns,
     missileSpawns: game.missileSpawnPoints,
     bounds: game._levelBounds || null,
   });
@@ -208,14 +240,20 @@ async function hostSyncSpawnsAfterPreload(game) {
 export function setupNetworkListeners(game) {
   NetworkManager.on("roomJoined", () => {
     const roomState = NetworkManager.getState();
+    const patch = { multiplayerLobbyWarmup: true };
     if (roomState?.level) {
-      game.gameManager.setState({ currentLevel: roomState.level });
+      patch.currentLevel = roomState.level;
     }
+    game.gameManager.setState(patch);
     const push = () => void hostSyncSpawnsAfterPreload(game);
     push();
     queueMicrotask(push);
     setTimeout(push, 80);
     setTimeout(push, 400);
+  });
+
+  NetworkManager.on("roomLeft", () => {
+    game.gameManager.setState({ multiplayerLobbyWarmup: false });
   });
 
   NetworkManager.on("playerJoin", ({ player, sessionId, isLocal }) => {
@@ -367,6 +405,7 @@ export function setupNetworkListeners(game) {
       setTimeout(run, 500);
     }
     if (state.phase === "lobby" && state.level) {
+      game.gameManager.setState({ multiplayerLobbyWarmup: true });
       const current = game.gameManager.getState().currentLevel;
       if (current !== state.level) {
         const oldState = {
@@ -417,6 +456,7 @@ export async function startMultiplayerGame(game) {
     currentLevel: level,
     currentState: GAME_STATES.PLAYING,
     isMultiplayer: true,
+    multiplayerLobbyWarmup: false,
   });
   game.lightManager?.updateAmbientForLevel(level);
 
@@ -473,19 +513,12 @@ export async function startMultiplayerGame(game) {
   }
   loadingTracker?.completeTask("multiplayer-scene-setup");
 
+  game._extractSpawnPoints();
   if (NetworkManager.isHost()) {
     pushLevelSpawnsToServer(game);
   }
 
-  if (game.playerSpawnPoints?.length > 0) {
-    const sp =
-      game.playerSpawnPoints[
-        Math.floor(Math.random() * game.playerSpawnPoints.length)
-      ];
-    game.camera.position.copy(sp);
-  } else {
-    game.camera.position.set(localPlayer.x, localPlayer.y, localPlayer.z);
-  }
+  game.camera.position.set(localPlayer.x, localPlayer.y, localPlayer.z);
   game.camera.quaternion.set(
     localPlayer.qx,
     localPlayer.qy,

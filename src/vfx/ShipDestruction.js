@@ -40,6 +40,19 @@ const innerMaterial = new THREE.MeshStandardMaterial({
 
 export const PLAYER_SHIP_MODEL_INDEX = 100;
 
+function yieldToMain() {
+  return new Promise((resolve) => {
+    if (
+      typeof scheduler !== "undefined" &&
+      typeof scheduler.yield === "function"
+    ) {
+      scheduler.yield().then(resolve);
+      return;
+    }
+    requestAnimationFrame(() => resolve());
+  });
+}
+
 export function prefractureModels(shipModels) {
   for (let i = 0; i < shipModels.length; i++) {
     try {
@@ -47,6 +60,22 @@ export function prefractureModels(shipModels) {
     } catch (e) {
       console.warn(`Failed to pre-fracture model ${i}:`, e);
     }
+  }
+  console.log(
+    `Pre-fractured ${fragmentCache.size}/${shipModels.length} ship models`,
+  );
+}
+
+export async function prefractureModelsAsync(shipModels) {
+  if (!shipModels?.length) return;
+  await yieldToMain();
+  for (let i = 0; i < shipModels.length; i++) {
+    try {
+      prefractureModel(i, shipModels[i]);
+    } catch (e) {
+      console.warn(`Failed to pre-fracture model ${i}:`, e);
+    }
+    if (i < shipModels.length - 1) await yieldToMain();
   }
   console.log(
     `Pre-fractured ${fragmentCache.size}/${shipModels.length} ship models`,

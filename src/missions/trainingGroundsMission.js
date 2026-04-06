@@ -1,5 +1,9 @@
 import * as THREE from "three";
 
+export const TRAINING_MISSION_WAVE_SIZE = 3;
+const TRAINING_GOAL_ORDER = ["Goal", "Goal.001", "Goal.002"];
+let trainingGoalPositionsPromise = null;
+
 function updateCountObjective(manager, id, label, count, total) {
   manager.updateObjective(id, {
     text: `${label} (${count}/${total})`,
@@ -17,7 +21,185 @@ function setWeaponPermissions(
   });
 }
 
-function getCheckpointPositions(game) {
+function getNearestTrainingBot(manager) {
+  const playerPos = manager.getPlayerPosition();
+  let nearest = null;
+  let nearestDistanceSq = Infinity;
+  for (const enemy of manager.game.enemies) {
+    if (
+      !enemy ||
+      enemy.disposed ||
+      enemy.health <= 0 ||
+      enemy.missionPoolSlot == null ||
+      !enemy.mesh?.visible
+    ) {
+      continue;
+    }
+    const distanceSq = enemy.mesh.position.distanceToSquared(playerPos);
+    if (distanceSq < nearestDistanceSq) {
+      nearest = enemy;
+      nearestDistanceSq = distanceSq;
+    }
+  }
+  return nearest;
+}
+
+function enableNearestTrainingBotHelper(manager) {
+  manager.setDirectionalHelperTarget({
+    type: "trainingBot",
+    getWorldPosition: (out) => {
+      const enemy = getNearestTrainingBot(manager);
+      if (!enemy?.mesh) return null;
+      return enemy.mesh.getWorldPosition(out);
+    },
+  });
+}
+
+function disableNearestTrainingBotHelper(manager) {
+  manager.clearDirectionalHelperTarget("trainingBot");
+}
+
+function getTrainingGoalAssetUrl() {
+  const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "") || "";
+  return (base ? `${base}/splats/spaceship-data.glb` : "./splats/spaceship-data.glb").replace(
+    /\/+/g,
+    "/",
+  );
+}
+
+async function loadTrainingGoalPositionsFromFile() {
+  if (!trainingGoalPositionsPromise) {
+    trainingGoalPositionsPromise = (async () => {
+      const response = await fetch(getTrainingGoalAssetUrl(), {
+        cache: "no-cache",
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to load training goal GLB: ${response.status}`);
+      }
+
+      const buffer = await response.arrayBuffer();
+      const view = new DataView(buffer);
+      const magic = view.getUint32(0, true);
+      const jsonChunkLength = view.getUint32(12, true);
+      const jsonChunkType = view.getUint32(16, true);
+      if (magic !== 0x46546c67 || jsonChunkType !== 0x4e4f534a) {
+        throw new Error("Invalid GLB structure");
+      }
+
+      const jsonText = new TextDecoder().decode(
+        new Uint8Array(buffer, 20, jsonChunkLength),
+      );
+      const gltf = JSON.parse(jsonText);
+      const nodes = Array.isArray(gltf.nodes) ? gltf.nodes : [];
+      const objects = nodes.map((node) => {
+        const object = new THREE.Object3D();
+        object.name = node?.name || "";
+        if (Array.isArray(node?.translation) && node.translation.length >= 3) {
+          object.position.set(
+            node.translation[0],
+            node.translation[1],
+            node.translation[2],
+          );
+        }
+        if (Array.isArray(node?.rotation) && node.rotation.length >= 4) {
+          object.quaternion.set(
+            node.rotation[0],
+            node.rotation[1],
+            node.rotation[2],
+            node.rotation[3],
+          );
+        }
+        if (Array.isArray(node?.scale) && node.scale.length >= 3) {
+          object.scale.set(node.scale[0], node.scale[1], node.scale[2]);
+        }
+        return object;
+      });
+
+      nodes.forEach((node, index) => {
+        if (!Array.isArray(node?.children)) return;
+        const parent = objects[index];
+        for (const childIndex of node.children) {
+          const child = objects[childIndex];
+          if (child) parent.add(child);
+        }
+      });
+
+      const root = new THREE.Group();
+      const sceneIndex = Number.isInteger(gltf.scene) ? gltf.scene : 0;
+      const sceneNodes = gltf.scenes?.[sceneIndex]?.nodes ?? [];
+      for (const nodeIndex of sceneNodes) {
+        const object = objects[nodeIndex];
+        if (object) root.add(object);
+      }
+      root.updateMatrixWorld(true);
+
+      const goalMap = new Map();
+      root.traverse((child) => {
+        if (!TRAINING_GOAL_ORDER.includes(child.name)) return;
+        const pos = new THREE.Vector3();
+        child.getWorldPosition(pos);
+        goalMap.set(child.name, pos);
+      });
+
+      return TRAINING_GOAL_ORDER.map((name) => goalMap.get(name))
+        .filter(Boolean)
+        .map((goalPosition) => goalPosition.clone());
+    })().catch((error) => {
+      trainingGoalPositionsPromise = null;
+      throw error;
+    });
+  }
+
+  const positions = await trainingGoalPositionsPromise;
+  return positions.map((goalPosition) => goalPosition.clone());
+}
+
+function getAuthoredGoalPositions(game) {
+  const cachedGoals = game.trainingGoalPoints ?? [];
+  if (cachedGoals.length >= 3) {
+    return cachedGoals.slice(0, 3).map((goalPosition) => goalPosition.clone());
+  }
+
+  const levelId = game.gameManager?.getState?.()?.currentLevel;
+  const levelDataId = levelId ? `${levelId}LevelData` : null;
+  const levelData = levelDataId
+    ? game.sceneManager?.getObject?.(levelDataId)
+    : null;
+  if (!levelData?.traverse) return [];
+
+  const goalOrder = ["Goal", "Goal.001", "Goal.002"];
+  const goalMap = new Map();
+  levelData.updateMatrixWorld?.(true);
+  levelData.traverse((child) => {
+    const name = child?.name;
+    if (!goalOrder.includes(name)) return;
+    const pos = new THREE.Vector3();
+    child.getWorldPosition(pos);
+    goalMap.set(name, pos);
+  });
+  return goalOrder
+    .map((name) => goalMap.get(name))
+    .filter(Boolean)
+    .map((goalPosition) => goalPosition.clone());
+}
+
+async function getCheckpointPositions(game) {
+  // Prefer markers from the loaded level (world space). GLB-only goals from
+  // spaceship-data use that asset's local frame and do not match newworld placement.
+  const authoredGoals = getAuthoredGoalPositions(game);
+  if (authoredGoals.length >= 3) {
+    return authoredGoals;
+  }
+
+  try {
+    const fileGoals = await loadTrainingGoalPositionsFromFile();
+    if (fileGoals.length >= 3) {
+      return fileGoals;
+    }
+  } catch (error) {
+    console.warn("[Training] Failed to read goal markers from GLB:", error);
+  }
+
   const playerPos = (
     game.player?.camera?.position ??
     game.camera?.position ??
@@ -62,16 +244,43 @@ function getCheckpointPositions(game) {
   return [first, second, third];
 }
 
-function getAllEnemySpawnPositions(game) {
+export function getTrainingMissionEnemySpawnPositions(game) {
   const enemySpawns = game.spawnPoints ?? [];
   if (!enemySpawns.length) {
     const origin = (
-    game.camera.position ??
+      game.camera.position ??
       game.playerSpawnPoints?.[0] ??
       new THREE.Vector3(0, 0, 0)
-  ).clone();
-    return Array.from({ length: 3 }, (_, index) =>
+    ).clone();
+    return Array.from({ length: TRAINING_MISSION_WAVE_SIZE }, (_, index) =>
       origin.clone().add(new THREE.Vector3(index * 8 - 8, 3 + index * 2, -35)),
+    );
+  }
+  return enemySpawns
+    .slice(0, TRAINING_MISSION_WAVE_SIZE)
+    .map((spawn) => spawn.clone());
+}
+
+/** Every authored Enemy spawn in the level (post-mission practice wave). */
+export function getAllLevelEnemySpawnPositions(game) {
+  const enemySpawns = game.spawnPoints ?? [];
+  if (!enemySpawns.length) {
+    const origin = (
+      game.camera?.position ??
+      game.playerSpawnPoints?.[0] ??
+      new THREE.Vector3(0, 0, 0)
+    ).clone();
+    const n = Math.max(TRAINING_MISSION_WAVE_SIZE, 8);
+    return Array.from({ length: n }, (_, index) =>
+      origin
+        .clone()
+        .add(
+          new THREE.Vector3(
+            index * 10 - (n * 5),
+            4 + (index % 4) * 2,
+            -45 - index * 8,
+          ),
+        ),
     );
   }
   return enemySpawns.map((spawn) => spawn.clone());
@@ -79,11 +288,13 @@ function getAllEnemySpawnPositions(game) {
 
 export const trainingGroundsMission = {
   id: "trainingGrounds",
-  defaultLevelId: "arenatech",
+  defaultLevelId: "newworld",
   startStepId: "introDialog",
 
   start(manager) {
     manager.game.enemyRespawnQueue.length = 0;
+    disableNearestTrainingBotHelper(manager);
+    manager.prewarmCheckpointGraphics?.();
     manager.game.gameManager.setState({
       selectedMissileMode: "homing",
       playerLaserEnabled: true,
@@ -105,9 +316,8 @@ export const trainingGroundsMission = {
         ]);
       },
       onEvent(manager, type, payload) {
-        if (type !== "dialogCompleted" || payload.id !== "trainingGroundsIntro") {
-          return;
-        }
+        if (type !== "dialogCompleted") return;
+        if (payload.id !== "trainingGroundsIntroFollowUp") return;
         manager.completeObjective("listenIntro");
         manager.enterStep("movementGoals");
       },
@@ -115,7 +325,7 @@ export const trainingGroundsMission = {
 
     movementGoals: {
       title: "Basic Flight",
-      enter(manager) {
+      async enter(manager) {
         setWeaponPermissions(manager);
         manager.runtime.movementGoalsCompleted = 0;
         manager.setObjectives("Basic Flight", [
@@ -125,10 +335,13 @@ export const trainingGroundsMission = {
             completed: false,
           },
         ]);
-        manager.setCheckpointSequence(getCheckpointPositions(manager.game), {
-          radius: 4.5,
-          triggerRadius: 5.25,
-        });
+        await manager.setCheckpointSequence(
+          await getCheckpointPositions(manager.game),
+          {
+            radius: 6.5,
+            triggerRadius: 11,
+          },
+        );
       },
       onEvent(manager, type, payload) {
         if (type === "checkpointReached") {
@@ -208,6 +421,7 @@ export const trainingGroundsMission = {
     laserDialog: {
       title: "Target Practice",
       enter(manager) {
+        disableNearestTrainingBotHelper(manager);
         setWeaponPermissions(manager);
         manager.setObjectives("Target Practice", [
           {
@@ -231,7 +445,8 @@ export const trainingGroundsMission = {
       enter(manager) {
         setWeaponPermissions(manager, { playerLaserEnabled: true });
         manager.runtime.laserKills = 0;
-        const positions = getAllEnemySpawnPositions(manager.game);
+        const positions = getTrainingMissionEnemySpawnPositions(manager.game);
+        enableNearestTrainingBotHelper(manager);
         manager.setObjectives("Target Practice", [
           {
             id: "laserWave",
@@ -260,6 +475,7 @@ export const trainingGroundsMission = {
     missileDialog: {
       title: "Missile Training",
       enter(manager) {
+        disableNearestTrainingBotHelper(manager);
         setWeaponPermissions(manager, { playerLaserEnabled: true });
         manager.refillMissiles();
         manager.setObjectives("Missile Training", [
@@ -293,7 +509,8 @@ export const trainingGroundsMission = {
         manager.runtime.missileFired = false;
         manager.runtime.missileWaveKills = 0;
         manager.refillMissiles();
-        const positions = getAllEnemySpawnPositions(manager.game);
+        const positions = getTrainingMissionEnemySpawnPositions(manager.game);
+        enableNearestTrainingBotHelper(manager);
         manager.setObjectives("Missile Training", [
           {
             id: "switchMode",
@@ -339,7 +556,21 @@ export const trainingGroundsMission = {
           manager.runtime.missileWaveKills >= 3 &&
           manager.areObjectivesComplete(["switchMode", "fireMissile", "clearMissileWave"])
         ) {
-          manager.completeMission();
+          void (async () => {
+            const allSpawns = getAllLevelEnemySpawnPositions(manager.game);
+            if (allSpawns.length) {
+              try {
+                await manager.spawnEnemyWave(allSpawns);
+              } catch (err) {
+                console.warn("[Training] spawnEnemyWave:", err);
+              }
+            }
+            manager.completeMission(
+              "Training complete — all targets deployed. Keep practicing!",
+              { preserveEnemyPool: true },
+            );
+            manager.refillMissiles();
+          })();
         }
       },
     },

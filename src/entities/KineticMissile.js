@@ -43,7 +43,7 @@ export class KineticMissile {
     this.speed = options.speed ?? 70;
     this.lifetime = 8;
     this.disposed = false;
-    this.damage = options.damage ?? 60;
+    this.damage = options.damage ?? 95;
     this.explosionRadius = options.explosionRadius ?? 6;
     this.collisionRadius = 0.2;
     this.maxBounces = 4;

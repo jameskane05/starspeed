@@ -111,6 +111,11 @@ export function showFirstViewLoading() {
   radcCounters.requested = 0;
   radcCounters.completed = 0;
   const el = getOverlay();
+  el.classList.remove("first-view-loading-overlay--blocking");
+  const counters = el.querySelector("[data-counters]");
+  if (counters) counters.style.display = "";
+  const sub = el.querySelector("[data-prewarm-msg]");
+  if (sub) sub.style.display = "none";
   if (!el.parentNode) document.body.appendChild(el);
   el.style.display = "flex";
   startRefreshLoop();
@@ -119,6 +124,43 @@ export function showFirstViewLoading() {
 export function hideFirstViewLoading() {
   stopRefreshLoop();
   if (overlayEl) overlayEl.style.display = "none";
+}
+
+/**
+ * Full-screen blocking overlay (logo + message) while GPU-heavy work runs in-scene.
+ * Does not reset RAD counters or start the splat poll used for first view.
+ */
+export function showGpuPrewarmOverlay(message = "Preparing…") {
+  const el = getOverlay();
+  el.classList.add("first-view-loading-overlay--blocking");
+  stopRefreshLoop();
+  const counters = el.querySelector("[data-counters]");
+  if (counters) counters.style.display = "none";
+  const content = el.querySelector(".first-view-loading-content");
+  let sub = el.querySelector("[data-prewarm-msg]");
+  if (!sub && content) {
+    sub = document.createElement("div");
+    sub.setAttribute("data-prewarm-msg", "");
+    sub.className = "first-view-loading-prewarm-msg";
+    content.appendChild(sub);
+  }
+  if (sub) {
+    sub.textContent = message;
+    sub.style.display = "block";
+  }
+  if (!el.parentNode) document.body.appendChild(el);
+  el.style.display = "flex";
+}
+
+export function hideGpuPrewarmOverlay() {
+  if (overlayEl) {
+    overlayEl.classList.remove("first-view-loading-overlay--blocking");
+    const counters = overlayEl.querySelector("[data-counters]");
+    if (counters) counters.style.display = "";
+    const sub = overlayEl.querySelector("[data-prewarm-msg]");
+    if (sub) sub.style.display = "none";
+  }
+  hideFirstViewLoading();
 }
 
 function getNumSplats(game) {

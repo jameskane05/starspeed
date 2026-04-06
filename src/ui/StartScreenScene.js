@@ -204,10 +204,7 @@ export class StartScreenScene {
       new THREE.TextureLoader().load(
         "/images/ui/galaxy_background.jpg",
         (tex) => {
-          report(
-            tracker ? "start-screen-galaxy" : "galaxy",
-            1,
-          );
+          report(tracker ? "start-screen-galaxy" : "galaxy", 1);
           tex.colorSpace = THREE.SRGBColorSpace;
           tex.minFilter = THREE.LinearFilter;
           tex.magFilter = THREE.LinearFilter;

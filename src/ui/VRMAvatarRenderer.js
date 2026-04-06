@@ -7,6 +7,48 @@ import {
 } from "@pixiv/three-vrm-animation";
 
 const RT_SIZE = 512;
+const FACE_MATRIX_EPS = 1e-8;
+
+function normalizeMocapFrame(frame, namesLength) {
+  if (Array.isArray(frame)) {
+    const expected = 1 + namesLength + 16;
+    if (frame.length !== expected) {
+      throw new Error(
+        `Invalid v4 mocap frame: expected ${expected} numbers, got ${frame.length}`,
+      );
+    }
+    const t = frame[0];
+    const values = frame.slice(1, 1 + namesLength);
+    const faceMatrix = frame.slice(1 + namesLength, 1 + namesLength + 16);
+    return { t, values, faceMatrix };
+  }
+  return {
+    t: frame.t,
+    values: frame.values,
+    faceMatrix: frame.faceMatrix ?? null,
+  };
+}
+
+function faceMatrixIsUsable(m) {
+  if (!m || m.length !== 16) return false;
+  for (let i = 0; i < 16; i++) {
+    if (Math.abs(m[i]) > FACE_MATRIX_EPS) return true;
+  }
+  return false;
+}
+
+function normalizeFaceDataInPlace(data) {
+  const namesLength = data.names.length;
+  const normalized = data.frames.map((f) => normalizeMocapFrame(f, namesLength));
+  for (const frame of normalized) {
+    if (!faceMatrixIsUsable(frame.faceMatrix)) frame.faceMatrix = null;
+  }
+  data.frames = normalized;
+  const fps = typeof data.fps === "number" && data.fps > 0 ? data.fps : 30;
+  data.clipDurationSec = normalized.length
+    ? normalized[normalized.length - 1].t + 1 / fps
+    : 0;
+}
 
 function sampleFrames(frames, names, t) {
   if (!frames.length || !names.length) return null;
@@ -44,6 +86,8 @@ const FACE_SMOOTHING = 14;
 const HEAD_SMOOTHING = 10;
 const DIALOG_FACE_BLEND = 6;
 const DIALOG_POSE_BLEND = 4;
+/** Idle clip weight → 0 / back to 1 around dialog; separate from pose blend so idle drops out fast. */
+const IDLE_MIXER_BLEND = 36;
 const NECK_ROTATION_WEIGHT = 0.35;
 const HEAD_ROTATION_WEIGHT = 0.65;
 const LEAN_PITCH_SCALE = 0.032;
@@ -57,11 +101,11 @@ function sampleFaceMatrix(frames, t) {
   if (!frames.length) return null;
   if (t <= frames[0].t) {
     const m = frames[0].faceMatrix;
-    return m && m.length === 16 ? m : null;
+    return faceMatrixIsUsable(m) ? m : null;
   }
   if (t >= frames[frames.length - 1].t) {
     const m = frames[frames.length - 1].faceMatrix;
-    return m && m.length === 16 ? m : null;
+    return faceMatrixIsUsable(m) ? m : null;
   }
   let i = 0;
   while (i + 1 < frames.length && frames[i + 1].t <= t) i++;
@@ -69,7 +113,7 @@ function sampleFaceMatrix(frames, t) {
   const b = frames[i + 1];
   const ma = a.faceMatrix;
   const mb = b.faceMatrix;
-  if (!ma || ma.length !== 16 || !mb || mb.length !== 16) return null;
+  if (!faceMatrixIsUsable(ma) || !faceMatrixIsUsable(mb)) return null;
   const w = (t - a.t) / (b.t - a.t);
   _m4A.fromArray(ma);
   _m4B.fromArray(mb);
@@ -358,7 +402,7 @@ export class VRMAvatarRenderer {
     this._dialogPoseWeight = 0;
     this.idleMixer = null;
     this.idleAction = null;
-    this._idleWeight = 1;
+    this._idleBlendWeight = 1;
     this._headPoseState = {
       dialogWeight: 0,
       initialized: false,
@@ -441,6 +485,7 @@ export class VRMAvatarRenderer {
     const data = await res.json();
     if (!data.names || !Array.isArray(data.frames))
       throw new Error("Invalid face data");
+    normalizeFaceDataInPlace(data);
     this.faceData = data;
     return data;
   }
@@ -466,7 +511,7 @@ export class VRMAvatarRenderer {
           this.idleMixer = new THREE.AnimationMixer(this.vrm.scene);
           this.idleAction = this.idleMixer.clipAction(clip);
           this.idleAction.setLoop(THREE.LoopRepeat, Infinity);
-          this.idleAction.setEffectiveWeight(this._idleWeight);
+          this.idleAction.setEffectiveWeight(this._idleBlendWeight);
           this.idleAction.play();
           resolve(clip);
         },
@@ -552,6 +597,17 @@ export class VRMAvatarRenderer {
       this._placeholderPlaying = false;
     }
     const isSpeaking = !!(this.audioElement && this._playing) || this._placeholderPlaying;
+
+    const idleBlendAlpha = 1 - Math.exp(-IDLE_MIXER_BLEND * delta);
+    this._idleBlendWeight = THREE.MathUtils.lerp(
+      this._idleBlendWeight,
+      isSpeaking ? 0 : 1,
+      idleBlendAlpha,
+    );
+    if (Math.abs(this._idleBlendWeight - (isSpeaking ? 0 : 1)) < 0.001) {
+      this._idleBlendWeight = isSpeaking ? 0 : 1;
+    }
+
     const dialogFaceBlendAlpha = 1 - Math.exp(-DIALOG_FACE_BLEND * delta);
     const dialogPoseBlendAlpha = 1 - Math.exp(-DIALOG_POSE_BLEND * delta);
     this._dialogFaceWeight = THREE.MathUtils.lerp(
@@ -581,13 +637,17 @@ export class VRMAvatarRenderer {
       if (!isSpeaking && this.idleAction.paused) {
         this.idleAction.paused = false;
       }
-      this._idleWeight = 1 - this._dialogPoseWeight;
-      this.idleAction.setEffectiveWeight(this._idleWeight);
-      if (isSpeaking && this._idleWeight === 0) {
+      this.idleAction.setEffectiveWeight(this._idleBlendWeight);
+      if (isSpeaking && this._idleBlendWeight <= 0.001) {
         this.idleAction.paused = true;
       }
     }
-    if (this.idleMixer && (!this.idleAction?.paused || this._idleWeight > 0)) {
+    if (
+      this.idleMixer &&
+      this.idleAction &&
+      !this.idleAction.paused &&
+      this._idleBlendWeight > 0
+    ) {
       this.idleMixer.update(delta);
     }
     let faceValues = null;

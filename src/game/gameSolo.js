@@ -24,19 +24,25 @@ import {
   shipModels,
   reapplyShipMaterials,
 } from "../entities/Enemy.js";
-import { prefractureModels } from "../vfx/ShipDestruction.js";
+import { prefractureModelsAsync } from "../vfx/ShipDestruction.js";
 import { prewarmSpawnWarp } from "../vfx/spawnWarp.js";
+import { Missile } from "../entities/Missile.js";
+import { KineticMissile } from "../entities/KineticMissile.js";
+import { Projectile } from "../entities/Projectile.js";
 import { GAME_STATES } from "../data/gameData.js";
 import MenuManager from "../ui/MenuManager.js";
 import engineAudio from "../audio/EngineAudio.js";
 import * as gameEnemies from "./gameEnemies.js";
-import MissionManager from "../missions/MissionManager.js";
+import MissionManager, {
+  warmGpuProgramsForPlay,
+} from "../missions/MissionManager.js";
 import { updateLeaderboardButtonVisibility } from "./gameInGameUI.js";
 import {
   showFirstViewLoading,
   hideFirstViewLoading,
   waitForFirstViewReady,
 } from "./gameFirstViewLoading.js";
+import { applyAuthoredPlayerSpawn } from "../utils/playerSpawnOrientation.js";
 
 export async function startSoloDebug(game) {
   game.isMultiplayer = false;
@@ -85,26 +91,39 @@ export async function startSoloDebug(game) {
 
   game._extractSpawnPoints();
 
-  if (game.playerSpawnPoints.length > 0) {
-    const sp =
-      game.playerSpawnPoints[
-        Math.floor(Math.random() * game.playerSpawnPoints.length)
-      ];
-    game.camera.position.copy(sp);
+  if (missionConfig?.missionId === "trainingGrounds") {
+    await gameEnemies.initTrainingMissionEnemyPool(game);
   }
 
+  if (missionConfig?.missionId === "trainingGrounds") {
+    if (!applyAuthoredPlayerSpawn(game, 0)) {
+      game.camera.position.set(0, 0, 0);
+      game.player.velocity.set(0, 0, 0);
+    }
+  } else if (game.playerSpawnPoints.length > 0) {
+    applyAuthoredPlayerSpawn(
+      game,
+      Math.floor(Math.random() * game.playerSpawnPoints.length),
+    );
+  }
+
+  const spawnN = game.spawnPoints?.length ?? 0;
+  const extraPointLights = Math.min(48, Math.max(6, spawnN * 2));
   game.dynamicLights?.warmupShaders(
     game.renderer,
     game.camera,
-    game.spawnPoints.length,
+    extraPointLights,
   );
+  prewarmMissileVisuals(game);
   if (!game.missionManager) {
     game.missionManager = new MissionManager(game);
   }
 
+  await game._checkpointVisualPoolInitPromise?.catch?.(() => {});
+
   if (!missionConfig) {
     game.missionManager.stopMission();
-    game.spawnEnemies();
+    await gameEnemies.spawnEnemiesFromLevelSpawnPointsWithPrewarm(game);
     gameEnemies.spawnMissilePickups(game);
   } else {
     if (game._missilePickups) {
@@ -125,6 +144,8 @@ export async function startSoloDebug(game) {
     document.body.requestPointerLock?.()?.catch?.(() => {});
   }
   document.getElementById("hud").classList.add("active");
+
+  warmGpuProgramsForPlay(game);
 
   game.gameManager.setState({
     currentState: GAME_STATES.PLAYING,
@@ -161,12 +182,60 @@ export async function ensureEnemyShipAssetsLoaded(game, loadingTracker = null) {
   }
   game.enemyShipAssetsPromise = (async () => {
     await loadShipModels();
-    prefractureModels(shipModels);
+    await prefractureModelsAsync(shipModels);
     await reapplyShipMaterials(shipModels);
   })();
   await game.enemyShipAssetsPromise;
   prewarmEnemySpawnWarp(game);
   loadingTracker?.completeTask("solo-enemy-assets");
+}
+
+function prewarmMissileVisuals(game) {
+  if (!game.renderer || !game.camera || !game.scene) return;
+  const dir = new THREE.Vector3(0, 0, -1);
+  const pos = new THREE.Vector3(0, -12000, 0);
+  const quat = new THREE.Quaternion();
+  const m1 = new Missile(game.scene, pos, dir, {
+    trailsEffect: game.trailsEffect,
+  });
+  const m2 = new KineticMissile(
+    game.scene,
+    pos.clone().add(new THREE.Vector3(8, 0, 0)),
+    dir,
+    { trailsEffect: game.trailsEffect },
+  );
+  const enemyLaserVisual = {
+    color: shipModels[0]?.userData?.enemyLaserColor ?? 0xff8800,
+    intensity: shipModels[0]?.userData?.enemyLaserIntensity ?? 1,
+  };
+  const p1 = new Projectile(
+    game.scene,
+    pos.clone().add(new THREE.Vector3(-8, 0, 0)),
+    dir,
+    false,
+    null,
+    enemyLaserVisual,
+  );
+  for (let i = 0; i < 28; i++) {
+    game.trailsEffect?.emitMissileExhaust(pos, quat, dir);
+  }
+  for (let i = 0; i < 24; i++) {
+    game.trailsEffect?.emitEngineExhaust(
+      pos.clone().add(new THREE.Vector3((i % 3) - 1, 0, (i % 4) * 0.2)),
+      dir,
+    );
+  }
+  game.renderer.compile(game.scene, game.camera);
+  if (game.composer && game._bloomActive) {
+    game.composer.render();
+    game.composer.render();
+  } else {
+    game.renderer.render(game.scene, game.camera);
+    game.renderer.render(game.scene, game.camera);
+  }
+  m1.dispose(game.scene);
+  m2.dispose(game.scene);
+  p1.dispose(game.scene);
 }
 
 function prewarmEnemySpawnWarp(game) {
@@ -180,6 +249,7 @@ function prewarmEnemySpawnWarp(game) {
 
   prewarmSpawnWarp(game.renderer, game.camera, clone, {
     color: template.userData?.enemyLaserColor ?? 0xff8800,
+    materialEffect: false,
   });
   game._spawnWarpPrewarmed = true;
 }

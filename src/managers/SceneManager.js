@@ -205,8 +205,12 @@ class SceneManager {
             }
 
             const spawnPoints = this._extractSpawnPointsFromModel(model);
+            const markerGroup = this._extractMarkerGroupFromModel(model);
             const container = new THREE.Group();
             container.add(geometryRoot);
+            if (markerGroup) {
+              container.add(markerGroup);
+            }
 
             let dynamicElements = [];
             const dynConfig = combined.dynamicSceneElements;
@@ -313,8 +317,10 @@ class SceneManager {
 
   _extractSpawnPointsFromModel(model) {
     const enemy = [];
-    const player = [];
+    const playerEntries = [];
     const missile = [];
+    const goals = [];
+    const goalOrder = { Goal: 0, "Goal.001": 1, "Goal.002": 2 };
     model.updateMatrixWorld(true);
     model.traverse((child) => {
       const name = child.name || "";
@@ -325,14 +331,66 @@ class SceneManager {
       } else if (name.startsWith("Spawn")) {
         const pos = new THREE.Vector3();
         child.getWorldPosition(pos);
-        player.push(pos.clone());
+        const quat = new THREE.Quaternion();
+        child.getWorldQuaternion(quat);
+        playerEntries.push({
+          name,
+          position: pos.clone(),
+          quaternion: quat.clone(),
+        });
       } else if (name.startsWith("Missile")) {
         const pos = new THREE.Vector3();
         child.getWorldPosition(pos);
         missile.push(pos.clone());
+      } else if (name === "Goal" || name.startsWith("Goal.")) {
+        const pos = new THREE.Vector3();
+        child.getWorldPosition(pos);
+        goals.push({ name, position: pos.clone() });
       }
     });
-    return { enemy, player, missile };
+    playerEntries.sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { numeric: true }),
+    );
+    const player = playerEntries.map((e) => e.position);
+    const playerMarkerQuaternions = playerEntries.map((e) => e.quaternion);
+    goals.sort((a, b) => {
+      const aOrder = goalOrder[a.name] ?? Number.MAX_SAFE_INTEGER;
+      const bOrder = goalOrder[b.name] ?? Number.MAX_SAFE_INTEGER;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return a.name.localeCompare(b.name, undefined, { numeric: true });
+    });
+    return {
+      enemy,
+      player,
+      playerMarkerQuaternions,
+      missile,
+      goals: goals.map((entry) => entry.position),
+    };
+  }
+
+  _extractMarkerGroupFromModel(model) {
+    const markerGroup = new THREE.Group();
+    markerGroup.name = "LevelMarkers";
+    markerGroup.visible = false;
+    const keepNames = new Set(["Goal", "Goal.001", "Goal.002"]);
+    model.updateMatrixWorld(true);
+    model.traverse((child) => {
+      const name = child.name || "";
+      if (
+        !keepNames.has(name) &&
+        !name.startsWith("Enemy") &&
+        !name.startsWith("Spawn") &&
+        !name.startsWith("Missile")
+      ) {
+        return;
+      }
+      const marker = new THREE.Object3D();
+      marker.name = name;
+      child.getWorldPosition(marker.position);
+      child.getWorldQuaternion(marker.quaternion);
+      markerGroup.add(marker);
+    });
+    return markerGroup.children.length > 0 ? markerGroup : null;
   }
 
   _extractDynamicSceneElementsFromModel(model, meshNamePrefix) {

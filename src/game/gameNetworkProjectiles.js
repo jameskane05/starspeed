@@ -29,6 +29,21 @@ import { LaserImpact } from "../entities/LaserImpact.js";
 import { Collectible } from "../entities/Collectible.js";
 import NetworkManager from "../network/NetworkManager.js";
 
+function networkHitImpactColor(data) {
+  const raw = data.shooterAccentColor;
+  if (raw && String(raw).trim()) {
+    const col = new THREE.Color();
+    try {
+      col.set(raw);
+      return col.getHex();
+    } catch {
+      /* fall through */
+    }
+  }
+  if (data.shooterId?.startsWith?.("bot_")) return 0xff8800;
+  return 0x00ffff;
+}
+
 function laserVisualForOwnerId(ownerId) {
   const state = NetworkManager.getState();
   const p = state?.players?.get?.(ownerId);
@@ -200,7 +215,7 @@ export function spawnNetworkProjectile(game, id, data) {
 
     const flashColor = isBotOwner
       ? 0xff8800
-      : remoteHumanVisual?.color ?? 0x00ffff;
+      : (remoteHumanVisual?.color ?? 0x00ffff);
     game.dynamicLights?.flash(position, flashColor, {
       intensity: 10,
       distance: 16,
@@ -256,7 +271,7 @@ export function handleNetworkHit(game, data) {
       : new THREE.Vector3(0, 1, 0);
 
   const isOurShot = data.shooterId === NetworkManager.sessionId;
-  const hitColor = isOurShot ? 0x00ffff : 0xff8800;
+  const hitColor = networkHitImpactColor(data);
 
   const impact = new LaserImpact(
     game.scene,
@@ -268,7 +283,7 @@ export function handleNetworkHit(game, data) {
   game.impacts.push(impact);
 
   if (game.particles) {
-    game.sparksEffect.emitElectricalSparks(hitPos, hitNormal, 100);
+    game.sparksEffect.emitElectricalSparks(hitPos, hitNormal, 100, hitColor);
   }
 
   if (isOurShot) {

@@ -20,6 +20,10 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { castSphere, castRay } from "../physics/Physics.js";
+import {
+  beginCheckpointDissolve,
+  ENEMY_SPAWN_DISSOLVE_DURATION,
+} from "../vfx/checkpointDissolveWarp.js";
 import { beginSpawnWarp } from "../vfx/spawnWarp.js";
 
 const _direction = new THREE.Vector3();
@@ -37,6 +41,21 @@ const _textureLoader = new THREE.TextureLoader();
 let shipModels = [];
 let loadPromise = null;
 const _deadLights = [];
+
+export function flushRetainedEnemyMeshes(game) {
+  if (!game?._retainedEnemyRootMeshes?.length) return;
+  for (const root of game._retainedEnemyRootMeshes) {
+    root.traverse((child) => {
+      if (!child.isMesh) return;
+      child.geometry?.dispose?.();
+      const mats = Array.isArray(child.material)
+        ? child.material
+        : [child.material];
+      for (const m of mats) m?.dispose?.();
+    });
+  }
+  game._retainedEnemyRootMeshes.length = 0;
+}
 let sharedShipMaterials = null;
 let sharedShipMaterialsPromise = null;
 
@@ -407,11 +426,16 @@ export class Enemy {
     this.laserIntensity = 1.0;
     this.usesSharedTemplateModel = false;
     this.spawnWarp = null;
+    this.missionPoolSlot = options.missionPoolSlot ?? null;
 
     this.modelIndex =
-      shipModels.length > 0
-        ? Math.floor(Math.random() * shipModels.length)
-        : -1;
+      options.modelIndex != null &&
+      options.modelIndex >= 0 &&
+      options.modelIndex < shipModels.length
+        ? options.modelIndex
+        : shipModels.length > 0
+          ? Math.floor(Math.random() * shipModels.length)
+          : -1;
     const shipTemplate =
       this.modelIndex >= 0 ? shipModels[this.modelIndex] : null;
 
@@ -431,6 +455,15 @@ export class Enemy {
         } else if (n.startsWith("weapon_")) {
           child.visible = false;
           this.weaponMarkers.push(child);
+        }
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material = child.material.map((m) =>
+              m?.clone ? m.clone() : m,
+            );
+          } else if (child.material.clone) {
+            child.material = child.material.clone();
+          }
         }
       });
       this.mesh.add(clone);
@@ -465,10 +498,23 @@ export class Enemy {
     }
 
     scene.add(this.mesh);
-    this.spawnWarp = beginSpawnWarp(this.mesh, {
-      duration: 2.45,
-      color: this.laserColor,
-    });
+    if (!options.deferSpawnWarp) {
+      if (options.game) {
+        this.spawnWarp = beginCheckpointDissolve(this.mesh, options.game, {
+          duration: ENEMY_SPAWN_DISSOLVE_DURATION,
+          edgeColor: this.laserColor,
+          particleColor: this.laserColor,
+          particleDecimation: 8,
+          particleSize: 26,
+        });
+      } else {
+        this.spawnWarp = beginSpawnWarp(this.mesh, {
+          duration: ENEMY_SPAWN_DISSOLVE_DURATION,
+          color: this.laserColor,
+          materialEffect: false,
+        });
+      }
+    }
   }
 
   _pickNewWaypoint() {
@@ -521,23 +567,35 @@ export class Enemy {
   update(delta, playerPos, fireCallback, frameCount = 0, cullDistance = 200) {
     if (this.disposed) return;
 
-    if (this.spawnWarp?.active) {
+    if (
+      this.spawnWarp &&
+      !this.spawnWarp.disposed &&
+      !this.spawnWarp.finished
+    ) {
       this.spawnWarp.update(delta);
     }
-
-    this.fireCooldown -= delta;
 
     const distToPlayerSq = this.mesh.position.distanceToSquared(playerPos);
 
     // Distance cull — hide mesh and skip AI/physics when far away.
     // Use intensity=0 for lights (not visibility) to keep scene light count constant
     // and avoid shader recompilation. Hysteresis (~90% in, ~110% out) prevents rapid toggling.
+    // Never cull during spawn warp: the dissolve + child warp light must stay visible even
+    // when the spawn point is beyond the normal cull radius.
+    const spawnVfxActive = Boolean(
+      this.spawnWarp &&
+        !this.spawnWarp.disposed &&
+        !this.spawnWarp.finished &&
+        !this.spawnWarp.frozen,
+    );
     const wasCulled = !this.mesh.visible;
     const cullOutSq = (cullDistance * 1.1) ** 2;
     const cullInSq = (cullDistance * 0.9) ** 2;
-    const culled = wasCulled
-      ? distToPlayerSq > cullInSq
-      : distToPlayerSq > cullOutSq;
+    const culled = spawnVfxActive
+      ? false
+      : wasCulled
+        ? distToPlayerSq > cullInSq
+        : distToPlayerSq > cullOutSq;
     if (this.mesh.visible === culled) {
       this.mesh.visible = !culled;
       if (this.shipLight) {
@@ -545,6 +603,9 @@ export class Enemy {
       }
     }
     if (culled) return;
+    if (spawnVfxActive) return;
+
+    this.fireCooldown -= delta;
 
     this.physicsFrame++;
 
@@ -689,7 +750,7 @@ export class Enemy {
     this.hasLOS = true;
   }
 
-  dispose(scene) {
+  dispose(scene, game = null) {
     if (this.disposed) return;
     this.disposed = true;
 
@@ -700,6 +761,17 @@ export class Enemy {
 
     scene.remove(this.mesh);
     this.spawnWarp?.dispose?.();
+
+    const ms = game?.gameManager?.getState?.()?.missionStatus;
+    const retainDuringMission =
+      this.usesSharedTemplateModel &&
+      (ms === "active" || ms === "starting");
+    if (retainDuringMission) {
+      if (!game._retainedEnemyRootMeshes) game._retainedEnemyRootMeshes = [];
+      game._retainedEnemyRootMeshes.push(this.mesh);
+      return;
+    }
+
     this.mesh.traverse((child) => {
       if (!child.isMesh) return;
       if (!this.usesSharedTemplateModel && child.geometry) child.geometry.dispose();

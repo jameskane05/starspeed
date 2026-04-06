@@ -26,15 +26,17 @@ import {
   SplatEditRgbaBlendMode,
 } from "@sparkjsdev/spark";
 import { castSphere, checkSphereCollision } from "../physics/Physics.js";
-import {
-  Projectile,
-  PLAYER_LASER_INTENSITY,
-} from "../entities/Projectile.js";
+import { Projectile, PLAYER_LASER_INTENSITY } from "../entities/Projectile.js";
 import { Missile } from "../entities/Missile.js";
 import { KineticMissile } from "../entities/KineticMissile.js";
 import { Explosion } from "../entities/Explosion.js";
 import { LaserImpact } from "../entities/LaserImpact.js";
 import { spawnDestruction } from "../vfx/ShipDestruction.js";
+import {
+  beginCheckpointDissolve,
+  ENEMY_SPAWN_DISSOLVE_DURATION,
+  stripCheckpointDissolveMaterials,
+} from "../vfx/checkpointDissolveWarp.js";
 import NetworkManager from "../network/NetworkManager.js";
 import proceduralAudio from "../audio/ProceduralAudio.js";
 import sfxManager from "../audio/sfxManager.js";
@@ -43,15 +45,71 @@ const _fireDir = new THREE.Vector3();
 const _hitPos = new THREE.Vector3();
 const _hitNormal = new THREE.Vector3();
 const _sparkPos = new THREE.Vector3();
+const _colorScratch = new THREE.Color();
 
 function shouldQueueSoloEnemyRespawn(game) {
   return (
-    !game.isMultiplayer &&
-    !game.missionManager?.shouldSuppressRespawns?.()
+    !game.isMultiplayer && !game.missionManager?.shouldSuppressRespawns?.()
   );
 }
 
+function destroyTrainingPoolEnemy(game, enemy, index, weaponType = "laser") {
+  const deathPos = enemy.mesh.position.clone();
+  const deathQuat = enemy.mesh.quaternion.clone();
+  const explosion = new Explosion(
+    game.scene,
+    deathPos,
+    enemy.glowColor,
+    game.dynamicLights,
+    { big: true },
+  );
+  game.explosions.push(explosion);
+  sfxManager.play("ship-explosion", deathPos, 0.6);
+  if (game.particles) {
+    game.explosionEffect.emitBigExplosion(deathPos);
+  }
+  spawnDestruction(game.scene, deathPos, deathQuat, enemy.modelIndex);
+  proceduralAudio.checkpointGoalSuccess();
+  enemy.spawnWarp?.dispose?.();
+  stripCheckpointDissolveMaterials(enemy.mesh);
+  enemy.spawnWarp = beginCheckpointDissolve(enemy.mesh, game, {
+    duration: ENEMY_SPAWN_DISSOLVE_DURATION,
+    edgeColor: enemy.laserColor,
+    particleColor: enemy.laserColor,
+    particleDecimation: 8,
+    particleSize: 26,
+  });
+  enemy.spawnWarp.freeze();
+  enemy.mesh.visible = false;
+  if (enemy.shipLight) enemy.shipLight.intensity = 0;
+  game.enemies.splice(index, 1);
+  if (shouldQueueSoloEnemyRespawn(game)) {
+    game.enemyRespawnQueue.push({
+      timer: 20,
+      pos: enemy.spawnPoint.clone(),
+      ...(enemy.missionPoolSlot != null
+        ? { missionPoolSlot: enemy.missionPoolSlot }
+        : {}),
+    });
+  }
+  game.gameManager.setState({
+    enemiesRemaining: game.enemies.length,
+    enemiesKilled: game.gameManager.getState().enemiesKilled + 1,
+  });
+  game.missionManager?.reportEvent("enemyDestroyed", {
+    weaponType,
+    remaining: game.enemies.length,
+  });
+  if (game.enemies.length === 0) {
+    game.missionManager?.reportEvent("waveCleared", { weaponType });
+  }
+}
+
 function destroyEnemy(game, enemy, index, weaponType = "laser") {
+  if (enemy.missionPoolSlot != null) {
+    destroyTrainingPoolEnemy(game, enemy, index, weaponType);
+    return;
+  }
   const deathPos = enemy.mesh.position.clone();
   const deathQuat = enemy.mesh.quaternion.clone();
   const explosion = new Explosion(
@@ -68,10 +126,16 @@ function destroyEnemy(game, enemy, index, weaponType = "laser") {
   }
   spawnDestruction(game.scene, deathPos, deathQuat, enemy.modelIndex);
   const respawnPos = enemy.spawnPoint;
-  enemy.dispose(game.scene);
+  enemy.dispose(game.scene, game);
   game.enemies.splice(index, 1);
   if (shouldQueueSoloEnemyRespawn(game)) {
-    game.enemyRespawnQueue.push({ timer: 20, pos: respawnPos });
+    game.enemyRespawnQueue.push({
+      timer: 20,
+      pos: respawnPos,
+      ...(enemy.missionPoolSlot != null
+        ? { missionPoolSlot: enemy.missionPoolSlot }
+        : {}),
+    });
   }
   game.gameManager.setState({
     enemiesRemaining: game.enemies.length,
@@ -90,9 +154,14 @@ function applyKineticExplosion(game, position, damage, radius) {
   for (let j = game.enemies.length - 1; j >= 0; j--) {
     const enemy = game.enemies[j];
     const dist = position.distanceTo(enemy.mesh.position);
-    if (dist >= radius) continue;
-    const falloff = 1 - (dist / radius) * 0.5;
-    const dmg = Math.max(1, Math.floor(damage * falloff));
+    let dmg;
+    if (enemy.pointInHitbox(position)) {
+      dmg = Math.max(1, Math.floor(damage));
+    } else {
+      if (dist >= radius) continue;
+      const falloff = 1 - (dist / radius) * 0.5;
+      dmg = Math.max(1, Math.floor(damage * falloff));
+    }
     enemy.takeDamage(dmg);
     if (enemy.health <= 0) {
       destroyEnemy(game, enemy, j, "kineticMissile");
@@ -144,13 +213,19 @@ export function initProjectileSplatLayer(game) {
 export function createProjectileSplatLight(game, isPlayerOwned, visual) {
   if (!game.projectileSplatLayer) return null;
   try {
-    const color = isPlayerOwned
-      ? visual?.color !== undefined
-        ? new THREE.Color(visual.color).multiplyScalar(0.08)
-        : new THREE.Color(0.04, 0.06, 0.08)
-      : visual?.color
-        ? new THREE.Color(visual.color).multiplyScalar(0.08)
-        : new THREE.Color(0.07, 0.04, 0.03);
+    const c = _colorScratch;
+    if (isPlayerOwned) {
+      if (visual?.color !== undefined) {
+        c.set(visual.color).multiplyScalar(0.08);
+      } else {
+        c.setRGB(0.04, 0.06, 0.08);
+      }
+    } else if (visual?.color !== undefined) {
+      c.set(visual.color).multiplyScalar(0.08);
+    } else {
+      c.setRGB(0.07, 0.04, 0.03);
+    }
+    const color = c.clone();
     const sdf = new SplatEditSdf({
       type: SplatEditSdfType.SPHERE,
       radius: 10,
@@ -169,13 +244,12 @@ function getLocalPlayerLaserVisual(game) {
   const lp = NetworkManager.getLocalPlayer();
   const hex = lp?.accentColor;
   if (!hex) return null;
-  const col = new THREE.Color();
   try {
-    col.set(hex);
+    _colorScratch.set(hex);
   } catch {
     return null;
   }
-  return { color: col.getHex(), intensity: PLAYER_LASER_INTENSITY };
+  return { color: _colorScratch.getHex(), intensity: PLAYER_LASER_INTENSITY };
 }
 
 export function firePlayerWeapon(game) {
@@ -365,7 +439,7 @@ export function checkCollisions(game) {
 
     let hitSomething = false;
     const projPos = proj.mesh.position;
-    const projColor = proj.isPlayerOwned ? 0x00ffff : 0xff8800;
+    const projColor = proj.impactColor;
 
     if (!game.isMultiplayer) {
       if (proj.isPlayerOwned) {
@@ -385,7 +459,12 @@ export function checkCollisions(game) {
             game.impacts.push(impact);
 
             if (game.particles) {
-              game.sparksEffect.emitElectricalSparks(projPos, _hitNormal, 30);
+              game.sparksEffect.emitElectricalSparks(
+                projPos,
+                _hitNormal,
+                30,
+                projColor,
+              );
             }
 
             hitSomething = true;
@@ -461,7 +540,12 @@ export function checkCollisions(game) {
 
     if (wallHitDetected && game.particles) {
       _sparkPos.copy(_hitPos).addScaledVector(_hitNormal, 0.05);
-      game.sparksEffect.emitElectricalSparks(_sparkPos, _hitNormal, 100);
+      game.sparksEffect.emitElectricalSparks(
+        _sparkPos,
+        _hitNormal,
+        100,
+        projColor,
+      );
       game.dynamicLights?.flash(_hitPos, projColor, {
         intensity: 8,
         distance: 12,
@@ -547,6 +631,7 @@ export function checkCollisions(game) {
                 _sparkPos,
                 _hitNormal,
                 80,
+                0x4488ff,
               );
             }
             game.dynamicLights?.flash(_hitPos, 0x4488ff, {

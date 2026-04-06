@@ -1,66 +1,64 @@
 import * as THREE from "three";
+import { perlinNoise } from "./shaders/perlinNoise.glsl.js";
 
-function patchWarpMaterial(material, uniforms) {
+/**
+ * Noise dissolve materialize (shadow-style): Perlin on local position, discard below
+ * threshold, edge glow on outgoingLight. Injects before #include <opaque_fragment>
+ * (Three r152+ — output_fragment no longer exists on MeshPhysical).
+ */
+function patchWarpMaterial(material, warpUniforms) {
   const cloned = material.clone();
   const originalDepthWrite = cloned.depthWrite;
   cloned.transparent = true;
   cloned.depthWrite = false;
 
   if (cloned.isMeshStandardMaterial || cloned.isMeshPhysicalMaterial) {
-    cloned.onBeforeCompile = (shader) => {
-      shader.uniforms.uSpawnWarpProgress = uniforms.progress;
-      shader.uniforms.uSpawnWarpColor = uniforms.color;
-      shader.uniforms.uSpawnWarpEdge = uniforms.edgeStrength;
+    cloned.onBeforeCompile = (parameters) => {
+      for (const key of Object.keys(warpUniforms)) {
+        parameters.uniforms[key] = warpUniforms[key];
+      }
 
-      shader.vertexShader =
+      const { vertexShader, fragmentShader } = parameters;
+
+      parameters.vertexShader = vertexShader.replace(
+        "#include <common>",
+        `#include <common>
+varying vec3 vSpawnDissolveLocal;
+`,
+      );
+      parameters.vertexShader = parameters.vertexShader.replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>
+vSpawnDissolveLocal = position;
+`,
+      );
+
+      parameters.fragmentShader = fragmentShader.replace(
+        "#include <common>",
+        `#include <common>
+${perlinNoise}
+varying vec3 vSpawnDissolveLocal;
+`,
+      );
+
+      parameters.fragmentShader = parameters.fragmentShader.replace(
+        "#include <opaque_fragment>",
         `
-        varying vec3 vSpawnWarpWorld;
-      ` +
-        shader.vertexShader.replace(
-          "#include <begin_vertex>",
-          `
-          #include <begin_vertex>
-          vec4 spawnWarpWorld = modelMatrix * vec4(position, 1.0);
-          vSpawnWarpWorld = spawnWarpWorld.xyz;
-        `,
-        );
-
-      shader.fragmentShader =
-        `
-        uniform float uSpawnWarpProgress;
-        uniform vec3 uSpawnWarpColor;
-        uniform float uSpawnWarpEdge;
-        varying vec3 vSpawnWarpWorld;
-
-        float spawnWarpHash31(vec3 p) {
-          p = fract(p * 0.1031);
-          p += dot(p, p.yzx + 33.33);
-          return fract((p.x + p.y) * p.z);
-        }
-      ` +
-        shader.fragmentShader.replace(
-          "#include <output_fragment>",
-          `
-          float warpNoise = spawnWarpHash31(floor(vSpawnWarpWorld * 3.75));
-          float warpReveal = smoothstep(
-            uSpawnWarpProgress - 0.24,
-            uSpawnWarpProgress + 0.03,
-            warpNoise
-          );
-          float warpEdge = 1.0 - smoothstep(
-            0.0,
-            0.075,
-            abs(warpNoise - uSpawnWarpProgress)
-          );
-          diffuseColor.a *= warpReveal;
-          if (diffuseColor.a < 0.02) discard;
-          totalEmissiveRadiance += uSpawnWarpColor * warpEdge * uSpawnWarpEdge;
-          #include <output_fragment>
-        `,
-        );
+if (uDissolveActive > 0.5) {
+  float spawnD = cnoise(vSpawnDissolveLocal * uDissolveFreq) * uDissolveAmp;
+  if (spawnD < uDissolveThreshold) discard;
+  float spawnHi = uDissolveThreshold + uDissolveEdge;
+  if (spawnD < spawnHi) {
+    float spawnEdgeAmt = smoothstep(uDissolveThreshold, spawnHi, spawnD);
+    outgoingLight += uDissolveEdgeColor * spawnEdgeAmt * uDissolveEdgeGlow;
+  }
+}
+#include <opaque_fragment>
+`,
+      );
     };
     cloned.customProgramCacheKey = () =>
-      `${material.customProgramCacheKey?.() ?? ""}|spawn-warp-v1`;
+      `${material.customProgramCacheKey?.() ?? ""}|spawn-warp-v5-active`;
   }
 
   cloned.needsUpdate = true;
@@ -70,22 +68,33 @@ function patchWarpMaterial(material, uniforms) {
 
 export function beginSpawnWarp(root, options = {}) {
   const duration = options.duration ?? 2.35;
+  const materialEffect = options.materialEffect !== false;
   const baseScale = root.scale.clone();
+  /** Snapshot mesh.material before patching; dispose() restores so re-warp is not stacked. */
+  const originals = [];
   const warpColor = new THREE.Color(options.color ?? 0x8affff);
-  const uniforms = {
-    progress: { value: 0 },
-    color: { value: warpColor },
-    edgeStrength: { value: 4.8 },
+  const warpUniforms = {
+    uDissolveActive: { value: 1 },
+    uDissolveThreshold: { value: 18 },
+    uDissolveFreq: { value: options.dissolveFreq ?? 0.5 },
+    uDissolveAmp: { value: options.dissolveAmp ?? 16 },
+    uDissolveEdge: { value: options.dissolveEdge ?? 0.85 },
+    uDissolveEdgeGlow: { value: options.edgeGlow ?? 3.2 },
+    uDissolveEdgeColor: {
+      value: new THREE.Vector3(warpColor.r, warpColor.g, warpColor.b),
+    },
   };
   const materials = [];
 
   root.traverse((child) => {
+    if (!materialEffect) return;
     if (!child.isMesh || !child.material) return;
+    originals.push({ mesh: child, material: child.material });
     const sourceMaterials = Array.isArray(child.material)
       ? child.material
       : [child.material];
     const warpedMaterials = sourceMaterials.map((material) => {
-      const warped = patchWarpMaterial(material, uniforms);
+      const warped = patchWarpMaterial(material, warpUniforms);
       materials.push(warped);
       return warped;
     });
@@ -99,52 +108,127 @@ export function beginSpawnWarp(root, options = {}) {
   root.add(light);
 
   let elapsed = 0;
-  let active = true;
+  let finished = false;
+  let frozen = false;
+  let disposed = false;
 
-  return {
+  const THRESHOLD_START = 18;
+  /** Below ~-(2.2 * uDissolveAmp) no fragments should discard; cnoise is ~[-2.2, 2.2]. */
+  const THRESHOLD_END = -40;
+  const THRESHOLD_DONE = -60;
+
+  function sealFinishedVisuals() {
+    root.scale.copy(baseScale);
+    if (light.parent) root.remove(light);
+    warpUniforms.uDissolveActive.value = 0;
+    warpUniforms.uDissolveThreshold.value = THRESHOLD_DONE;
+    for (const material of materials) {
+      material.depthWrite =
+        material.userData._spawnWarpOriginalDepthWrite ?? true;
+      material.opacity = 1;
+    }
+  }
+
+  function applyElapsedVisuals() {
+    const t = Math.min(1, elapsed / duration);
+    const eased = 1 - (1 - t) * (1 - t);
+    warpUniforms.uDissolveThreshold.value = THREE.MathUtils.lerp(
+      THRESHOLD_START,
+      THRESHOLD_END,
+      t,
+    );
+    warpUniforms.uDissolveEdgeGlow.value = 5.0 - eased * 2.2;
+    const pulse = Math.sin(t * Math.PI);
+    light.intensity = (1 - t) * 6.5 + pulse * 2.0;
+    light.distance = 8 + pulse * 12;
+    const scale = 0.94 + eased * 0.06;
+    root.scale.copy(baseScale).multiplyScalar(scale);
+    for (const material of materials) {
+      material.opacity = 0.2 + t * 0.8;
+    }
+  }
+
+  const api = {
     materials,
+    warpUniforms,
+    get finished() {
+      return finished;
+    },
+    get frozen() {
+      return frozen;
+    },
+    get disposed() {
+      return disposed;
+    },
     get active() {
-      return active;
+      return !disposed && !finished;
     },
     update(delta = 0.016) {
-      if (!active) return false;
-      elapsed += delta;
+      if (disposed || finished) return false;
+      if (frozen) return true;
+      const dt = Math.min(0.1, Math.max(0, Number(delta) || 0));
+      elapsed += dt;
       const t = Math.min(1, elapsed / duration);
-      const eased = 1 - (1 - t) * (1 - t);
-      uniforms.progress.value = Math.min(1.25, eased * 1.22);
-      uniforms.edgeStrength.value = 5.0 - eased * 2.4;
-
-      const pulse = Math.sin(t * Math.PI);
-      light.intensity = (1 - t) * 6.5 + pulse * 2.0;
-      light.distance = 8 + pulse * 12;
-
-      const scale = 0.94 + eased * 0.06;
-      root.scale.copy(baseScale).multiplyScalar(scale);
-
-      for (const material of materials) {
-        material.opacity = 0.12 + eased * 0.88;
-      }
-
+      applyElapsedVisuals();
       if (t >= 1) {
-        root.scale.copy(baseScale);
-        root.remove(light);
-        for (const material of materials) {
-          material.depthWrite =
-            material.userData._spawnWarpOriginalDepthWrite ?? true;
-          material.opacity = 1;
-        }
-        active = false;
+        sealFinishedVisuals();
+        finished = true;
         return false;
       }
-
       return true;
     },
+    restart(opts = {}) {
+      if (disposed) return;
+      const hold = opts.hold === true;
+      finished = false;
+      frozen = hold;
+      elapsed = 0;
+      if (!light.parent) root.add(light);
+      warpUniforms.uDissolveActive.value = 1;
+      warpUniforms.uDissolveThreshold.value = THRESHOLD_START;
+      warpUniforms.uDissolveEdgeGlow.value = 5.0;
+      if (opts.color != null) {
+        const c = new THREE.Color(opts.color);
+        warpUniforms.uDissolveEdgeColor.value.set(c.r, c.g, c.b);
+      }
+      root.scale.copy(baseScale).multiplyScalar(0.94);
+      for (const material of materials) {
+        material.transparent = true;
+        material.depthWrite = false;
+        material.opacity = 0.2;
+        material.needsUpdate = true;
+      }
+      light.intensity = 6.5;
+      light.distance = 8;
+      elapsed = 0;
+      applyElapsedVisuals();
+    },
+    unfreeze() {
+      if (disposed || finished) return;
+      frozen = false;
+    },
+    freeze() {
+      if (disposed || finished) return;
+      frozen = true;
+    },
     dispose() {
+      if (disposed) return;
+      disposed = true;
       root.scale.copy(baseScale);
-      root.remove(light);
-      active = false;
+      if (light.parent) root.remove(light);
+      finished = true;
+      frozen = false;
+      for (const { mesh, material } of originals) {
+        if (mesh && material != null) mesh.material = material;
+      }
+      originals.length = 0;
+      for (const m of materials) m?.dispose?.();
+      materials.length = 0;
     },
   };
+
+  api.update(0);
+  return api;
 }
 
 export function prewarmSpawnWarp(renderer, camera, root, options = {}) {

@@ -7,15 +7,21 @@ const say = (speakerId, text, duration) => ({
   duration,
 });
 
+const dialogPublicUrl = (relativePath) => {
+  const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "") || "";
+  const path = relativePath.replace(/^\//, "");
+  return base ? `${base}/${path}` : `/${path}`;
+};
+
 export const dialogSpeakers = {
   alcair: {
     id: "alcair",
     label: "ALCAIR",
     vrmUrl: "./model_original_1773065783.vrm",
   },
-  groundControl: {
-    id: "groundControl",
-    label: "GROUND CONTROL",
+  flightControl: {
+    id: "flightControl",
+    label: "FLIGHT CONTROL",
     vrmUrl: "./model_original_1773089969.vrm",
   },
 };
@@ -23,16 +29,39 @@ export const dialogSpeakers = {
 export const dialogTracks = {
   trainingGroundsIntro: {
     id: "trainingGroundsIntro",
+    audio: dialogPublicUrl("audio/dialog/training-00-greetings.audio.mp3"),
+    faceDataUrl: dialogPublicUrl("audio/dialog/training-00-greetings.json"),
     captions: [
+      say("alcair", "ALCAIR: Greetings, Starspeed!", 1.54),
+      say("alcair", "ALCAIR: I am Alcair, your shipboard computer,", 2.52),
       say(
         "alcair",
-        "ALCAIR: Greetings, STARSPEED. I am Alcair, your shipboard computer, here to guide you through this training exercise for the XR-zero antigravity starfighter.",
-        6.5,
+        "ALCAIR: here to guide you through this training exercise",
+        2.86,
       ),
-      say("alcair", "ALCAIR: Ground control, do you read?", 2.1),
       say(
-        "groundControl",
-        "GROUND CONTROL: We're all set. Let's get going, pilot.",
+        "alcair",
+        "ALCAIR: for the XR0 anti-gravity starfighter.",
+        3.78,
+      ),
+      say("alcair", "ALCAIR: Flight control, do you read?", 1.42),
+    ],
+    criteria: {
+      currentState: GAME_STATES.PLAYING,
+      currentMissionId: "trainingGrounds",
+      missionStepId: "introDialog",
+    },
+    autoPlay: true,
+    priority: 200,
+    placeholderAnimation: true,
+    playNext: "trainingGroundsIntroFollowUp",
+  },
+  trainingGroundsIntroFollowUp: {
+    id: "trainingGroundsIntroFollowUp",
+    captions: [
+      say(
+        "flightControl",
+        "FLIGHT CONTROL: We're all set. Let's get going, pilot.",
         2.8,
       ),
       say(
@@ -47,14 +76,14 @@ export const dialogTracks = {
       currentMissionId: "trainingGrounds",
       missionStepId: "introDialog",
     },
-    autoPlay: true,
+    autoPlay: false,
     priority: 200,
     placeholderAnimation: true,
   },
   trainingGroundsRollIntro: {
     id: "trainingGroundsRollIntro",
     captions: [
-      say("groundControl", "GROUND CONTROL: Ace flying.", 1.7),
+      say("flightControl", "FLIGHT CONTROL: Ace flying.", 1.7),
       say(
         "alcair",
         "ALCAIR: Now, the tricky part. Roll. Q and E roll left and right. The mammalian mind wasn't made for zero-G.",
@@ -62,8 +91,8 @@ export const dialogTracks = {
       ),
       say("alcair", "ALCAIR: My advice? Forget there's a floor.", 2.3),
       say(
-        "groundControl",
-        "GROUND CONTROL: Enough with the lectures. Barrel roll.",
+        "flightControl",
+        "FLIGHT CONTROL: Enough with the lectures. Barrel roll.",
         2.6,
       ),
     ],
@@ -98,7 +127,7 @@ export const dialogTracks = {
   trainingGroundsMissileIntro: {
     id: "trainingGroundsMissileIntro",
     captions: [
-      say("groundControl", "GROUND CONTROL: Bots disarmed.", 1.8),
+      say("flightControl", "FLIGHT CONTROL: Bots disarmed.", 1.8),
       say(
         "alcair",
         "ALCAIR: Round two. Missile projectiles. Press the right mouse button to fire.",

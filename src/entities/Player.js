@@ -8,7 +8,7 @@
  *
  * KEY RESPONSIBILITIES:
  * - update(delta, gameTime): apply input to velocity, drag, collision (level sphere cast)
- * - Boost fuel drain/regen; shield regen after damage; roll from input
+ * - Boost fuel drain/regen; shield regen after damage; roll from input; ship auto-leveling (wings level)
  * - Cockpit GLTF, headlight toggle; engine trail and retract-on-fire
  * - takeDamage(amount), setXRMode(xrManager); prefracture for destruction (ShipDestruction)
  *
@@ -37,6 +37,22 @@ const _accel = new THREE.Vector3();
 const _yawQuat = new THREE.Quaternion();
 const _pitchQuat = new THREE.Quaternion();
 const _rollQuat = new THREE.Quaternion();
+const _shipAutoWorldUp = new THREE.Vector3(0, 1, 0);
+const _shipAutoDesiredUp = new THREE.Vector3();
+const _shipAutoUpProj = new THREE.Vector3();
+const _shipAutoCross = new THREE.Vector3();
+const _gpStick = new THREE.Vector3();
+/** Max roll rate toward nearest cardinal (Descent-style leveling is fairly aggressive). */
+const SHIP_AUTO_LEVEL_RAD_PER_SEC = 3.4;
+/** Fraction of remaining residual closed per frame (higher = snaps in faster after roll release). */
+const SHIP_AUTO_LEVEL_RESPONSE = 22;
+/** Below LOW rad from cardinal, cap scales up from MIN_MULT; full cap by HIGH. */
+const SHIP_AUTO_LEVEL_CAP_RAMP_LOW = 0.018;
+const SHIP_AUTO_LEVEL_CAP_RAMP_HIGH = 0.12;
+const SHIP_AUTO_LEVEL_CAP_MIN_MULT = 0.38;
+const SHIP_AUTO_LEVEL_FORWARD_UP_DOT_MAX = 0.88;
+const SHIP_AUTO_LEVEL_MIN_ANGLE = 0.004;
+const SHIP_AUTO_LEVEL_SKIP_ROLL_VEL = 0.12;
 const _engineColorBlack = new THREE.Color(0x000000);
 const _engineColorGlow = new THREE.Color(0xbbddff);
 const _engineColorBoost = new THREE.Color(0xddffff);
@@ -57,6 +73,35 @@ function findCockpitScreenMesh(root, targetName) {
       : (child.children?.find((c) => c.isMesh) ?? null);
   });
   return match;
+}
+
+function findCockpitDisplayMesh(root, namesInPriorityOrder) {
+  for (const name of namesInPriorityOrder) {
+    const mesh = findCockpitScreenMesh(root, name);
+    if (mesh) return mesh;
+  }
+  for (const name of namesInPriorityOrder) {
+    let found = null;
+    const dotted = `${name}.`;
+    root?.traverse((child) => {
+      if (found || !child.isMesh) return;
+      const n = child.name || "";
+      if (n.startsWith(dotted)) found = child;
+    });
+    if (found) return found;
+  }
+  return null;
+}
+
+function logCockpitMeshNamesForDebug(root, context) {
+  const names = new Set();
+  root?.traverse((child) => {
+    if (child.isMesh && child.name) names.add(child.name);
+  });
+  console.warn(
+    `[Cockpit] ${context} — interior mesh names:`,
+    [...names].sort().join(", ") || "(none)",
+  );
 }
 
 function createProjectedScreenMesh(screenMesh, material, options = {}) {
@@ -198,9 +243,9 @@ export class Player {
 
     this.pitchVelocity = 0;
     this.yawVelocity = 0;
-    this.lookAccel = 0.1;
-    this.lookMaxSpeed = 3.0;
-    this.lookDrag = 0.93;
+    this.lookAccel = 0.052;
+    this.lookMaxSpeed = 2.35;
+    this.lookDrag = 0.942;
 
     this.fireFromLeft = true;
     this.missileFromLeft = true;
@@ -432,10 +477,24 @@ export class Player {
         cockpitLight.position.set(0, 0.2, 0);
         this.cockpit.add(cockpitLight);
 
-        const screenRMesh = findCockpitScreenMesh(this.cockpit, "Screen_R");
-        const screenLMesh = findCockpitScreenMesh(this.cockpit, "Screen_L");
+        const screenRMesh = findCockpitDisplayMesh(this.cockpit, [
+          "Screen_R",
+          "Visor_R",
+          "Holo_R",
+        ]);
+        const screenLMesh = findCockpitDisplayMesh(this.cockpit, [
+          "Screen_L",
+          "Cube.027",
+          "Holo_L",
+          "Display_L",
+        ]);
         if (screenLMesh) {
           this.setupCockpitStatusDisplay(screenLMesh);
+        } else {
+          logCockpitMeshNamesForDebug(
+            this.cockpit,
+            "Left status holo: no mesh (tried Screen_L, Cube.027)",
+          );
         }
         if (screenRMesh) {
           const uniforms = {
@@ -567,6 +626,11 @@ export class Player {
             .catch((err) => {
               console.warn("[Cockpit] Speaker avatar setup failed:", err);
             });
+        } else {
+          logCockpitMeshNamesForDebug(
+            this.cockpit,
+            "Right holo / dialog: no mesh (tried Screen_R, Visor_R)",
+          );
         }
 
         this.camera.add(this.cockpit);
@@ -857,8 +921,8 @@ export class Player {
     _up.set(0, 1, 0).applyQuaternion(rig.quaternion);
     _forward.set(0, 0, -1).applyQuaternion(rig.quaternion);
 
-    const lookSens = (window.gameManager?.getLookSensitivity?.() ?? 0.8) / 0.8;
-    const lookSpeed = 1.2 * lookSens;
+    const lookSens = (window.gameManager?.getLookSensitivity?.() ?? 0.65) / 0.8;
+    const lookSpeed = 0.95 * lookSens;
     if (Math.abs(xr.lookInput.x) > 0.02 || Math.abs(xr.lookInput.y) > 0.02) {
       _yawQuat.setFromAxisAngle(_up, xr.lookInput.x * lookSpeed * delta);
       _pitchQuat.setFromAxisAngle(_right, xr.lookInput.y * lookSpeed * delta);
@@ -1082,6 +1146,79 @@ export class Player {
       .add(forward.multiplyScalar(0.4));
   }
 
+  /**
+   * Like Descent's PF_LEVELLING: roll about forward so ship "up" stays at the nearest
+   * cardinal angle (0°, ±90°, 180°) to world up on the plane perpendicular to forward,
+   * not only wings-level — so you can park on a 90° bank and hold it.
+   */
+  _applyShipAutoLeveling(delta, hasRollInput) {
+    if (this.game?.gameManager?.getState?.()?.shipAutoLeveling === false) {
+      return;
+    }
+    if (hasRollInput) return;
+    if (Math.abs(this.rollVelocity) > SHIP_AUTO_LEVEL_SKIP_ROLL_VEL) return;
+
+    _forward.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    if (
+      Math.abs(_forward.dot(_shipAutoWorldUp)) >
+      SHIP_AUTO_LEVEL_FORWARD_UP_DOT_MAX
+    ) {
+      return;
+    }
+
+    _shipAutoDesiredUp.copy(_shipAutoWorldUp);
+    _shipAutoDesiredUp.addScaledVector(
+      _forward,
+      -_shipAutoWorldUp.dot(_forward),
+    );
+    const dLenSq = _shipAutoDesiredUp.lengthSq();
+    if (dLenSq < 1e-14) return;
+    _shipAutoDesiredUp.multiplyScalar(1 / Math.sqrt(dLenSq));
+
+    _up.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
+    _shipAutoUpProj.copy(_up).addScaledVector(_forward, -_up.dot(_forward));
+    const pLenSq = _shipAutoUpProj.lengthSq();
+    if (pLenSq < 1e-14) return;
+    _shipAutoUpProj.multiplyScalar(1 / Math.sqrt(pLenSq));
+
+    const rawDot = THREE.MathUtils.clamp(
+      _shipAutoUpProj.dot(_shipAutoDesiredUp),
+      -1,
+      1,
+    );
+    let angle = Math.acos(rawDot);
+
+    _shipAutoCross.crossVectors(_shipAutoUpProj, _shipAutoDesiredUp);
+    const axial = _shipAutoCross.dot(_forward);
+    if (Math.abs(axial) < 1e-10) return;
+    angle *= Math.sign(axial);
+
+    const halfPi = Math.PI * 0.5;
+    const residual = angle - Math.round(angle / halfPi) * halfPi;
+    if (Math.abs(residual) < SHIP_AUTO_LEVEL_MIN_ANGLE) return;
+
+    const errAbs = Math.abs(residual);
+    const k = 1 - Math.exp(-SHIP_AUTO_LEVEL_RESPONSE * delta);
+    let step = residual * k;
+    const capRamp = THREE.MathUtils.smoothstep(
+      SHIP_AUTO_LEVEL_CAP_RAMP_LOW,
+      SHIP_AUTO_LEVEL_CAP_RAMP_HIGH,
+      errAbs,
+    );
+    const maxStep =
+      SHIP_AUTO_LEVEL_RAD_PER_SEC *
+      delta *
+      (SHIP_AUTO_LEVEL_CAP_MIN_MULT +
+        (1 - SHIP_AUTO_LEVEL_CAP_MIN_MULT) * capRamp);
+    if (Math.abs(step) > maxStep) {
+      step = Math.sign(residual) * maxStep;
+    }
+
+    _rollQuat.setFromAxisAngle(_forward, step);
+    this.camera.quaternion.premultiply(_rollQuat);
+    this.camera.quaternion.normalize();
+  }
+
   update(delta, elapsedTime = 0) {
     if (this.xrManager) {
       this.updateXR(delta, elapsedTime);
@@ -1115,21 +1252,21 @@ export class Player {
     }
 
     const controlDelta = Math.min(delta, 0.05);
-    const lookSens = (window.gameManager?.getLookSensitivity?.() ?? 0.8) / 0.8;
+    const lookSens = (window.gameManager?.getLookSensitivity?.() ?? 0.65) / 0.8;
 
     _up.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
     _forward.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
     _right.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
 
     if (useGamepad) {
-      const gpLookSpeed = 4.0 * lookSens;
+      const gpLookSpeed = 3.1 * lookSens;
       this.pitchVelocity += -gp.lookY * gpLookSpeed * controlDelta;
       this.yawVelocity += -gp.lookX * gpLookSpeed * controlDelta;
     } else {
       this.pitchVelocity += -mouse.y * this.lookAccel * lookSens;
       this.yawVelocity += -mouse.x * this.lookAccel * lookSens;
 
-      const keyLookSpeed = 3.0 * lookSens;
+      const keyLookSpeed = 2.35 * lookSens;
       if (keys.lookUp) this.pitchVelocity += keyLookSpeed * controlDelta;
       if (keys.lookDown) this.pitchVelocity -= keyLookSpeed * controlDelta;
       if (keys.lookLeft) this.yawVelocity += keyLookSpeed * controlDelta;
@@ -1199,6 +1336,8 @@ export class Player {
     this.camera.quaternion.premultiply(_rollQuat);
     this.camera.quaternion.normalize();
 
+    this._applyShipAutoLeveling(controlDelta, hasRollInput);
+
     _right.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
     _up.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
     _forward.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
@@ -1208,11 +1347,22 @@ export class Player {
 
     if (useGamepad) {
       // Gamepad movement (left stick + d-pad for vertical)
-      if (gp.moveY < -0.1)
-        _accel.add(_forward.clone().multiplyScalar(-gp.moveY));
-      if (gp.moveY > 0.1) _accel.sub(_forward.clone().multiplyScalar(gp.moveY));
-      if (gp.moveX > 0.1) _accel.add(_right.clone().multiplyScalar(gp.moveX));
-      if (gp.moveX < -0.1) _accel.sub(_right.clone().multiplyScalar(-gp.moveX));
+      if (gp.moveY < -0.1) {
+        _gpStick.copy(_forward).multiplyScalar(-gp.moveY);
+        _accel.add(_gpStick);
+      }
+      if (gp.moveY > 0.1) {
+        _gpStick.copy(_forward).multiplyScalar(gp.moveY);
+        _accel.sub(_gpStick);
+      }
+      if (gp.moveX > 0.1) {
+        _gpStick.copy(_right).multiplyScalar(gp.moveX);
+        _accel.add(_gpStick);
+      }
+      if (gp.moveX < -0.1) {
+        _gpStick.copy(_right).multiplyScalar(-gp.moveX);
+        _accel.sub(_gpStick);
+      }
       if (gp.strafeUp) _accel.add(_up);
       if (gp.strafeDown) _accel.sub(_up);
     } else {

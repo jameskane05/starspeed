@@ -361,17 +361,10 @@ export class RemotePlayer {
     const boostGlow = this.isBoosting ? 1 : 0;
     for (const mat of this.engineMaterials) {
       if (!mat.color || !mat.emissive) continue;
-      const tintEnd = boostGlow > 0 ? this._engineTintBoost : this._engineTintIdle;
-      mat.color.lerpColors(
-        _engineColorBlack,
-        tintEnd,
-        this.engineGlowT,
-      );
-      mat.emissive.lerpColors(
-        _engineColorBlack,
-        tintEnd,
-        this.engineGlowT,
-      );
+      const tintEnd =
+        boostGlow > 0 ? this._engineTintBoost : this._engineTintIdle;
+      mat.color.lerpColors(_engineColorBlack, tintEnd, this.engineGlowT);
+      mat.emissive.lerpColors(_engineColorBlack, tintEnd, this.engineGlowT);
       mat.emissiveIntensity =
         boostGlow > 0 ? 2.2 : 0.05 + 0.25 * this.engineGlowT;
     }

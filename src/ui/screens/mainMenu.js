@@ -11,7 +11,6 @@
  * =============================================================================
  */
 
-import { LEVELS } from "../../data/gameData.js";
 import { GamepadInput } from "../../game/Gamepad.js";
 import { SCREENS } from "../MenuManager.js";
 
@@ -67,27 +66,6 @@ export function renderMainMenu(manager) {
           </div>
         </div>
       </div>
-      <div class="level-select-modal" id="level-select-modal" style="display:none;">
-        <div class="level-select-content">
-          <h3>SELECT LEVEL</h3>
-          <div class="form-group">
-            <label>MAP</label>
-            <select id="level-select-solo" class="menu-select">
-              ${Object.values(LEVELS)
-                .map(
-                  (level) => `
-                <option value="${level.id}" ${level.id === "arenatech" ? "selected" : ""}>${level.name}</option>
-              `,
-                )
-                .join("")}
-            </select>
-          </div>
-          <div class="level-select-buttons">
-            <button class="menu-btn" id="btn-level-start">START</button>
-            <button class="menu-btn secondary" id="btn-level-cancel">CANCEL</button>
-          </div>
-        </div>
-      </div>
       ${
         matchmakingActive
           ? `
@@ -108,22 +86,7 @@ export function renderMainMenu(manager) {
   });
 
   document.getElementById("btn-training").addEventListener("click", () => {
-    document.getElementById("level-select-modal").style.display = "flex";
-  });
-
-  const levelModal = document.getElementById("level-select-modal");
-  document.getElementById("btn-level-start").addEventListener("click", () => {
-    const levelId = document.getElementById("level-select-solo").value;
-    levelModal.style.display = "none";
-    manager.emit("trainingGroundsStart", levelId || "arenatech");
-  });
-
-  document.getElementById("btn-level-cancel").addEventListener("click", () => {
-    levelModal.style.display = "none";
-  });
-
-  levelModal.addEventListener("click", (e) => {
-    if (e.target === levelModal) levelModal.style.display = "none";
+    manager.emit("trainingGroundsStart", "newworld");
   });
 
   document.getElementById("btn-create").addEventListener("click", () => {

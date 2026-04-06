@@ -12,7 +12,7 @@
  */
 
 import NetworkManager from "../../network/NetworkManager.js";
-import { LEVELS } from "../../data/gameData.js";
+import { LEVELS, multiplayerMapLevels } from "../../data/gameData.js";
 import {
   LOBBY_COLOR_PALETTE,
   normalizeLobbyHex,
@@ -181,21 +181,20 @@ export function renderLobby(manager) {
           <h3>PILOTS (${players.length}/8)</h3>
           <div class="player-list">
             ${players
-              .map(
-                ([sessionId, player]) => {
-                  const accent = localAccent(player);
-                  const showPicker =
-                    sessionId === NetworkManager.sessionId &&
-                    !isCountdown &&
-                    state.phase === "lobby";
-                  const swatchEl = showPicker
-                    ? `
+              .map(([sessionId, player]) => {
+                const accent = localAccent(player);
+                const showPicker =
+                  sessionId === NetworkManager.sessionId &&
+                  !isCountdown &&
+                  state.phase === "lobby";
+                const swatchEl = showPicker
+                  ? `
                   <div class="lobby-color-wrap">
                     <button type="button" class="lobby-color-swatch" id="btn-lobby-color" style="background:${accent}" aria-label="Choose accent color"></button>
                   </div>`
-                    : `
+                  : `
                   <span class="lobby-color-swatch readonly" style="background:${accent}" title="" aria-hidden="true"></span>`;
-                  return `
+                return `
               <div class="player-card ${player.ready ? "ready" : ""} ${sessionId === NetworkManager.sessionId ? "local" : ""} ${state.mode === "team" ? `team-${player.team}` : ""}">
                 <div class="player-info">
                   <span class="player-name">${player.name}${state.hostId === sessionId ? " ★" : ""}</span>
@@ -222,13 +221,10 @@ export function renderLobby(manager) {
                 </div>
               </div>
             `;
-                },
-              )
+              })
               .join("")}
           </div>
-          ${
-            !isCountdown && state.phase === "lobby" ? colorPickerHtml : ""
-          }
+          ${!isCountdown && state.phase === "lobby" ? colorPickerHtml : ""}
           
           <div class="chat-section">
             <div class="chat-messages" id="chat-messages">
@@ -259,7 +255,7 @@ export function renderLobby(manager) {
                 isHost
                   ? `
                 <select id="lobby-level-select" class="menu-select">
-                  ${Object.values(LEVELS)
+                  ${multiplayerMapLevels()
                     .map(
                       (level) => `
                     <option value="${level.id}" ${level.id === state.level ? "selected" : ""}>${level.name}</option>
@@ -366,16 +362,20 @@ export function renderLobby(manager) {
         colorPop.classList.remove("active");
       }
     });
-    colorPop.querySelectorAll(".lobby-color-option:not(.taken)").forEach((opt) => {
-      opt.addEventListener("click", (e) => {
-        e.stopPropagation();
-        NetworkManager.sendLobbyColor(opt.dataset.color);
-        colorPop.classList.remove("active");
+    colorPop
+      .querySelectorAll(".lobby-color-option:not(.taken)")
+      .forEach((opt) => {
+        opt.addEventListener("click", (e) => {
+          e.stopPropagation();
+          NetworkManager.sendLobbyColor(opt.dataset.color);
+          colorPop.classList.remove("active");
+        });
       });
-    });
 
     const closeColorPop = () =>
-      document.getElementById("lobby-color-popover")?.classList.remove("active");
+      document
+        .getElementById("lobby-color-popover")
+        ?.classList.remove("active");
     const playerListEl = document.querySelector(".lobby .player-list");
     const onListScroll = () => closeColorPop();
     const onResize = () => closeColorPop();
