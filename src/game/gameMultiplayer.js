@@ -448,6 +448,7 @@ export async function startMultiplayerGame(game) {
   loadingTracker?.registerTask("multiplayer-player-setup");
   loadingTracker?.registerTask("multiplayer-scene-setup");
   showFirstViewLoading();
+  game.musicManager?.reshuffleAndPlay(2.0);
 
   const state = NetworkManager.getState();
   const localPlayer = NetworkManager.getLocalPlayer();

@@ -107,6 +107,7 @@ export async function preloadLevel(game) {
 }
 
 export async function loadLevelAndStart(game) {
+  game.musicManager?.reshuffleAndPlay(2.0);
   game.gameManager.setState({
     currentState: GAME_STATES.PLAYING,
   });

@@ -724,6 +724,88 @@ class ProceduralAudio {
   }
 
   /**
+   * Filtered static + clicks for holo display speaker handoff (higher pitch; duration ± jitter).
+   */
+  holoDisplayStaticBurble(durationSeconds = 0.26) {
+    if (!this.ctx) return;
+    this.resume();
+    if (this.ctx.state === "suspended") return;
+
+    const now = this.ctx.currentTime;
+    const dur = Math.max(
+      0.07,
+      durationSeconds + (Math.random() - 0.5) * 0.06,
+    );
+    const nSamples = Math.max(256, Math.ceil(this.ctx.sampleRate * dur));
+    const buf = this.ctx.createBuffer(1, nSamples, this.ctx.sampleRate);
+    const ch = buf.getChannelData(0);
+    let prev = 0;
+    for (let i = 0; i < nSamples; i++) {
+      const w = Math.random() * 2 - 1;
+      prev = prev * 0.52 + w * 0.48;
+      ch[i] = prev * (0.38 + (i / nSamples) * 0.24);
+    }
+
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    const hp = this.ctx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 520 + Math.random() * 380;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.setValueAtTime(2800 + Math.random() * 3200, now);
+    bp.frequency.exponentialRampToValueAtTime(
+      1400 + Math.random() * 1800,
+      now + dur * 0.9,
+    );
+    bp.Q.value = 0.38 + Math.random() * 0.32;
+
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.linearRampToValueAtTime(
+      0.038 + Math.random() * 0.024,
+      now + Math.min(0.028, dur * 0.12),
+    );
+    g.gain.setValueAtTime(0.03 + Math.random() * 0.018, now + dur * 0.36);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+
+    src.connect(hp);
+    hp.connect(bp);
+    bp.connect(g);
+    g.connect(this.masterGain);
+    src.start(now);
+    src.stop(now + dur + 0.04);
+
+    const nClicks = 4 + Math.floor(Math.random() * 5);
+    for (let c = 0; c < nClicks; c++) {
+      const t0 = now + Math.random() * Math.max(0.01, dur * 0.88);
+      const clickMs = 0.0025 + Math.random() * 0.006;
+      const nClick = Math.max(32, Math.ceil(this.ctx.sampleRate * clickMs));
+      const cbuf = this.ctx.createBuffer(1, nClick, this.ctx.sampleRate);
+      const cd = cbuf.getChannelData(0);
+      for (let i = 0; i < nClick; i++) {
+        const env = Math.sin((i / (nClick - 1)) * Math.PI);
+        cd[i] = (Math.random() * 2 - 1) * env * 0.95;
+      }
+      const cs = this.ctx.createBufferSource();
+      cs.buffer = cbuf;
+      const cbp = this.ctx.createBiquadFilter();
+      cbp.type = "bandpass";
+      cbp.frequency.value = 3200 + Math.random() * 4800;
+      cbp.Q.value = 0.65 + Math.random() * 0.5;
+      const cg = this.ctx.createGain();
+      cg.gain.setValueAtTime(0.0001, t0);
+      cg.gain.linearRampToValueAtTime(0.055 + Math.random() * 0.038, t0 + 0.0008);
+      cg.gain.exponentialRampToValueAtTime(0.0001, t0 + clickMs * 1.2);
+      cs.connect(cbp);
+      cbp.connect(cg);
+      cg.connect(this.masterGain);
+      cs.start(t0);
+      cs.stop(t0 + clickMs + 0.008);
+    }
+  }
+
+  /**
    * Kill confirmed sound
    */
   killConfirm() {

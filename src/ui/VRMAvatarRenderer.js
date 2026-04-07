@@ -8,6 +8,15 @@ import {
 
 const RT_SIZE = 512;
 const FACE_MATRIX_EPS = 1e-8;
+const DIALOG_VOICE_WEBAUDIO_FADE_IN_SEC = 1;
+
+let _dialogVoiceAudioCtx = null;
+function getDialogVoiceAudioContext() {
+  if (!_dialogVoiceAudioCtx) {
+    _dialogVoiceAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return _dialogVoiceAudioCtx;
+}
 
 function normalizeMocapFrame(frame, namesLength) {
   if (Array.isArray(frame)) {
@@ -82,12 +91,20 @@ const _vecB = new THREE.Vector3();
 const _vecC = new THREE.Vector3();
 const _eulerA = new THREE.Euler();
 
-const FACE_SMOOTHING = 14;
-const HEAD_SMOOTHING = 10;
-const DIALOG_FACE_BLEND = 6;
-const DIALOG_POSE_BLEND = 4;
-/** Idle clip weight → 0 / back to 1 around dialog; separate from pose blend so idle drops out fast. */
-const IDLE_MIXER_BLEND = 36;
+const FACE_SMOOTHING = 9;
+const HEAD_SMOOTHING = 6.5;
+const DIALOG_FACE_BLEND = 4;
+const DIALOG_POSE_BLEND = 2.8;
+/** Lerp from pre-dialog morphs / rig to first mocap frame, and back after audio. */
+const DIALOG_CLIP_BLEND_IN = 0.24;
+const DIALOG_CLIP_BLEND_OUT = 0.3;
+/** Ease back to full idle when dialog ends (no clip blend-out path). */
+const IDLE_RETURN_BLEND = 14;
+function smoothBlendT(t) {
+  const x = Math.min(1, Math.max(0, t));
+  return x * x * x * (x * (x * 6 - 15) + 10);
+}
+
 const NECK_ROTATION_WEIGHT = 0.35;
 const HEAD_ROTATION_WEIGHT = 0.65;
 const LEAN_PITCH_SCALE = 0.032;
@@ -200,30 +217,32 @@ function applyRigPose(vrm, faceMatrix, state) {
     );
   }
   if (!state.initialized || !state.smoothedInitialized) return;
+  const clipMul = state.clipRigMul ?? 1;
+  const wPose = state.dialogWeight * clipMul;
   applyBoneBlend(
     neck,
     state.baseNeckQuaternion,
     state.smoothedDeltaQuaternion,
-    state.dialogWeight * NECK_ROTATION_WEIGHT,
+    wPose * NECK_ROTATION_WEIGHT,
   );
   applyBoneBlend(
     head,
     state.baseHeadQuaternion,
     state.smoothedDeltaQuaternion,
-    state.dialogWeight * HEAD_ROTATION_WEIGHT,
+    wPose * HEAD_ROTATION_WEIGHT,
   );
   _quatF.setFromEuler(
     _eulerA.set(
-      state.smoothedLeanEuler.x * state.dialogWeight * SPINE_LEAN_WEIGHT,
-      state.smoothedLeanEuler.y * state.dialogWeight * SPINE_LEAN_WEIGHT,
+      state.smoothedLeanEuler.x * wPose * SPINE_LEAN_WEIGHT,
+      state.smoothedLeanEuler.y * wPose * SPINE_LEAN_WEIGHT,
       0,
       "XYZ",
     ),
   );
   _quatG.setFromEuler(
     _eulerA.set(
-      state.smoothedLeanEuler.x * state.dialogWeight * CHEST_LEAN_WEIGHT,
-      state.smoothedLeanEuler.y * state.dialogWeight * CHEST_LEAN_WEIGHT,
+      state.smoothedLeanEuler.x * wPose * CHEST_LEAN_WEIGHT,
+      state.smoothedLeanEuler.y * wPose * CHEST_LEAN_WEIGHT,
       0,
       "XYZ",
     ),
@@ -405,6 +424,7 @@ export class VRMAvatarRenderer {
     this._idleBlendWeight = 1;
     this._headPoseState = {
       dialogWeight: 0,
+      clipRigMul: 1,
       initialized: false,
       smoothedInitialized: false,
       smoothingAlpha: 1,
@@ -420,6 +440,20 @@ export class VRMAvatarRenderer {
     };
     this._faceSmoothingState = { values: null };
     this._weightedFaceState = { values: null };
+    this._clipBlendInActive = false;
+    this._clipBlendInElapsed = 0;
+    this._clipBlendOutActive = false;
+    this._clipBlendOutElapsed = 0;
+    this._faceSnapFrom = null;
+    this._faceFirstFrameArr = null;
+    this._faceOutFrom = null;
+    this._faceBlendScratch = null;
+    this._frozenFaceMatrix = null;
+    this._hadStartedFaceDialog = false;
+    this._prevAudioPlaying = false;
+    this._lastFaceMatrix = null;
+    this._dialogMediaSource = null;
+    this._dialogOutputGain = null;
     this._placeholderTexture = new THREE.DataTexture(
       new Uint8Array([0, 0, 0, 0]),
       1,
@@ -441,6 +475,7 @@ export class VRMAvatarRenderer {
   }
 
   isPlaying() {
+    if (this._clipBlendOutActive) return true;
     if (this._placeholderPlaying) {
       return performance.now() / 1000 - this._placeholderStartTime <
         this._placeholderDuration;
@@ -479,17 +514,6 @@ export class VRMAvatarRenderer {
     });
   }
 
-  async loadFaceData(url) {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Face data load failed: ${url}`);
-    const data = await res.json();
-    if (!data.names || !Array.isArray(data.frames))
-      throw new Error("Invalid face data");
-    normalizeFaceDataInPlace(data);
-    this.faceData = data;
-    return data;
-  }
-
   async loadIdleAnimation() {
     if (!this.vrm) return null;
     const loader = new GLTFLoader();
@@ -521,7 +545,79 @@ export class VRMAvatarRenderer {
     });
   }
 
+  async loadFaceData(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Face data load failed: ${url}`);
+    const data = await res.json();
+    if (!data.names || !Array.isArray(data.frames))
+      throw new Error("Invalid face data");
+    normalizeFaceDataInPlace(data);
+    this.faceData = data;
+    return data;
+  }
+
+  _readMorphInfluencesForNames(names) {
+    const n = names.length;
+    const out = new Float32Array(n);
+    if (!this.vrm?.scene) return out;
+    const acc = new Float32Array(n);
+    const counts = new Int32Array(n);
+    this.vrm.scene.traverse((obj) => {
+      if (!obj.isMesh || !obj.morphTargetDictionary) return;
+      const dict = obj.morphTargetDictionary;
+      const inf = obj.morphTargetInfluences;
+      for (let i = 0; i < n; i++) {
+        const idx = dict[names[i]];
+        if (idx !== undefined && inf[idx] !== undefined) {
+          acc[i] += inf[idx];
+          counts[i]++;
+        }
+      }
+    });
+    for (let i = 0; i < n; i++) {
+      out[i] = counts[i] > 0 ? acc[i] / counts[i] : 0;
+    }
+    return out;
+  }
+
+  _disconnectDialogVoiceGraph() {
+    if (this._dialogMediaSource) {
+      try {
+        this._dialogMediaSource.disconnect();
+      } catch (e) {}
+      this._dialogMediaSource = null;
+    }
+    if (this._dialogOutputGain) {
+      try {
+        this._dialogOutputGain.disconnect();
+      } catch (e) {}
+      this._dialogOutputGain = null;
+    }
+  }
+
+  _applyStoredRestBones() {
+    const humanoid = this.vrm?.humanoid;
+    const state = this._headPoseState;
+    if (!humanoid || !state.initialized) return;
+    const head = humanoid.getNormalizedBoneNode("head");
+    const neck = humanoid.getNormalizedBoneNode("neck");
+    const spine =
+      humanoid.getNormalizedBoneNode("chest") ??
+      humanoid.getNormalizedBoneNode("spine");
+    const chest = humanoid.getNormalizedBoneNode("upperChest");
+    if (neck) neck.quaternion.copy(state.baseNeckQuaternion);
+    if (head) head.quaternion.copy(state.baseHeadQuaternion);
+    if (spine) spine.quaternion.copy(state.baseSpineQuaternion);
+    if (chest) chest.quaternion.copy(state.baseChestQuaternion);
+  }
+
   async play(audioUrl, faceDataUrl) {
+    const prevNames = this.faceData?.names;
+    const morphSnapshot =
+      prevNames?.length > 0
+        ? this._readMorphInfluencesForNames(prevNames)
+        : null;
+
     this.stop();
     if (!this._ready || !this.vrm) return;
     let faceData = this.faceData;
@@ -530,7 +626,24 @@ export class VRMAvatarRenderer {
       faceData = this.faceData;
       faceData._url = faceDataUrl;
     }
-    if (!faceData) return;
+    if (!faceData?.frames?.length) return;
+
+    const names = faceData.names;
+    const n = names.length;
+    const from = new Float32Array(n);
+    if (morphSnapshot && morphSnapshot.length === n) {
+      from.set(morphSnapshot);
+    }
+    const firstVals = sampleFrames(faceData.frames, names, 0);
+    if (!firstVals?.length) return;
+
+    this._faceSnapFrom = from;
+    this._faceFirstFrameArr = Float32Array.from(firstVals);
+    this._clipBlendInActive = true;
+    this._clipBlendInElapsed = 0;
+    this._clipBlendOutActive = false;
+    this._hadStartedFaceDialog = false;
+    this._lastFaceMatrix = null;
 
     this.audioElement = document.createElement("audio");
     this.audioElement.src = audioUrl;
@@ -547,10 +660,35 @@ export class VRMAvatarRenderer {
     } catch (e) {
       console.warn("[VRMAvatarRenderer] Audio load failed:", audioUrl, e);
       this.audioElement = null;
+      this._clipBlendInActive = false;
+      this._faceSnapFrom = null;
+      this._faceFirstFrameArr = null;
       return;
     }
+
+    this._disconnectDialogVoiceGraph();
+    try {
+      const ctx = getDialogVoiceAudioContext();
+      if (ctx.state === "suspended") await ctx.resume();
+      this._dialogMediaSource = ctx.createMediaElementSource(this.audioElement);
+      this._dialogOutputGain = ctx.createGain();
+      this._dialogMediaSource.connect(this._dialogOutputGain);
+      this._dialogOutputGain.connect(ctx.destination);
+      const t0 = ctx.currentTime;
+      this._dialogOutputGain.gain.cancelScheduledValues(t0);
+      this._dialogOutputGain.gain.setValueAtTime(0, t0);
+      this._dialogOutputGain.gain.linearRampToValueAtTime(
+        1,
+        t0 + DIALOG_VOICE_WEBAUDIO_FADE_IN_SEC,
+      );
+    } catch (e) {
+      console.warn("[VRMAvatarRenderer] Web Audio dialog routing failed:", e);
+      this._disconnectDialogVoiceGraph();
+    }
+
     this.audioElement.play().catch(() => {});
     this._playing = true;
+    this._hadStartedFaceDialog = true;
     this.audioElement.addEventListener(
       "ended",
       () => {
@@ -563,23 +701,56 @@ export class VRMAvatarRenderer {
   playPlaceholder(durationSeconds = 0) {
     this.stop();
     if (!this._ready || !this.vrm) return;
+    this._clipBlendInActive = false;
+    this._clipBlendOutActive = false;
+    this._hadStartedFaceDialog = false;
     this._placeholderPlaying = durationSeconds > 0;
     this._placeholderDuration = Math.max(0, durationSeconds);
     this._placeholderStartTime = performance.now() / 1000;
   }
 
   stop() {
+    this._disconnectDialogVoiceGraph();
     this._playing = false;
     this._placeholderPlaying = false;
     this._placeholderDuration = 0;
     this._placeholderStartTime = 0;
     this._dialogFaceWeight = 0;
     this._dialogPoseWeight = 0;
+    this._headPoseState.dialogWeight = 0;
+
+    if (this.vrm) {
+      this._applyStoredRestBones();
+      if (this.faceData?.names?.length) {
+        clearMorphTargets(this.vrm.scene, this.faceData.names);
+      }
+      this.vrm.expressionManager?.resetValues?.();
+    }
+
     this._headPoseState.initialized = false;
     this._headPoseState.smoothedInitialized = false;
-    this._headPoseState.dialogWeight = 0;
     this._faceSmoothingState.values = null;
     this._weightedFaceState.values = null;
+
+    this._clipBlendInActive = false;
+    this._clipBlendInElapsed = 0;
+    this._clipBlendOutActive = false;
+    this._clipBlendOutElapsed = 0;
+    this._faceSnapFrom = null;
+    this._faceFirstFrameArr = null;
+    this._faceOutFrom = null;
+    this._frozenFaceMatrix = null;
+    this._hadStartedFaceDialog = false;
+    this._prevAudioPlaying = false;
+    this._lastFaceMatrix = null;
+    this._headPoseState.clipRigMul = 1;
+
+    this._idleBlendWeight = 1;
+    if (this.idleAction) {
+      this.idleAction.paused = false;
+      this.idleAction.setEffectiveWeight(1);
+    }
+
     if (this.audioElement) {
       this.audioElement.pause();
       this.audioElement.currentTime = 0;
@@ -596,71 +767,184 @@ export class VRMAvatarRenderer {
     ) {
       this._placeholderPlaying = false;
     }
-    const isSpeaking = !!(this.audioElement && this._playing) || this._placeholderPlaying;
 
-    const idleBlendAlpha = 1 - Math.exp(-IDLE_MIXER_BLEND * delta);
-    this._idleBlendWeight = THREE.MathUtils.lerp(
-      this._idleBlendWeight,
-      isSpeaking ? 0 : 1,
-      idleBlendAlpha,
-    );
-    if (Math.abs(this._idleBlendWeight - (isSpeaking ? 0 : 1)) < 0.001) {
-      this._idleBlendWeight = isSpeaking ? 0 : 1;
-    }
+    const audioPlaying = !!(this.audioElement && this._playing);
+    const placeholderActive =
+      this._placeholderPlaying &&
+      performance.now() / 1000 - this._placeholderStartTime <
+        this._placeholderDuration;
+
+    const faceDriverForWeights =
+      audioPlaying ||
+      placeholderActive ||
+      this._clipBlendInActive ||
+      this._clipBlendOutActive;
 
     const dialogFaceBlendAlpha = 1 - Math.exp(-DIALOG_FACE_BLEND * delta);
     const dialogPoseBlendAlpha = 1 - Math.exp(-DIALOG_POSE_BLEND * delta);
     this._dialogFaceWeight = THREE.MathUtils.lerp(
       this._dialogFaceWeight,
-      isSpeaking ? 1 : 0,
+      faceDriverForWeights ? 1 : 0,
       dialogFaceBlendAlpha,
     );
-    if (Math.abs(this._dialogFaceWeight - (isSpeaking ? 1 : 0)) < 0.001) {
-      this._dialogFaceWeight = isSpeaking ? 1 : 0;
+    if (Math.abs(this._dialogFaceWeight - (faceDriverForWeights ? 1 : 0)) < 0.001) {
+      this._dialogFaceWeight = faceDriverForWeights ? 1 : 0;
     }
     this._dialogPoseWeight = THREE.MathUtils.lerp(
       this._dialogPoseWeight,
-      isSpeaking ? 1 : 0,
+      faceDriverForWeights ? 1 : 0,
       dialogPoseBlendAlpha,
     );
-    if (Math.abs(this._dialogPoseWeight - (isSpeaking ? 1 : 0)) < 0.001) {
-      this._dialogPoseWeight = isSpeaking ? 1 : 0;
+    if (Math.abs(this._dialogPoseWeight - (faceDriverForWeights ? 1 : 0)) < 0.001) {
+      this._dialogPoseWeight = faceDriverForWeights ? 1 : 0;
     }
     this._headPoseState.dialogWeight = this._dialogPoseWeight;
+
     let t = 0;
-    if (this.audioElement && this._playing) {
+    if (audioPlaying) {
       t = this.audioElement.currentTime;
-    } else if (this._placeholderPlaying) {
+    } else if (placeholderActive) {
       t = performance.now() / 1000 - this._placeholderStartTime;
     }
-    if (this.idleAction) {
-      if (!isSpeaking && this.idleAction.paused) {
-        this.idleAction.paused = false;
-      }
-      this.idleAction.setEffectiveWeight(this._idleBlendWeight);
-      if (isSpeaking && this._idleBlendWeight <= 0.001) {
-        this.idleAction.paused = true;
-      }
-    }
-    if (
-      this.idleMixer &&
-      this.idleAction &&
-      !this.idleAction.paused &&
-      this._idleBlendWeight > 0
-    ) {
-      this.idleMixer.update(delta);
-    }
-    let faceValues = null;
+
+    let clipRigMul = 1;
     let faceMatrix = null;
-    if (this.audioElement && this._playing && this.faceData && this.faceData.frames && this.faceData.frames.length) {
+
+    if (
+      this._hadStartedFaceDialog &&
+      this.faceData?.frames?.length &&
+      this._prevAudioPlaying &&
+      !audioPlaying &&
+      !placeholderActive &&
+      !this._clipBlendOutActive
+    ) {
+      this._clipBlendInActive = false;
+      this._clipBlendOutActive = true;
+      this._clipBlendOutElapsed = 0;
+      const sm = this._faceSmoothingState.values;
+      const n = this.faceData.names.length;
+      this._faceOutFrom =
+        sm?.length === n
+          ? Float32Array.from(sm)
+          : new Float32Array(n).fill(0);
+      if (this._lastFaceMatrix) {
+        this._frozenFaceMatrix = this._lastFaceMatrix.slice();
+      } else {
+        const fm = sampleFaceMatrix(this.faceData.frames, 0);
+        this._frozenFaceMatrix = fm ? fm.slice() : null;
+      }
+    }
+
+    if (this._clipBlendInActive && this._faceFirstFrameArr && this._faceSnapFrom) {
+      this._clipBlendInElapsed += delta;
+      let u = Math.min(1, this._clipBlendInElapsed / DIALOG_CLIP_BLEND_IN);
+      u = smoothBlendT(u);
+      clipRigMul = u;
       this._headPoseState.smoothingAlpha = 1 - Math.exp(-HEAD_SMOOTHING * delta);
-      faceValues = smoothFaceValues(
+      const fr = this._faceSnapFrom;
+      const ff = this._faceFirstFrameArr;
+      const n = ff.length;
+      if (!this._faceBlendScratch || this._faceBlendScratch.length !== n) {
+        this._faceBlendScratch = new Float32Array(n);
+      }
+      const scr = this._faceBlendScratch;
+      for (let i = 0; i < n; i++) {
+        scr[i] = fr[i] + (ff[i] - fr[i]) * u;
+      }
+      this._faceSmoothingState.values = scr;
+      const t0 = this.faceData.frames[0]?.t ?? 0;
+      faceMatrix = sampleFaceMatrix(this.faceData.frames, t0);
+      if (u >= 1) {
+        this._clipBlendInActive = false;
+        this._faceSmoothingState.values = Float32Array.from(scr);
+      }
+    } else if (this._clipBlendOutActive && this._faceOutFrom) {
+      this._clipBlendOutElapsed += delta;
+      let u = Math.min(1, this._clipBlendOutElapsed / DIALOG_CLIP_BLEND_OUT);
+      u = smoothBlendT(u);
+      clipRigMul = 1 - u;
+      this._headPoseState.smoothingAlpha = 1 - Math.exp(-HEAD_SMOOTHING * delta);
+      const fr = this._faceOutFrom;
+      const n = fr.length;
+      if (!this._faceBlendScratch || this._faceBlendScratch.length !== n) {
+        this._faceBlendScratch = new Float32Array(n);
+      }
+      const scr = this._faceBlendScratch;
+      for (let i = 0; i < n; i++) {
+        scr[i] = fr[i] * (1 - u);
+      }
+      this._faceSmoothingState.values = scr;
+      faceMatrix = this._frozenFaceMatrix;
+      if (u >= 1) {
+        this._clipBlendOutActive = false;
+        this._hadStartedFaceDialog = false;
+        this._faceOutFrom = null;
+        this._frozenFaceMatrix = null;
+        this._faceSnapFrom = null;
+        this._faceFirstFrameArr = null;
+        this._lastFaceMatrix = null;
+        if (this.faceData?.names?.length) {
+          clearMorphTargets(this.vrm.scene, this.faceData.names);
+        }
+        this.vrm.expressionManager?.resetValues?.();
+        this._headPoseState.initialized = false;
+        this._headPoseState.smoothedInitialized = false;
+        this._faceSmoothingState.values = null;
+        this._weightedFaceState.values = null;
+      }
+    } else if (
+      audioPlaying &&
+      this.faceData?.frames?.length &&
+      !this._clipBlendInActive
+    ) {
+      this._headPoseState.smoothingAlpha = 1 - Math.exp(-HEAD_SMOOTHING * delta);
+      smoothFaceValues(
         sampleFrames(this.faceData.frames, this.faceData.names, t),
         this._faceSmoothingState,
         delta,
       );
       faceMatrix = sampleFaceMatrix(this.faceData.frames, t);
+      if (faceMatrix) {
+        this._lastFaceMatrix = faceMatrix.slice();
+      }
     }
+
+    this._headPoseState.clipRigMul = clipRigMul;
+    this._prevAudioPlaying = audioPlaying;
+
+    if (this.idleAction && this.idleMixer) {
+      const inBlendIn =
+        this._clipBlendInActive &&
+        this._faceFirstFrameArr &&
+        this._faceSnapFrom;
+      const inBlendOut = this._clipBlendOutActive && this._faceOutFrom;
+      if (inBlendIn || inBlendOut) {
+        this._idleBlendWeight = 1 - clipRigMul;
+      } else if (audioPlaying || placeholderActive) {
+        this._idleBlendWeight = 0;
+      } else {
+        const retAlpha = 1 - Math.exp(-IDLE_RETURN_BLEND * delta);
+        this._idleBlendWeight = THREE.MathUtils.lerp(
+          this._idleBlendWeight,
+          1,
+          retAlpha,
+        );
+        if (this._idleBlendWeight > 0.999) this._idleBlendWeight = 1;
+      }
+      if (this._idleBlendWeight > 0 && this.idleAction.paused) {
+        this.idleAction.paused = false;
+      }
+      this.idleAction.setEffectiveWeight(this._idleBlendWeight);
+      if (this._idleBlendWeight <= 1e-5) {
+        this._idleBlendWeight = 0;
+        this.idleAction.setEffectiveWeight(0);
+        this.idleAction.paused = true;
+      }
+      if (!this.idleAction.paused && this._idleBlendWeight > 0) {
+        this.idleMixer.update(delta);
+      }
+    }
+
     const weightedFaceValues = scaleFaceValues(
       this._faceSmoothingState.values,
       this._dialogFaceWeight,
@@ -684,13 +968,13 @@ export class VRMAvatarRenderer {
     } else if (this.faceData?.names) {
       clearMorphTargets(this.vrm.scene, this.faceData.names);
     }
+    applyRigPose(this.vrm, faceMatrix, this._headPoseState);
     if (this._dialogFaceWeight === 0 && this._dialogPoseWeight === 0) {
       this._headPoseState.initialized = false;
       this._headPoseState.smoothedInitialized = false;
       this._faceSmoothingState.values = null;
       this._weightedFaceState.values = null;
     }
-    applyRigPose(this.vrm, faceMatrix, this._headPoseState);
     const oldTarget = renderer.getRenderTarget();
     const oldClearColor = renderer.getClearColor(new THREE.Color());
     const oldClearAlpha = renderer.getClearAlpha();

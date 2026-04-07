@@ -2168,6 +2168,16 @@
   );
 }
 
+.damage-indicator-center.damage-indicator-center--full {
+  background: radial-gradient(
+    ellipse 120% 120% at 50% 50%,
+    rgba(255, 60, 60, 0.72) 0%,
+    rgba(220, 20, 20, 0.5) 42%,
+    rgba(140, 0, 0, 0.35) 72%,
+    rgba(80, 0, 0, 0.2) 100%
+  );
+}
+
 /* In-game options background overlay */
 .options-menu.in-game {
   background: rgba(0, 0, 0, 0.75) !important;

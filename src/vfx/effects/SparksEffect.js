@@ -18,6 +18,10 @@ import * as THREE from "three";
 
 const _dir = new THREE.Vector3();
 const _tmp = new THREE.Vector3();
+const _camRight = new THREE.Vector3();
+const _camUp = new THREE.Vector3();
+const _shieldNormal = new THREE.Vector3();
+const _shieldPos = new THREE.Vector3();
 
 export class SparksEffect {
   constructor(particleSystem) {
@@ -142,6 +146,48 @@ export class SparksEffect {
         speedLimit: 0,
         speedDampen: 0,
       });
+    }
+  }
+
+  /**
+   * Sparks in front of the camera (cockpit glass / shield) when the player is struck.
+   */
+  emitShieldHitSparks(camera, hitWorldPos, colorHex = null) {
+    if (!camera) return;
+
+    const camPos = _tmp;
+    camera.getWorldPosition(camPos);
+    const camDir = _dir;
+    camera.getWorldDirection(camDir);
+    _camRight.crossVectors(camDir, camera.up).normalize();
+    _camUp.crossVectors(_camRight, camDir).normalize();
+
+    _shieldNormal.subVectors(camPos, hitWorldPos);
+    if (_shieldNormal.lengthSq() < 1e-6) {
+      _shieldNormal.copy(camDir).negate();
+    } else {
+      _shieldNormal.normalize();
+    }
+
+    const spread = 2.4;
+    const clusters = 7;
+    const perCluster = 14;
+
+    for (let c = 0; c < clusters; c++) {
+      const ox = (Math.random() - 0.5) * 2 * spread;
+      const oy = (Math.random() - 0.5) * 2 * spread;
+      _shieldPos
+        .copy(camPos)
+        .addScaledVector(camDir, 1.25 + Math.random() * 0.55)
+        .addScaledVector(_camRight, ox)
+        .addScaledVector(_camUp, oy);
+
+      this.emitElectricalSparks(
+        _shieldPos,
+        _shieldNormal,
+        perCluster,
+        colorHex,
+      );
     }
   }
 }

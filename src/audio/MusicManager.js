@@ -4,13 +4,15 @@
  *
  * ROLE: Plays background music from musicData.js via Howler. Builds shuffled
  * playlist, crossfades between tracks, respects AudioSettings volume and
- * game state (e.g. play in MENU/PLAYING, pause in LOADING).
+ * user interaction (audio unlock) and game state transitions.
  *
  * KEY RESPONSIBILITIES:
  * - Load tracks on demand; build playlist from shuffled(musicTracks)
  * - play(), pause(), stop(); crossfade and fade out
  * - React to user interaction (unlock audio); subscribe to AudioSettings
- * - State-driven play/pause via GameManager state:changed
+ * - Match playlist: reshuffle when entering MENU (post-match); match entry calls
+ *   reshuffleAndPlay during pre-match loading (solo/multi) so PLAYING does not
+ *   trigger another shuffle
  *
  * RELATED: musicData.js, AudioSettings.js, gameData.js, gameInit.js.
  *
@@ -21,6 +23,13 @@ import { Howl } from "howler";
 import { musicTracks, shuffled } from "./musicData.js";
 import { AudioSettings } from "../game/AudioSettings.js";
 import { GAME_STATES } from "../data/gameData.js";
+
+/** Music multiplier while dialog is active (fraction of user music volume). */
+const DIALOG_DUCK_LEVEL = 0.17;
+/** Linear ramp: full music → ducked when dialog starts. */
+const DIALOG_DUCK_RAMP_DOWN_SEC = 1;
+/** Linear ramp: ducked → full when dialog ends (longer so return feels gentle). */
+const DIALOG_DUCK_RAMP_UP_SEC = 2;
 
 class MusicManager {
   constructor() {
@@ -35,6 +44,13 @@ class MusicManager {
 
     this.crossfadeState = { active: false };
     this.fadeState = { active: false };
+
+    this._dialogDuckMul = 1;
+    this._dialogDuckTarget = 1;
+    this._duckRampActive = false;
+    this._duckRampFrom = 1;
+    this._duckRampElapsed = 0;
+    this._duckRampDuration = DIALOG_DUCK_RAMP_DOWN_SEC;
 
     this._setupInteractionListeners();
     AudioSettings.onChange(() => this._applyVolumeSettings());
@@ -174,7 +190,7 @@ class MusicManager {
       const prev = oldState.currentState;
       if (curr === prev) return;
 
-      if (curr === GAME_STATES.MENU || curr === GAME_STATES.PLAYING) {
+      if (curr === GAME_STATES.MENU && prev !== GAME_STATES.MENU) {
         this.reshuffleAndPlay(2.0);
       }
       this._lastState = curr;
@@ -218,13 +234,54 @@ class MusicManager {
   }
 
   _applyVolumeSettings() {
-    const volume = AudioSettings.getMusicVolume();
+    const volume = AudioSettings.getMusicVolume() * this._dialogDuckMul;
     if (this.currentTrack && this.currentTrack.playing()) {
       this.currentTrack.volume(volume);
     }
   }
 
+  /**
+   * While true, music multiplier ramps linearly to DIALOG_DUCK_LEVEL (1s).
+   * While false, ramps back to 1 (2s). No-op if already at the requested level.
+   */
+  setDialogDuck(active) {
+    const target = active ? DIALOG_DUCK_LEVEL : 1;
+    if (
+      !this._duckRampActive &&
+      Math.abs(this._dialogDuckMul - target) < 0.005
+    ) {
+      return;
+    }
+    this._dialogDuckTarget = target;
+    this._duckRampFrom = this._dialogDuckMul;
+    this._duckRampDuration = active
+      ? DIALOG_DUCK_RAMP_DOWN_SEC
+      : DIALOG_DUCK_RAMP_UP_SEC;
+    this._duckRampElapsed = 0;
+    this._duckRampActive = true;
+  }
+
+  _smoothDialogDuck(dt) {
+    const d = typeof dt === "number" && dt > 0 ? dt : 1 / 60;
+    if (this._duckRampActive) {
+      this._duckRampElapsed += d;
+      const t = Math.min(1, this._duckRampElapsed / this._duckRampDuration);
+      this._dialogDuckMul = this._lerp(
+        this._duckRampFrom,
+        this._dialogDuckTarget,
+        t,
+      );
+      if (t >= 1) {
+        this._dialogDuckMul = this._dialogDuckTarget;
+        this._duckRampActive = false;
+      }
+    }
+    return this._dialogDuckMul;
+  }
+
   update(dt) {
+    const duckMul = this._smoothDialogDuck(dt);
+
     if (this.crossfadeState.active) {
       const elapsed = (Date.now() - this.crossfadeState.startTime) / 1000;
       const t = Math.min(elapsed / this.crossfadeState.duration, 1);
@@ -232,10 +289,14 @@ class MusicManager {
       const { fadeOutTrack, fadeInTrack } = this.crossfadeState;
 
       if (fadeOutTrack) {
-        fadeOutTrack.volume(this._lerp(this.crossfadeState.fadeOutStartVolume, 0, t));
+        fadeOutTrack.volume(
+          this._lerp(this.crossfadeState.fadeOutStartVolume, 0, t) * duckMul,
+        );
       }
       if (fadeInTrack) {
-        fadeInTrack.volume(this._lerp(0, this.crossfadeState.fadeInTargetVolume, t));
+        fadeInTrack.volume(
+          this._lerp(0, this.crossfadeState.fadeInTargetVolume, t) * duckMul,
+        );
       }
 
       if (t >= 1) {
@@ -251,13 +312,24 @@ class MusicManager {
       const { track } = this.fadeState;
 
       if (track) {
-        track.volume(this._lerp(this.fadeState.startVolume, this.fadeState.targetVolume, t));
+        track.volume(
+          this._lerp(this.fadeState.startVolume, this.fadeState.targetVolume, t) *
+            duckMul,
+        );
         if (t >= 1) {
           if (this.fadeState.stopAfterFade) track.stop();
           this.fadeState.active = false;
           this.isTransitioning = false;
         }
       }
+    }
+
+    if (
+      this.currentTrack?.playing() &&
+      !this.crossfadeState.active &&
+      !this.fadeState.active
+    ) {
+      this.currentTrack.volume(AudioSettings.getMusicVolume() * duckMul);
     }
   }
 

@@ -15,6 +15,7 @@ export class DialogManager {
     }
     this.onSpeakerChanged = options.onSpeakerChanged ?? null;
     this.captionParent = options.captionParent ?? null;
+    this.musicManager = options.musicManager ?? null;
 
     this.currentDialog = null;
     this.isPlaying = false;
@@ -58,6 +59,7 @@ export class DialogManager {
     this._gestureCleanup = null;
     this._captionUsesResponsiveOffset = options.captionOffset == null;
     this._viewportResizeHandler = null;
+    this._dialogMilestoneFired = new Set();
   }
 
   async initialize() {
@@ -84,6 +86,17 @@ export class DialogManager {
     return width <= 1050 && height > width;
   }
 
+  _isMobileLandscape() {
+    if (typeof window === "undefined") return false;
+    const width = window.visualViewport?.width ?? window.innerWidth;
+    const height = window.visualViewport?.height ?? window.innerHeight;
+    return width <= 1050 && width > height;
+  }
+
+  _getCaptionScaleMultiplier() {
+    return this._isMobileLandscape() ? 2 : 1;
+  }
+
   _getResponsiveCaptionOffset() {
     return this._isMobilePortrait()
       ? new THREE.Vector3(0, -0.145, -0.42)
@@ -96,11 +109,23 @@ export class DialogManager {
     this.captionMesh?.position.copy(this.captionOffset);
   }
 
+  _applyCaptionScale() {
+    if (!this.captionMesh) return;
+    const m = this._getCaptionScaleMultiplier();
+    this.captionMesh.scale.set(
+      this.captionScale * m,
+      this.captionScale * m,
+      1,
+    );
+  }
+
   _bindViewportResize() {
-    if (!this._captionUsesResponsiveOffset || typeof window === "undefined")
-      return;
+    if (typeof window === "undefined" || !this.captionParent) return;
     if (this._viewportResizeHandler) return;
-    this._viewportResizeHandler = () => this._applyCaptionOffset();
+    this._viewportResizeHandler = () => {
+      this._applyCaptionOffset();
+      this._applyCaptionScale();
+    };
     window.addEventListener("resize", this._viewportResizeHandler);
     window.visualViewport?.addEventListener(
       "resize",
@@ -132,13 +157,13 @@ export class DialogManager {
     });
 
     this.captionMesh = new THREE.Mesh(geometry, material);
-    this.captionMesh.scale.set(this.captionScale, this.captionScale, 1);
     this.captionMesh.position.copy(this.captionOffset);
     this.captionMesh.visible = false;
     this.captionMesh.renderOrder = 9999;
     this.captionMesh.layers.set(this.captionRenderLayer);
     this.captionParent.add(this.captionMesh);
     this._applyCaptionOffset();
+    this._applyCaptionScale();
     this._clearCanvas();
   }
 
@@ -439,10 +464,26 @@ export class DialogManager {
       typeof dialogOrId === "string" ? getDialogById(dialogOrId) : dialogOrId;
     if (!dialog) return;
 
-    if (this.isPlaying) this.stop();
+    if (this.isPlaying) {
+      this.stop();
+    } else {
+      this._forEachSpeakerRenderer((renderer) => renderer.stop?.());
+    }
 
+    this.musicManager?.setDialogDuck?.(true);
+
+    this._dialogMilestoneFired.clear();
     this.currentDialog = dialog;
-    this.captions = this._normalizeCaptions(dialog.captions || []);
+    const defaultSp = dialog.speakerId;
+    const rawCaptions = dialog.captions || [];
+    const captionsWithSpeaker = rawCaptions.map((c) => {
+      if (!c || typeof c !== "object") return c;
+      if (c.speakerId != null && c.speakerId !== "") return c;
+      if (defaultSp != null && defaultSp !== "")
+        return { ...c, speakerId: defaultSp };
+      return c;
+    });
+    this.captions = this._normalizeCaptions(captionsWithSpeaker);
     this.currentCaptionIndex = -1;
     this.isPlaying = true;
     this.dialogStartTime = performance.now();
@@ -478,6 +519,7 @@ export class DialogManager {
           this._playbackActive = true;
         }
       } catch (e) {
+        this.musicManager?.setDialogDuck?.(false);
         this.isPlaying = false;
         this.currentDialog = null;
         this._audioPlaybackRenderer = null;
@@ -504,6 +546,7 @@ export class DialogManager {
           this._playbackActive = true;
         }
       } catch (e) {
+        this.musicManager?.setDialogDuck?.(false);
         this.isPlaying = false;
         this.currentDialog = null;
       }
@@ -589,6 +632,35 @@ export class DialogManager {
 
     if (this.lipSyncManager && !this.vrmAvatarRenderer)
       this.lipSyncManager.updateAnalysis();
+
+    this._emitDialogMissionMilestonesIfNeeded(currentTimeMs);
+  }
+
+  _emitDialogMissionMilestonesIfNeeded(currentTimeMs) {
+    const d = this.currentDialog;
+    const milestones = d?.missionMilestones;
+    if (!milestones?.length || !this.gameManager?.emit) return;
+    for (const m of milestones) {
+      if (m.atTimeSec == null || !m.event) continue;
+      if (currentTimeMs + 1e-6 < m.atTimeSec * 1000) continue;
+      const key = `${d.id}:${m.event}`;
+      if (this._dialogMilestoneFired.has(key)) continue;
+      this._dialogMilestoneFired.add(key);
+      this.gameManager.emit("dialog:missionMilestone", {
+        dialogId: d.id,
+        event: m.event,
+      });
+    }
+  }
+
+  _resolvePlayNextId(playNext) {
+    if (!playNext) return null;
+    if (typeof playNext === "string") return playNext;
+    if (typeof playNext !== "object" || playNext === null) return null;
+    const mobile = this.gameManager?.getState?.()?.isMobile === true;
+    if (mobile && playNext.mobile) return playNext.mobile;
+    if (!mobile && playNext.desktop) return playNext.desktop;
+    return playNext.desktop || playNext.mobile || null;
   }
 
   _handleDialogComplete() {
@@ -604,22 +676,27 @@ export class DialogManager {
     this._clearCanvas();
     if (this.captionMesh) this.captionMesh.visible = false;
 
+    const nextId = this._resolvePlayNextId(completed?.playNext);
+    const nextDialog = nextId ? getDialogById(nextId) : null;
+    if (!nextId) {
+      this.musicManager?.setDialogDuck?.(false);
+    } else if (nextDialog?.delay && nextDialog.delay > 0) {
+      this.musicManager?.setDialogDuck?.(false);
+    }
+
     if (completed?.onComplete) completed.onComplete(this.gameManager);
     this.gameManager?.emit?.("dialog:completed", completed);
-    if (completed?.playNext) {
-      const next = getDialogById(completed.playNext);
-      if (next) {
-        if (next.delay && next.delay > 0) {
-          this.pendingDialogs.set(next.id, {
-            dialog: next,
-            timer: 0,
-            delay: next.delay,
-          });
-        } else {
-          this.playDialog(next);
-        }
-        return;
+    if (nextId && nextDialog) {
+      if (nextDialog.delay && nextDialog.delay > 0) {
+        this.pendingDialogs.set(nextDialog.id, {
+          dialog: nextDialog,
+          timer: 0,
+          delay: nextDialog.delay,
+        });
+      } else {
+        this.playDialog(nextDialog);
       }
+      return;
     }
     const state = this.gameManager.getState();
     if (state) this._checkAutoPlayDialogs(state);
@@ -653,8 +730,10 @@ export class DialogManager {
     this._resetActiveSpeaker();
     if (this.lipSyncManager) this.lipSyncManager.stop();
     this.currentDialog = null;
+    this._dialogMilestoneFired.clear();
     this._clearCanvas();
     if (this.captionMesh) this.captionMesh.visible = false;
+    this.musicManager?.setDialogDuck?.(false);
   }
 
   destroy() {

@@ -178,16 +178,19 @@ export class MobileControls {
     const haptic = () => {
       if (navigator.vibrate) navigator.vibrate(30);
     };
-    const handle = (el, fn) => {
+    const handle = (el, fn, options = {}) => {
       if (!el) return;
       el.addEventListener('touchstart', (e) => {
+        if (options.requireMissiles && !this.game.canFireMissiles()) return;
         e.preventDefault();
         haptic();
         fn();
       }, { passive: false });
     };
 
-    handle(fireMissile, () => this.game.firePlayerMissile());
+    handle(fireMissile, () => this.game.fireSelectedMissile(), {
+      requireMissiles: true,
+    });
     handle(fireWeapon, () => this.game.firePlayerWeapon());
 
     handle(menuBtn, () => this.game.showEscMenu());

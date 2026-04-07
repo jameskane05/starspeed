@@ -34,6 +34,7 @@ canvas {
 #crosshair,
 #kill-feed,
 .pickup-message,
+#mission-complete-overlay,
 #controls-help,
 #respawn-overlay,
 #boost-hud,
@@ -505,6 +506,16 @@ canvas {
   );
 }
 
+.damage-indicator-center.damage-indicator-center--full {
+  background: radial-gradient(
+    ellipse 120% 120% at 50% 50%,
+    rgba(255, 60, 60, 0.72) 0%,
+    rgba(220, 20, 20, 0.5) 42%,
+    rgba(140, 0, 0, 0.35) 72%,
+    rgba(80, 0, 0, 0.2) 100%
+  );
+}
+
 #boost-hud {
   position: fixed;
   bottom: 60px;
@@ -736,6 +747,18 @@ canvas {
   filter: brightness(0.75);
 }
 
+#mobile-controls button[data-action="fire-missile"].mobile-missiles-locked,
+#mobile-controls .mobile-missiles.mobile-missiles-locked {
+  opacity: 0.36;
+  transition: opacity 0.28s ease;
+}
+#mobile-controls button[data-action="fire-missile"].mobile-missiles-locked {
+  pointer-events: none;
+}
+#mobile-controls .mobile-missiles.mobile-missiles-locked {
+  pointer-events: none;
+}
+
 @media (orientation: landscape) {
   #mission-panel {
     top: calc(12px + env(safe-area-inset-top, 0px));
@@ -816,5 +839,129 @@ canvas {
   #mobile-controls .combat-center button img {
     width: 56px;
     height: 56px;
+  }
+}
+
+/* Mission complete (training / scripted end) — blur fades in via backdrop-filter transition */
+#mission-complete-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+  pointer-events: auto;
+}
+
+#mission-complete-overlay .mission-complete-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 5, 16, 0.52);
+  backdrop-filter: blur(0px);
+  -webkit-backdrop-filter: blur(0px);
+  opacity: 0;
+  transition:
+    opacity 0.45s ease,
+    backdrop-filter 0.5s ease,
+    -webkit-backdrop-filter 0.5s ease;
+}
+
+#mission-complete-overlay.mission-complete-overlay--visible .mission-complete-backdrop {
+  opacity: 1;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+#mission-complete-overlay .mission-complete-card {
+  position: relative;
+  z-index: 1;
+  max-width: 420px;
+  width: 100%;
+  padding: 2rem 1.75rem;
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  background: rgba(4, 10, 18, 0.92);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.55);
+  text-align: center;
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 0.4s ease 0.06s,
+    transform 0.4s ease 0.06s;
+}
+
+#mission-complete-overlay.mission-complete-overlay--visible .mission-complete-card {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#mission-complete-overlay .mission-complete-title {
+  font-family: "Orbitron", sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #e8ffff;
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+}
+
+#mission-complete-overlay .mission-complete-subtitle {
+  font-family: "Rajdhani", sans-serif;
+  font-size: 1.05rem;
+  color: rgba(160, 240, 255, 0.9);
+  margin-bottom: 1.75rem;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+#mission-complete-overlay .mission-complete-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+#mission-complete-overlay .mission-complete-btn {
+  flex: 1 1 140px;
+  min-width: 120px;
+  padding: 0.75rem 1rem;
+  font-family: "Rajdhani", sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border: 1px solid rgba(0, 240, 255, 0.4);
+  background: rgba(0, 40, 50, 0.6);
+  color: #d8fbff;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+
+#mission-complete-overlay .mission-complete-btn:hover {
+  background: rgba(0, 80, 95, 0.75);
+  border-color: rgba(0, 255, 255, 0.55);
+}
+
+#mission-complete-overlay .mission-complete-btn-primary {
+  background: rgba(0, 120, 140, 0.55);
+  border-color: rgba(0, 240, 255, 0.55);
+}
+
+#mission-complete-overlay .mission-complete-btn-primary:hover {
+  background: rgba(0, 160, 180, 0.65);
+}
+
+@media (min-width: 1051px) and (min-height: 1051px) {
+  #mission-complete-overlay .mission-complete-title {
+    font-size: 1.6rem;
+  }
+  #mission-complete-overlay .mission-complete-subtitle {
+    font-size: 1.15rem;
   }
 }

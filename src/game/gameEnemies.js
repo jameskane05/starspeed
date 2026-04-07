@@ -16,15 +16,33 @@
  *
  * RELATED: Enemy.js, Collectible.js, gameData.js, ShipDestruction (trails), GameManager.
  *
- * =============================================================================
+ * ---------------------------------------------------------------------------
+ * SOLO CAMPAIGN — mission enemy pool vs checkpoint gates (GPU)
+ * ---------------------------------------------------------------------------
+ * Checkpoints: MissionManager “Checkpoint GPU pipeline” + first-view
+ * prewarmCheckpointPoolDuringFirstView (shared dissolve batch across pool slots).
+ *
+ * Enemies: initTrainingMissionEnemyPool builds the pool with precook + dissolve, then
+ * prewarmMissionEnemyPoolInPlace → prewarmEnemyMeshesInPlace (hide rest of scene except
+ * these meshes + lights, focus camera, compile + composer/render). That is the same
+ * *idea* as narrowWarmKeepingSceneRoots for gates, but keeps camera + spawn placement
+ * logic for ships that start off-screen. Runs during startSoloDebug before PLAYING;
+ * warmGpuProgramsForPlay then hits the full scene again.
+ *
+ * Use allocateCheckpointDissolveBatchSerial() once for the whole pool precook loop so
+ * identical ship layouts reuse |cpDissolve:* suffixes (see checkpointDissolveWarp.js).
+ * Pooled respawns use precooked materials + activateEnemyAtSpawn (no per-frame compile).
+ * ---------------------------------------------------------------------------
  */
 
 import * as THREE from "three";
 import { Enemy, shipModels } from "../entities/Enemy.js";
 import { Collectible } from "../entities/Collectible.js";
 import {
+  allocateCheckpointDissolveBatchSerial,
   beginCheckpointDissolve,
   ENEMY_SPAWN_DISSOLVE_DURATION,
+  precookCheckpointDissolveMaterials,
   stripCheckpointDissolveMaterials,
 } from "../vfx/checkpointDissolveWarp.js";
 import {
@@ -143,7 +161,15 @@ export function checkMissilePickups(game, playerPos, delta) {
       pickup.collectible = null;
       pickup.active = false;
       pickup.respawnTimer = 30;
-      game.showPickupMessage("MISSILES REFILLED");
+      const st = game.gameManager?.getState?.();
+      if (
+        st?.currentMissionId === "trainingGrounds" &&
+        st?.missionStepId === "ammoCollectibleBrief"
+      ) {
+        game.missionManager?.reportEvent?.("trainingMissilePickupCollected", {});
+      } else {
+        game.showPickupMessage("MISSILES REFILLED");
+      }
       game.updateHUD();
     }
   }
@@ -177,15 +203,25 @@ function activateEnemyAtSpawn(game, enemy, position, { skipHud = false } = {}) {
   }
   enemy._pickNewWaypoint();
 
-  const dissolveOpts = {
+  const dissolveOptsBase = {
     duration: ENEMY_SPAWN_DISSOLVE_DURATION,
     edgeColor: enemy.laserColor,
     particleColor: enemy.laserColor,
     particleDecimation: 8,
     particleSize: 26,
   };
+  const dissolveOpts = enemy._enemyDissolvePrecooked
+    ? {
+        ...dissolveOptsBase,
+        dissolvePrecooked: enemy._enemyDissolvePrecooked,
+        retainDissolveMaterials: true,
+      }
+    : dissolveOptsBase;
+
   enemy.spawnWarp?.dispose?.();
-  stripCheckpointDissolveMaterials(enemy.mesh);
+  if (!enemy._enemyDissolvePrecooked) {
+    stripCheckpointDissolveMaterials(enemy.mesh);
+  }
   enemy.spawnWarp = beginCheckpointDissolve(enemy.mesh, game, dissolveOpts);
 
   if (!game.enemies.includes(enemy)) {
@@ -195,30 +231,10 @@ function activateEnemyAtSpawn(game, enemy, position, { skipHud = false } = {}) {
     game.gameManager.setState({ enemiesRemaining: game.enemies.length });
   }
 
-  const showMesh = () => {
-    enemy.mesh.visible = true;
-    if (enemy.spawnWarp && !enemy.spawnWarp.disposed && !enemy.spawnWarp.finished) {
-      enemy.spawnWarp.update(1 / 60);
-    }
-  };
-
-  try {
-    if (game.renderer?.compileAsync && game.camera) {
-      void game.renderer
-        .compileAsync(game.scene, game.camera)
-        .then(showMesh)
-        .catch(showMesh);
-      return;
-    }
-  } catch (_) {}
-
-  try {
-    if (game.renderer?.compile && game.camera) {
-      game.renderer.compile(game.scene, game.camera);
-    }
-  } catch (_) {}
-
-  showMesh();
+  enemy.mesh.visible = true;
+  if (enemy.spawnWarp && !enemy.spawnWarp.disposed && !enemy.spawnWarp.finished) {
+    enemy.spawnWarp.update(1 / 60);
+  }
 }
 
 const ENEMY_CONSTRUCT_RAF_CHUNK = 5;
@@ -312,6 +328,7 @@ export function disposeMissionEnemyPool(game) {
   for (const enemy of game._missionEnemyPool) {
     try {
       enemy.spawnWarp?.dispose?.();
+      stripCheckpointDissolveMaterials(enemy.mesh);
       enemy.dispose(game.scene, null);
     } catch (err) {
       console.warn("[gameEnemies] disposeMissionEnemyPool:", err);
@@ -365,8 +382,9 @@ function isolatePrewarmScene(game, enemies) {
 }
 
 /**
- * Temporarily moves enemies to `positions`, runs spawn-warp + compile + one render,
- * then restores transforms/visibility. Use before activating many new Enemy meshes.
+ * Narrow-style warm for arbitrary enemy batches (mission pool init, bulk spawn prewarm).
+ * Hides other top-level scene nodes, focuses camera on `positions`, runs warp + compile + one play render.
+ * Mirrors checkpoint “narrow warm” intent; differs by camera + per-enemy placement for frustum.
  */
 export async function prewarmEnemyMeshesInPlace(game, enemies, positions) {
   if (!enemies?.length || !positions?.length || !game.renderer || !game.camera) {
@@ -463,6 +481,8 @@ export async function initTrainingMissionEnemyPool(game) {
   const pool = [];
   const nModels = shipModels.length;
   const poolCount = getTrainingMissionPoolCount(game);
+  // One dissolve batch id for every pooled ship — same pattern as checkpoint pool (checkpointDissolveWarp header).
+  const enemyPoolDissolveBatchSerial = allocateCheckpointDissolveBatchSerial();
   for (let i = 0; i < poolCount; i++) {
     const modelIndex = nModels > 0 ? i % nModels : undefined;
     const enemy = new Enemy(
@@ -478,12 +498,22 @@ export async function initTrainingMissionEnemyPool(game) {
     );
     enemy.mesh.visible = false;
     if (enemy.shipLight) enemy.shipLight.intensity = 0;
+    enemy._enemyDissolvePrecooked = precookCheckpointDissolveMaterials(
+      enemy.mesh,
+      {
+        edgeColor: enemy.laserColor,
+        edgeColor2: enemy.laserColor,
+        sharedDissolveBatchSerial: enemyPoolDissolveBatchSerial,
+      },
+    );
     enemy.spawnWarp = beginCheckpointDissolve(enemy.mesh, game, {
       duration: ENEMY_SPAWN_DISSOLVE_DURATION,
       edgeColor: enemy.laserColor,
       particleColor: enemy.laserColor,
       particleDecimation: 8,
       particleSize: 26,
+      dissolvePrecooked: enemy._enemyDissolvePrecooked,
+      retainDissolveMaterials: true,
     });
     while (!enemy.spawnWarp.finished) {
       enemy.spawnWarp.update(0.25);

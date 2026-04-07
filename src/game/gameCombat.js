@@ -71,13 +71,21 @@ function destroyTrainingPoolEnemy(game, enemy, index, weaponType = "laser") {
   spawnDestruction(game.scene, deathPos, deathQuat, enemy.modelIndex);
   proceduralAudio.checkpointGoalSuccess();
   enemy.spawnWarp?.dispose?.();
-  stripCheckpointDissolveMaterials(enemy.mesh);
+  if (!enemy._enemyDissolvePrecooked) {
+    stripCheckpointDissolveMaterials(enemy.mesh);
+  }
   enemy.spawnWarp = beginCheckpointDissolve(enemy.mesh, game, {
     duration: ENEMY_SPAWN_DISSOLVE_DURATION,
     edgeColor: enemy.laserColor,
     particleColor: enemy.laserColor,
     particleDecimation: 8,
     particleSize: 26,
+    ...(enemy._enemyDissolvePrecooked
+      ? {
+          dissolvePrecooked: enemy._enemyDissolvePrecooked,
+          retainDissolveMaterials: true,
+        }
+      : {}),
   });
   enemy.spawnWarp.freeze();
   enemy.mesh.visible = false;
@@ -482,6 +490,13 @@ export function checkCollisions(game) {
           game.player.lastDamageTime = game.clock.elapsedTime;
           game.showDamageIndicator(projPos);
           proceduralAudio.shieldHit();
+          if (game.particles) {
+            game.sparksEffect.emitShieldHitSparks(
+              game.camera,
+              projPos,
+              projColor,
+            );
+          }
           hitSomething = true;
         }
       }

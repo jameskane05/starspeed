@@ -1,3 +1,5 @@
+const DIALOG_VOICE_WEBAUDIO_FADE_IN_SEC = 1;
+
 export class LipSyncManager {
   constructor(options = {}) {
     this.debug = options.debug || false;
@@ -56,6 +58,27 @@ export class LipSyncManager {
       this.visemeFrames.neutral,
     ];
     this._placeholderIndex = 0;
+    this._lineOutGain = null;
+  }
+
+  _disconnectMediaAudioChain() {
+    if (this.audioSource) {
+      try {
+        this.audioSource.disconnect();
+      } catch (e) {}
+      this.audioSource = null;
+    }
+    if (this._lineOutGain) {
+      try {
+        this._lineOutGain.disconnect();
+      } catch (e) {}
+      this._lineOutGain = null;
+    }
+    if (this.analyser) {
+      try {
+        this.analyser.disconnect();
+      } catch (e) {}
+    }
   }
 
   async initialize() {
@@ -90,15 +113,28 @@ export class LipSyncManager {
       this.audioElement.load();
     });
 
+    this._disconnectMediaAudioChain();
     this.audioSource = this.audioContext.createMediaElementSource(this.audioElement);
     this.audioSource.connect(this.analyser);
-    this.analyser.connect(this.audioContext.destination);
+    this._lineOutGain = this.audioContext.createGain();
+    this._lineOutGain.gain.value = 1;
+    this.analyser.connect(this._lineOutGain);
+    this._lineOutGain.connect(this.audioContext.destination);
     this.binHz = this.audioContext.sampleRate / this.analyser.fftSize;
   }
 
   play() {
     if (!this.audioElement) return;
     this._isPlaying = true;
+    if (this._lineOutGain && this.audioContext) {
+      const t = this.audioContext.currentTime;
+      this._lineOutGain.gain.cancelScheduledValues(t);
+      this._lineOutGain.gain.setValueAtTime(0, t);
+      this._lineOutGain.gain.linearRampToValueAtTime(
+        1,
+        t + DIALOG_VOICE_WEBAUDIO_FADE_IN_SEC,
+      );
+    }
     const playAudio = async () => {
       try {
         if (this.audioContext?.state === "suspended") await this.audioContext.resume();
@@ -274,10 +310,7 @@ export class LipSyncManager {
       this.audioElement.src = "";
       this.audioElement = null;
     }
-    if (this.audioSource) {
-      this.audioSource.disconnect();
-      this.audioSource = null;
-    }
+    this._disconnectMediaAudioChain();
     this.analyser = null;
   }
 }

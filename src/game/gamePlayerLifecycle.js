@@ -37,8 +37,9 @@ export function showDamageIndicator(game, hitWorldPos) {
 
   const indicators = [];
   const threshold = 0.3;
+  const directHit = dotForward >= 0.5;
 
-  if (dotForward < 0.5) {
+  if (!directHit) {
     if (dotRight > threshold) indicators.push("right");
     if (dotRight < -threshold) indicators.push("left");
     if (dotUp > threshold) indicators.push("top");
@@ -51,6 +52,9 @@ export function showDamageIndicator(game, hitWorldPos) {
     const el = document.querySelector(`.damage-indicator-${dir}`);
     if (el) {
       el.classList.remove("fading");
+      if (dir === "center" && directHit) {
+        el.classList.add("damage-indicator-center--full");
+      }
       el.classList.add("active");
 
       setTimeout(() => {
@@ -60,6 +64,9 @@ export function showDamageIndicator(game, hitWorldPos) {
 
       setTimeout(() => {
         el.classList.remove("fading");
+        if (dir === "center") {
+          el.classList.remove("damage-indicator-center--full");
+        }
       }, 450);
     }
   });

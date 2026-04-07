@@ -1,3 +1,28 @@
+/**
+ * Checkpoint / spawn dissolve VFX (material onBeforeCompile + optional particles).
+ *
+ * ---------------------------------------------------------------------------
+ * SOLO CAMPAIGN — GPU program reuse (read this before adding pooled VFX props)
+ * ---------------------------------------------------------------------------
+ * Three.js keys cached WebGL programs by material.customProgramCacheKey(). We append
+ * `|cpDissolve:<batchSerial>` so patched materials bust stale program caches when needed.
+ *
+ * - One batch serial **per logical precook** (one gate root, one enemy root): all submeshes on
+ *   that root share the same suffix. Identical material *types* (e.g. six spoke clones) then
+ *   share **one** GPU program instead of N programs → avoids stacked onFirstUse stalls.
+ *
+ * - **Pooled clones** of the same visual (multiple checkpoint slots, same mesh layout): call
+ *   precookCheckpointDissolveMaterials(..., { sharedDissolveBatchSerial }) with **one** id from
+ *   allocateCheckpointDissolveBatchSerial() for the whole pool. Otherwise each slot gets a new
+ *   serial and you pay duplicate programs on every spawn.
+ *
+ * - **Uniforms**: each instance still gets its own dissolveUniforms + bbox; only the **program
+ *   binary** is deduped when cache keys match.
+ *
+ * Pair with MissionManager “narrow warm” during first-view load so first real draws happen under
+ * the loading overlay, not when the player reaches an objective.
+ * ---------------------------------------------------------------------------
+ */
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { setupUniforms, setupShaderSnippets } from "../utils/shaderHelper.js";
@@ -47,8 +72,16 @@ function getRadialParticleTexture() {
 }
 
 const _burstWorldPos = new THREE.Vector3();
-/** Busts WebGL program cache: identical onBeforeCompile.toString() skipped recompile and left stale uniform bindings. */
+/** Next id if applyDissolvePatches does not receive forcedBatchSerial / sharedDissolveBatchSerial. */
 let _checkpointDissolveProgramSerial = 0;
+
+/**
+ * Grab a single batch id to reuse across many precooks (e.g. N pooled checkpoint meshes).
+ * See file header “SOLO CAMPAIGN — GPU program reuse”.
+ */
+export function allocateCheckpointDissolveBatchSerial() {
+  return ++_checkpointDissolveProgramSerial;
+}
 
 /** Position-only geometry in world space — mergeGeometries requires identical attributes; GLB submeshes often differ (uv, color, …). */
 function meshToWorldPositionGeometry(mesh) {
@@ -126,7 +159,21 @@ function canPatchDissolveMaterial(mat) {
   );
 }
 
-function applyDissolvePatches(root, dissolveUniforms, modifiedMaterials) {
+/**
+ * Patches every patchable mesh under `root`. All materials patched in this call share
+ * `|cpDissolve:<batchSerial>` (either `forcedBatchSerial` or a fresh ++).
+ * Do not share `dissolveUniforms` between unrelated roots — each gate/enemy needs its own bbox/state.
+ */
+function applyDissolvePatches(
+  root,
+  dissolveUniforms,
+  modifiedMaterials,
+  forcedBatchSerial = null,
+) {
+  const batchSerial =
+    forcedBatchSerial != null
+      ? forcedBatchSerial
+      : ++_checkpointDissolveProgramSerial;
   root.traverse((child) => {
     if (!child.isMesh || !child.material) return;
     const mats = Array.isArray(child.material) ? child.material : [child.material];
@@ -139,13 +186,12 @@ function applyDissolvePatches(root, dissolveUniforms, modifiedMaterials) {
             ? mat.customProgramCacheKey.bind(mat)
             : null;
       }
-      const dissolveProgramSerial = ++_checkpointDissolveProgramSerial;
       mat.customProgramCacheKey = function () {
         const baseFn = mat.userData.checkpointDissolveBaseProgramCacheKey;
         const base = baseFn
           ? baseFn()
           : THREE.Material.prototype.customProgramCacheKey.call(mat);
-        return `${base}|cpDissolve:${dissolveProgramSerial}`;
+        return `${base}|cpDissolve:${batchSerial}`;
       };
       const originalOnBeforeCompile = mat.userData.checkpointDissolveOriginalOnBeforeCompile;
       mat.onBeforeCompile = (shader) => {
@@ -285,8 +331,14 @@ function cleanupParticleBurst(
 export const ENEMY_SPAWN_DISSOLVE_DURATION = 3;
 
 /**
- * Apply dissolve shader hooks once (e.g. while building checkpoint sequence across frames).
- * Each gate needs its own `{ dissolveUniforms, modifiedMaterials }` — do not share between meshes.
+ * Apply dissolve shader hooks once (e.g. pool build or editor-time precook).
+ *
+ * Each **root** needs its own `{ dissolveUniforms, modifiedMaterials }` — never share that object
+ * across two different gate meshes (uniforms include per-mesh wipe bounds).
+ *
+ * @param {number} [options.sharedDissolveBatchSerial] — Optional. When building **multiple identical
+ * roots** (visual pool), pass one value from allocateCheckpointDissolveBatchSerial() so every slot
+ * shares the same `|cpDissolve:*` suffix and reuses GPU programs across instances.
  */
 export function precookCheckpointDissolveMaterials(root, options = {}) {
   const frequency = options.frequency ?? 0.5;
@@ -312,7 +364,11 @@ export function precookCheckpointDissolveMaterials(root, options = {}) {
   };
 
   const modifiedMaterials = [];
-  applyDissolvePatches(root, dissolveUniforms, modifiedMaterials);
+  const batchSerial =
+    options.sharedDissolveBatchSerial != null
+      ? options.sharedDissolveBatchSerial
+      : ++_checkpointDissolveProgramSerial;
+  applyDissolvePatches(root, dissolveUniforms, modifiedMaterials, batchSerial);
   return { dissolveUniforms, modifiedMaterials };
 }
 

@@ -14,6 +14,12 @@
  * RELATED: gameLevel.js, gameEnemies.js, Player.js, Enemy.js, ShipDestruction.js,
  * EngineAudio.js, MenuManager.js, LightManager.js.
  *
+ * GPU / LOADING: Training uses prewarmCheckpointPoolDuringFirstView alongside waitForFirstViewReady
+ * so checkpoint shaders compile under the overlay (MissionManager.js “Checkpoint GPU pipeline”).
+ * Mission enemy pool is prewarmed earlier in startSoloDebug via initTrainingMissionEnemyPool
+ * (narrow scene + compile); add a first-view pass there too if a future campaign step shows
+ * cold enemy shaders after splats finish loading.
+ *
  * =============================================================================
  */
 
@@ -35,6 +41,7 @@ import engineAudio from "../audio/EngineAudio.js";
 import * as gameEnemies from "./gameEnemies.js";
 import MissionManager, {
   warmGpuProgramsForPlay,
+  prewarmCheckpointPoolDuringFirstView,
 } from "../missions/MissionManager.js";
 import { updateLeaderboardButtonVisibility } from "./gameInGameUI.js";
 import {
@@ -59,6 +66,7 @@ export async function startSoloDebug(game) {
   loadingTracker?.registerTask("solo-enemy-assets");
   loadingTracker?.registerTask("solo-player-setup");
   showFirstViewLoading();
+  game.musicManager?.reshuffleAndPlay(2.0);
 
   const level = game.gameManager.getState().currentLevel;
   game.lightManager?.updateAmbientForLevel(level);
@@ -164,8 +172,15 @@ export async function startSoloDebug(game) {
 
   game.renderer.domElement.style.display = "block";
 
+  // First-view overlay stays until splats/cockpit ready AND (training) checkpoint pool GPU prewarm.
+  // Add other mission-specific prewarms here with Promise.all — see MissionManager checkpoint header.
   (async () => {
-    await waitForFirstViewReady(game);
+    const missionId = game.gameManager?.getState?.()?.currentMissionId;
+    const checkpointPoolPrewarm =
+      missionId === "trainingGrounds"
+        ? prewarmCheckpointPoolDuringFirstView(game)
+        : Promise.resolve();
+    await Promise.all([waitForFirstViewReady(game), checkpointPoolPrewarm]);
     MenuManager.enterPlayingMode();
     hideFirstViewLoading();
   })();

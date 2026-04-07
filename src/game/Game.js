@@ -71,7 +71,12 @@ export class Game {
       gameCombat.fireEnemyWeapon(this, pos, dir, style);
 
     this.hud = null;
-    this._hudLast = { health: null, missiles: null, boost: null };
+    this._hudLast = {
+      health: null,
+      missiles: null,
+      boost: null,
+      missilesEnabled: null,
+    };
     this._hudAccum = 0;
     this.directionalHelperTarget = null;
     this.directionalHelperRoot = null;
@@ -187,6 +192,10 @@ export class Game {
 
   showPickupMessage(text) {
     gameNetworkProjectiles.showPickupMessage(this, text);
+  }
+
+  showMissionCompleteOverlay() {
+    gameInGameUI.showMissionCompleteOverlay(this);
   }
 
   spawnNetworkProjectile(id, data) {

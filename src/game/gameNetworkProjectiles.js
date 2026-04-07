@@ -330,5 +330,8 @@ export function handleNetworkHit(game, data) {
     game.player.lastDamageTime = game.clock.elapsedTime;
     game.showDamageIndicator(hitPos);
     proceduralAudio.shieldHit();
+    if (game.particles) {
+      game.sparksEffect.emitShieldHitSparks(game.camera, hitPos, hitColor);
+    }
   }
 }

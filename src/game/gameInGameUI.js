@@ -151,6 +151,12 @@ export function setup(game) {
     boost: document.getElementById("boost"),
     mobileMissiles: document.getElementById("mobile-missiles"),
     mobileBoost: document.getElementById("mobile-boost"),
+    mobileMissileButton: document.querySelector(
+      "#mobile-controls button[data-action=\"fire-missile\"]",
+    ),
+    mobileMissilesCounter: document.querySelector(
+      "#mobile-controls .mobile-missiles",
+    ),
   };
   game.controlsHelpEl = document.getElementById("controls-help");
   if (!game.missionPanel) {
@@ -217,6 +223,8 @@ export function toggleEscMenu(game) {
 
   if (game.isEscMenuOpen) {
     resumeGame(game);
+  } else if (document.getElementById("mission-complete-overlay")) {
+    return;
   } else if (document.pointerLockElement) {
     document.exitPointerLock();
   } else {
@@ -226,6 +234,7 @@ export function toggleEscMenu(game) {
 
 export function showEscMenu(game) {
   if (game.isEscMenuOpen) return;
+  if (document.getElementById("mission-complete-overlay")) return;
   game.isEscMenuOpen = true;
   document.exitPointerLock();
   document.getElementById("crosshair").classList.remove("active");
@@ -465,8 +474,112 @@ export function resumeGame(game) {
   }
 }
 
+const MISSION_COMPLETE_OVERLAY_MS = 440;
+
+function hideMissionCompleteOverlay(game) {
+  const el =
+    game._missionCompleteOverlayEl ??
+    document.getElementById("mission-complete-overlay");
+  if (!el) return;
+  game._missionCompleteOverlayEl = null;
+  el.classList.remove("mission-complete-overlay--visible");
+  window.setTimeout(() => el.remove(), MISSION_COMPLETE_OVERLAY_MS);
+}
+
+export function showMissionCompleteOverlay(game) {
+  document.getElementById("mission-complete-overlay")?.remove();
+  game._missionCompleteOverlayEl = null;
+
+  document.exitPointerLock?.();
+  document.getElementById("crosshair")?.classList.remove("active");
+
+  const state = game.gameManager?.getState?.() ?? {};
+  const subtitle =
+    state.missionStepTitle ||
+    (state.currentMissionId === "trainingGrounds"
+      ? "Training complete"
+      : "Mission complete");
+
+  const root = document.createElement("div");
+  root.id = "mission-complete-overlay";
+  root.className = "mission-complete-overlay";
+  root.setAttribute("role", "dialog");
+  root.setAttribute("aria-modal", "true");
+  root.setAttribute("aria-labelledby", "mission-complete-heading");
+  root.innerHTML = `
+    <div class="mission-complete-backdrop" aria-hidden="true"></div>
+    <div class="mission-complete-card">
+      <h2 id="mission-complete-heading" class="mission-complete-title">Mission complete</h2>
+      <p class="mission-complete-subtitle"></p>
+      <div class="mission-complete-actions">
+        <button type="button" class="mission-complete-btn mission-complete-btn-primary" id="mission-complete-continue">
+          Continue
+        </button>
+        <button type="button" class="mission-complete-btn" id="mission-complete-menu">
+          Main menu
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(root);
+  const subEl = root.querySelector(".mission-complete-subtitle");
+  if (subEl) subEl.textContent = subtitle;
+  game._missionCompleteOverlayEl = root;
+
+  const onContinue = () => {
+    if (root.dataset.done) return;
+    root.dataset.done = "1";
+    root.querySelector("#mission-complete-continue")?.removeEventListener(
+      "click",
+      onContinue,
+    );
+    root.querySelector("#mission-complete-menu")?.removeEventListener(
+      "click",
+      onMenu,
+    );
+    hideMissionCompleteOverlay(game);
+    game.missionManager?.stopMission({ preserveState: true });
+    game.gameManager.clearMissionState();
+    document.getElementById("crosshair")?.classList.add("active");
+    if (!game.input?.mobile?.shouldSkipPointerLock?.()) {
+      const canvas = game.renderer.domElement;
+      canvas.requestPointerLock?.()?.catch?.(() => {
+        const clickToLock = () => {
+          canvas.requestPointerLock?.();
+          canvas.removeEventListener("click", clickToLock);
+        };
+        canvas.addEventListener("click", clickToLock);
+      });
+    }
+  };
+
+  const onMenu = () => {
+    if (root.dataset.done) return;
+    root.dataset.done = "1";
+    root.querySelector("#mission-complete-continue")?.removeEventListener(
+      "click",
+      onContinue,
+    );
+    root.querySelector("#mission-complete-menu")?.removeEventListener(
+      "click",
+      onMenu,
+    );
+    leaveMatch(game);
+  };
+
+  root
+    .querySelector("#mission-complete-continue")
+    ?.addEventListener("click", onContinue);
+  root.querySelector("#mission-complete-menu")?.addEventListener("click", onMenu);
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => root.classList.add("mission-complete-overlay--visible"));
+  });
+}
+
 export function leaveMatch(game) {
   game.isEscMenuOpen = false;
+  hideMissionCompleteOverlay(game);
 
   if (game.escMenu) {
     game.escMenu.style.display = "none";
@@ -536,6 +649,21 @@ export function updateHUD(game, delta) {
     if (game.hud.mobileBoost) game.hud.mobileBoost.textContent = text;
     game._hudLast.boost = boostPercent;
   }
+
+  const missilesEnabled = game.canFireMissiles();
+  if (missilesEnabled !== game._hudLast.missilesEnabled) {
+    game._hudLast.missilesEnabled = missilesEnabled;
+    const locked = !missilesEnabled;
+    const btn = game.hud.mobileMissileButton;
+    const ctr = game.hud.mobileMissilesCounter;
+    if (btn) {
+      btn.classList.toggle("mobile-missiles-locked", locked);
+      if (locked) btn.setAttribute("aria-disabled", "true");
+      else btn.removeAttribute("aria-disabled");
+    }
+    if (ctr) ctr.classList.toggle("mobile-missiles-locked", locked);
+  }
+
   game.player.updateCockpitStatusDisplay?.({
     healthPercent,
     missiles,

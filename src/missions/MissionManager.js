@@ -8,6 +8,7 @@ import {
 import { updateBloomActive } from "../game/gameUpdate.js";
 import { MISSIONS } from "./missionsIndex.js";
 import {
+  allocateCheckpointDissolveBatchSerial,
   beginCheckpointDissolve,
   precookCheckpointDissolveMaterials,
   prewarmCheckpointDissolve,
@@ -33,6 +34,29 @@ const CHECKPOINT_POOL_RADIUS = 6.5;
 const CHECKPOINT_POOL_TUBE = 0.45;
 const CHECKPOINT_POOL_COLOR = 0x00e8ff;
 const CHECKPOINT_POOL_ACCENT = 0x8affff;
+
+/*
+ * --- Checkpoint GPU pipeline (solo campaign pattern) ---
+ *
+ * 1) POOL BUILD (initCheckpointVisualPool, game init): each slot gets precookCheckpointDissolveMaterials
+ *    with the SAME sharedDissolveBatchSerial so identical gates share WebGL programs (see
+ *    checkpointDissolveWarp.js header).
+ *
+ * 2) FIRST-VIEW PREWARM (prewarmCheckpointPoolDuringFirstView): while the splat/cockpit overlay is up,
+ *    briefly show all pool meshes, run narrowWarmKeepingSceneRoots(checkpointPoolRoot) — compile +
+ *    one composer/render with splats/level hidden — then restore visibilities. Sets
+ *    game._checkpointPoolGpuWarmed = true. Wire new campaign features the same way: overlap with
+ *    waitForFirstViewReady in gameSolo.js, never full-scene warm (TDR risk on big levels).
+ *
+ * 3) SPAWN (setCheckpointSequence): narrowWarmCheckpointsForPlay(..., { skipIfPoolPrewarmed: usePool })
+ *    skips redundant work if (2) ran. Fallback non-pooled gates still get a narrow warm here.
+ *
+ * Reuse narrowWarmKeepingSceneRoots(game, [yourPoolRoot]) for other pooled props (holograms, props, …).
+ *
+ * Mission **enemy** pool: gameEnemies.initTrainingMissionEnemyPool — same shared dissolve batch idea,
+ * narrow prewarm via prewarmEnemyMeshesInPlace (camera + spawn placement). No first-view pass today;
+ * init runs before PLAYING plus warmGpuProgramsForPlay. See gameEnemies.js header.
+ */
 
 /** Ring geometry lies in local XY; Mesh.lookAt aligns local +Z toward `worldTarget` (Three r15x). */
 function orientCheckpointToward(mesh, worldTarget) {
@@ -141,13 +165,13 @@ function createCheckpointVisual(
     1.55,
   );
   const arcPivotA = new THREE.Group();
-  const arcA = new THREE.Mesh(arcGeometry, arcGlowMaterial.clone());
+  const arcA = new THREE.Mesh(arcGeometry, arcGlowMaterial);
   arcA.rotation.z = 0.45;
   arcPivotA.add(arcA);
   group.add(arcPivotA);
 
   const arcPivotB = new THREE.Group();
-  const arcB = new THREE.Mesh(arcGeometry, arcGlowMaterial.clone());
+  const arcB = new THREE.Mesh(arcGeometry, arcGlowMaterial);
   arcB.rotation.z = Math.PI + 0.85;
   arcB.rotation.y = Math.PI / 2;
   arcPivotB.add(arcB);
@@ -215,7 +239,14 @@ export class MissionManager {
         dialog,
       });
     };
+    this._dialogMissionMilestoneHandler = (payload) => {
+      this.reportEvent("dialogMissionMilestone", payload ?? {});
+    };
     this.gameManager.on("dialog:completed", this._dialogCompleteHandler);
+    this.gameManager.on(
+      "dialog:missionMilestone",
+      this._dialogMissionMilestoneHandler,
+    );
   }
 
   async startMission(missionId, options = {}) {
@@ -285,6 +316,10 @@ export class MissionManager {
     disposeMissionEnemyPool(this.game);
     this.stopMission({ preserveState: true });
     this.gameManager.off("dialog:completed", this._dialogCompleteHandler);
+    this.gameManager.off(
+      "dialog:missionMilestone",
+      this._dialogMissionMilestoneHandler,
+    );
   }
 
   isActive() {
@@ -504,13 +539,10 @@ export class MissionManager {
       },
     });
 
-    for (const c of this.checkpoints) {
-      c.mesh.visible = true;
-    }
-    warmGpuProgramsForPlay(this.game);
-    for (let i = 1; i < this.checkpoints.length; i++) {
-      this.checkpoints[i].mesh.visible = false;
-    }
+    // See file header “Checkpoint GPU pipeline”: no-op when pool was prewarmed during first-view load.
+    narrowWarmCheckpointsForPlay(this.game, this.checkpointGroup, {
+      skipIfPoolPrewarmed: usePool,
+    });
   }
 
   _updateCheckpointRimBloom(
@@ -750,13 +782,20 @@ export class MissionManager {
       missionStepTitle: "Training Complete",
       currentObjectives: [...this.currentObjectives],
     });
-    this.game.showPickupMessage?.(message);
+    if (options.missionCompleteOverlay) {
+      this.game.showMissionCompleteOverlay?.();
+    } else {
+      this.game.showPickupMessage?.(message);
+    }
   }
 }
 
 /**
  * Hidden gates + precooked dissolve under checkpointPoolRoot.
  * Do not set a "ready" flag before success — a failed init must leave usePool false (fallback path).
+ *
+ * sharedDissolveBatchSerial: one allocateCheckpointDissolveBatchSerial() for the entire pool loop so
+ * every slot shares dissolve program suffixes with identical layout (campaign GPU note).
  */
 export async function initCheckpointVisualPool(game) {
   if (game._checkpointVisualPoolBuilt) return;
@@ -772,6 +811,8 @@ export async function initCheckpointVisualPool(game) {
       game.checkpointPoolRoot = root;
     }
     const slots = [];
+    // Single batch id for all slots — see checkpointDissolveWarp.js “SOLO CAMPAIGN” header.
+    const poolDissolveBatchSerial = allocateCheckpointDissolveBatchSerial();
     for (let i = 0; i < CHECKPOINT_POOL_SIZE; i++) {
       const mesh = createCheckpointVisual(
         CHECKPOINT_POOL_RADIUS,
@@ -787,6 +828,7 @@ export async function initCheckpointVisualPool(game) {
       const dissolvePrecooked = precookCheckpointDissolveMaterials(mesh, {
         edgeColor: 0x8affff,
         edgeColor2: 0x4dffff,
+        sharedDissolveBatchSerial: poolDissolveBatchSerial,
       });
       slots.push({
         mesh,
@@ -803,9 +845,116 @@ export async function initCheckpointVisualPool(game) {
   }
 }
 
+/** Directional/spot targets are often scene.children; keep them visible during narrow warm. */
+function collectDirectionalLightTargetRoots(scene) {
+  const keepSceneChildren = new Set();
+  scene.traverse((o) => {
+    if ((o.isDirectionalLight || o.isSpotLight) && o.target) {
+      let n = o.target;
+      while (n && n !== scene) {
+        if (n.parent === scene) keepSceneChildren.add(n);
+        n = n.parent;
+      }
+    }
+  });
+  return keepSceneChildren;
+}
+
 /**
- * `compile()` alone does not run the transmission render pass; first real `render()` still hits
- * onFirstUse/getProgramInfoLog. Call during load with the same path as gameplay (composer vs raw).
+ * “Narrow” GPU warm: hide every scene **top-level** child except `keepRoots`, lights, camera, and
+ * light targets, then renderer.compile + one play-path render (composer if bloom).
+ *
+ * Invisible subtrees are skipped by compile/render — avoids full splat + level cost of warmGpuProgramsForPlay.
+ * Use for any pooled campaign asset: pass `[poolRoot]` or `[checkpointGroup]`.
+ */
+function narrowWarmKeepingSceneRoots(game, keepRoots) {
+  if (
+    !game?.renderer ||
+    !game?.camera ||
+    !game?.scene ||
+    !keepRoots?.length ||
+    game.xrManager?.isPresenting
+  ) {
+    return;
+  }
+
+  const keep = new Set(keepRoots);
+  const keepSceneChildren = collectDirectionalLightTargetRoots(game.scene);
+  const hidden = [];
+  for (const child of game.scene.children) {
+    if (keep.has(child)) continue;
+    if (child.isLight) continue;
+    if (child.isCamera) continue;
+    if (keepSceneChildren.has(child)) continue;
+    hidden.push({ child, visible: child.visible });
+    child.visible = false;
+  }
+
+  try {
+    updateBloomActive(game);
+    if (game.renderer.compile) {
+      game.renderer.compile(game.scene, game.camera);
+    }
+    if (game._bloomActive && game.composer) {
+      game.composer.render();
+    } else {
+      game.renderer.render(game.scene, game.camera);
+    }
+  } catch (e) {
+    console.warn("[Mission] narrowWarmKeepingSceneRoots:", e);
+  } finally {
+    for (const { child, visible } of hidden) {
+      child.visible = visible;
+    }
+  }
+}
+
+/**
+ * Narrow-warm the **active** checkpoint group after setCheckpointSequence (fallback / non-pooled).
+ * @param {object} [options] — `{ skipIfPoolPrewarmed: true }` when `usePool` and first-view prewarm ran.
+ */
+export function narrowWarmCheckpointsForPlay(game, checkpointGroup, options = {}) {
+  if (options.skipIfPoolPrewarmed && game._checkpointPoolGpuWarmed) return;
+  if (!checkpointGroup) return;
+  narrowWarmKeepingSceneRoots(game, [checkpointGroup]);
+}
+
+/**
+ * Run under the first-view loading overlay (see gameSolo.js Promise.all with waitForFirstViewReady).
+ * Forces first draws + program finalization for **all** checkpoint pool meshes while splats stream.
+ *
+ * Sets `game._checkpointPoolGpuWarmed` so setCheckpointSequence can skip duplicate narrow warm.
+ * **Campaign:** copy this pattern for other pools — store `game._<feature>GpuWarmed` and pair with
+ * narrowWarmKeepingSceneRoots(game, [yourRoot]).
+ */
+export async function prewarmCheckpointPoolDuringFirstView(game) {
+  if (game._checkpointPoolGpuWarmed) return;
+  if (!game?.renderer || !game?.camera || !game?.scene || game.xrManager?.isPresenting) {
+    return;
+  }
+
+  await game._checkpointVisualPoolInitPromise?.catch?.(() => {});
+  const root = game.checkpointPoolRoot;
+  const pool = game._checkpointVisualPool;
+  if (!root || !pool?.slots?.length) return;
+
+  const savedVis = pool.slots.map((s) => s.mesh.visible);
+  for (const s of pool.slots) {
+    s.mesh.visible = true;
+  }
+  narrowWarmKeepingSceneRoots(game, [root]);
+  for (let i = 0; i < pool.slots.length; i++) {
+    pool.slots[i].mesh.visible = savedVis[i];
+  }
+  game._checkpointPoolGpuWarmed = true;
+}
+
+/**
+ * Full-scene compile + render (splats, level, everything). OK once at solo start after PLAYING;
+ * **do not** use for per-object campaign prewarm — use narrowWarmKeepingSceneRoots + a pool root instead
+ * (Chrome/GPU can stall or TDR on huge scenes).
+ *
+ * `compile()` alone does not run the transmission pass; first real `render()` still hits onFirstUse.
  */
 export function warmGpuProgramsForPlay(game) {
   if (!game?.renderer || !game?.camera || !game?.scene) return;

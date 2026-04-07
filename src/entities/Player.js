@@ -29,6 +29,7 @@ import {
   hologramVertexShader,
   hologramFragmentShader,
 } from "../vfx/shaders/hologramShader.glsl.js";
+import proceduralAudio from "../audio/ProceduralAudio.js";
 
 const _right = new THREE.Vector3();
 const _up = new THREE.Vector3();
@@ -265,6 +266,7 @@ export class Player {
     this.vrmAvatarRenderer = null;
     this.dialogSpeakerRenderers = {};
     this.activeDialogSpeakerId = null;
+    this._holoSpeakerTransition = null;
     this.visemeHoloTime = 0;
     this.visemeHoloUniforms = null;
     this.cockpitStatusCanvas = null;
@@ -402,8 +404,7 @@ export class Player {
     };
   }
 
-  _setActiveDialogSpeaker(speakerId = "alcair") {
-    const next = this._getActiveDialogAvatarRenderer(speakerId);
+  _applyHoloSpeakerNow(next) {
     this.activeDialogSpeakerId = next.speakerId;
     if (this.visemeHoloUniforms?.uTexture && next.renderer) {
       this.visemeHoloUniforms.uTexture.value = next.renderer.getTexture();
@@ -414,6 +415,99 @@ export class Player {
     if (this.visemeHoloUniforms?.uUvRepeat) {
       this.visemeHoloUniforms.uUvRepeat.value.set(1, 1);
     }
+  }
+
+  _finishHoloSpeakerSwitchImmediate() {
+    const tr = this._holoSpeakerTransition;
+    if (!tr) return;
+    this._applyHoloSpeakerNow({
+      speakerId: tr.toSpeakerId,
+      renderer: tr.toRenderer,
+    });
+    if (this.visemeHoloUniforms?.uNoiseStatic) {
+      this.visemeHoloUniforms.uNoiseStatic.value = 0;
+    }
+    this._holoSpeakerTransition = null;
+  }
+
+  _beginHoloSpeakerSwitch(toSpeakerId, toRenderer) {
+    if (this._holoSpeakerTransition) {
+      this._finishHoloSpeakerSwitchImmediate();
+    }
+    const inDur = 0.11 + Math.random() * 0.09;
+    const holdDur = 0.05 + Math.random() * 0.07;
+    const outDur = 0.14 + Math.random() * 0.12;
+    this._holoSpeakerTransition = {
+      toSpeakerId,
+      toRenderer,
+      phase: "in",
+      t: 0,
+      inDur,
+      holdDur,
+      outDur,
+    };
+    proceduralAudio.holoDisplayStaticBurble(inDur + holdDur + outDur);
+  }
+
+  _updateHoloSpeakerTransition(delta) {
+    const u = this.visemeHoloUniforms;
+    if (!u?.uNoiseStatic || !this._holoSpeakerTransition) return;
+    const tr = this._holoSpeakerTransition;
+    tr.t += delta;
+    const smootherstep = (x) =>
+      x * x * x * (x * (x * 6 - 15) + 10);
+
+    if (tr.phase === "in") {
+      const p = Math.min(1, tr.t / tr.inDur);
+      u.uNoiseStatic.value = smootherstep(p);
+      if (p >= 1) {
+        tr.phase = "hold";
+        tr.t = 0;
+      }
+    } else if (tr.phase === "hold") {
+      u.uNoiseStatic.value = 1;
+      if (tr.t >= tr.holdDur) {
+        this._applyHoloSpeakerNow({
+          speakerId: tr.toSpeakerId,
+          renderer: tr.toRenderer,
+        });
+        tr.phase = "out";
+        tr.t = 0;
+      }
+    } else if (tr.phase === "out") {
+      const p = Math.min(1, tr.t / tr.outDur);
+      u.uNoiseStatic.value = smootherstep(1 - p);
+      if (p >= 1) {
+        u.uNoiseStatic.value = 0;
+        this._holoSpeakerTransition = null;
+      }
+    }
+  }
+
+  _updateVisemeHolo(delta) {
+    if (this.visemeHoloUniforms?.uTime) {
+      this.visemeHoloTime += delta;
+      this.visemeHoloUniforms.uTime.value = this.visemeHoloTime;
+    }
+    this._updateHoloSpeakerTransition(delta);
+  }
+
+  _setActiveDialogSpeaker(speakerId = "alcair") {
+    const next = this._getActiveDialogAvatarRenderer(speakerId);
+    const prevId = this.activeDialogSpeakerId;
+
+    if (
+      prevId != null &&
+      prevId !== next.speakerId &&
+      this.visemeHoloUniforms &&
+      next.renderer &&
+      this.visemeHoloUniforms.uNoiseStatic
+    ) {
+      this._beginHoloSpeakerSwitch(next.speakerId, next.renderer);
+      return next.renderer;
+    }
+
+    this._applyHoloSpeakerNow(next);
     return next.renderer;
   }
 
@@ -505,6 +599,7 @@ export class Player {
             uAlpha: { value: 1.0 },
             uUvOffset: { value: new THREE.Vector2(0, 0) },
             uUvRepeat: { value: new THREE.Vector2(1, 1) },
+            uNoiseStatic: { value: 0 },
           };
           const mat = new THREE.ShaderMaterial({
             vertexShader: hologramVertexShader,
@@ -540,6 +635,7 @@ export class Player {
             const { DialogManager } = await import("../ui/DialogManager.js");
             const dm = new DialogManager({
               gameManager: this.game.gameManager,
+              musicManager: this.game.musicManager ?? null,
               speakerRenderers: this.dialogSpeakerRenderers,
               defaultSpeakerId: "alcair",
               onSpeakerChanged: (speakerId) =>
@@ -611,6 +707,7 @@ export class Player {
                       await import("../ui/DialogManager.js");
                     const dm = new DialogManager({
                       gameManager: this.game.gameManager,
+                      musicManager: this.game.musicManager ?? null,
                       lipSyncManager: this.lipSyncManager,
                       captionParent: this.camera,
                     });
@@ -669,6 +766,7 @@ export class Player {
       uAlpha: { value: 1.0 },
       uUvOffset: { value: new THREE.Vector2(0, 0) },
       uUvRepeat: { value: new THREE.Vector2(1, 1) },
+      uNoiseStatic: { value: 0 },
     };
     const material = new THREE.ShaderMaterial({
       vertexShader: hologramVertexShader,
@@ -1079,10 +1177,7 @@ export class Player {
       this.gunR.position.z -= this.gunRetractionR;
     }
     this._updateDialogAvatarRenderers(delta);
-    if (this.visemeHoloUniforms?.uTime) {
-      this.visemeHoloTime += delta;
-      this.visemeHoloUniforms.uTime.value = this.visemeHoloTime;
-    }
+    this._updateVisemeHolo(delta);
     if (this.cockpitStatusUniforms?.uTime) {
       this.cockpitStatusTime += delta;
       this.cockpitStatusUniforms.uTime.value = this.cockpitStatusTime;
@@ -1225,10 +1320,7 @@ export class Player {
       return;
     }
     this._updateDialogAvatarRenderers(delta);
-    if (this.visemeHoloUniforms?.uTime) {
-      this.visemeHoloTime += delta;
-      this.visemeHoloUniforms.uTime.value = this.visemeHoloTime;
-    }
+    this._updateVisemeHolo(delta);
     if (this.cockpitStatusUniforms?.uTime) {
       this.cockpitStatusTime += delta;
       this.cockpitStatusUniforms.uTime.value = this.cockpitStatusTime;

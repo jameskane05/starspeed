@@ -76,6 +76,10 @@ export async function init(game) {
   game.scene.add(game.camera);
 
   game.renderer = new THREE.WebGLRenderer({ antialias: true });
+  // First draw of each shader program runs onFirstUse() → getProgramInfoLog when this is true.
+  // Chrome often spends tens–hundreds of ms per program there (visible as stacked blocks in perf).
+  // Set to `true` temporarily when debugging shader link errors.
+  game.renderer.debug.checkShaderErrors = false;
   game.renderer.domElement.id = "game-canvas";
   game.renderer.domElement.style.display = "none";
   document.body.appendChild(game.renderer.domElement);

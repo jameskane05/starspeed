@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import * as gameEnemies from "../game/gameEnemies.js";
 
 export const TRAINING_MISSION_WAVE_SIZE = 3;
 const TRAINING_GOAL_ORDER = ["Goal", "Goal.001", "Goal.002"];
@@ -57,6 +58,35 @@ function enableNearestTrainingBotHelper(manager) {
 
 function disableNearestTrainingBotHelper(manager) {
   manager.clearDirectionalHelperTarget("trainingBot");
+}
+
+function enableTrainingMissilePickupHelper(manager) {
+  manager.setDirectionalHelperTarget({
+    type: "missilePickup",
+    getWorldPosition: (out) => {
+      const list = manager.game._missilePickups;
+      if (!list?.length) return null;
+      const pick = list.find((p) => p.active && p.collectible?.group);
+      if (!pick?.collectible?.group) return null;
+      return pick.collectible.group.getWorldPosition(out);
+    },
+  });
+}
+
+async function concludeMissileTraining(manager) {
+  const allSpawns = getAllLevelEnemySpawnPositions(manager.game);
+  if (allSpawns.length) {
+    try {
+      await manager.spawnEnemyWave(allSpawns);
+    } catch (err) {
+      console.warn("[Training] spawnEnemyWave:", err);
+    }
+  }
+  manager.completeMission(
+    "Training complete — all targets deployed. Keep practicing!",
+    { preserveEnemyPool: true, missionCompleteOverlay: true },
+  );
+  manager.refillMissiles();
 }
 
 function getTrainingGoalAssetUrl() {
@@ -317,7 +347,7 @@ export const trainingGroundsMission = {
       },
       onEvent(manager, type, payload) {
         if (type !== "dialogCompleted") return;
-        if (payload.id !== "trainingGroundsIntroFollowUp") return;
+        if (payload.id !== "trainingGroundsIntroFollowUpCont") return;
         manager.completeObjective("listenIntro");
         manager.enterStep("movementGoals");
       },
@@ -328,6 +358,8 @@ export const trainingGroundsMission = {
       async enter(manager) {
         setWeaponPermissions(manager);
         manager.runtime.movementGoalsCompleted = 0;
+        manager.runtime.trainingBoostHintPlayed = false;
+        manager.runtime.trainingStrafeUpDownHintPlayed = false;
         manager.setObjectives("Basic Flight", [
           {
             id: "movementGoals",
@@ -353,17 +385,59 @@ export const trainingGroundsMission = {
             payload.completed,
             payload.total,
           );
+          if (payload.completed === 1 && !manager.runtime.trainingBoostHintPlayed) {
+            manager.runtime.trainingBoostHintPlayed = true;
+            const mobile = manager.gameManager.getState()?.isMobile === true;
+            manager.game.dialogManager?.playDialog?.(
+              mobile
+                ? "trainingGroundsBoostMobile"
+                : "trainingGroundsBoostDesktop",
+            );
+          }
+          if (
+            payload.completed === 2 &&
+            !manager.runtime.trainingStrafeUpDownHintPlayed
+          ) {
+            manager.runtime.trainingStrafeUpDownHintPlayed = true;
+            const mobile = manager.gameManager.getState()?.isMobile === true;
+            manager.game.dialogManager?.playDialog?.(
+              mobile
+                ? "trainingGroundsStrafeUpDownMobile"
+                : "trainingGroundsStrafeUpDownDesktop",
+            );
+          }
           return;
         }
         if (type === "checkpointSequenceCompleted") {
-          manager.enterStep("rollDialog");
+          manager.enterStep("aceFlyingBrief");
         }
+      },
+    },
+
+    aceFlyingBrief: {
+      title: "Basic Flight",
+      enter(manager) {
+        setWeaponPermissions(manager);
+        manager.setObjectives("Basic Flight", [
+          {
+            id: "listenAceFlying",
+            text: "Listen to the briefing.",
+            completed: false,
+          },
+        ]);
+      },
+      onEvent(manager, type, payload) {
+        if (type !== "dialogCompleted") return;
+        const id = payload.id;
+        if (id !== "trainingGroundsBarrelRollBrief") return;
+        manager.completeObjective("listenAceFlying");
+        manager.enterStep("rollDialog");
       },
     },
 
     rollDialog: {
       title: "Roll Training",
-      enter(manager) {
+      async enter(manager) {
         setWeaponPermissions(manager);
         manager.setObjectives("Roll Training", [
           {
@@ -372,13 +446,8 @@ export const trainingGroundsMission = {
             completed: false,
           },
         ]);
-      },
-      onEvent(manager, type, payload) {
-        if (type !== "dialogCompleted" || payload.id !== "trainingGroundsRollIntro") {
-          return;
-        }
         manager.completeObjective("listenRoll");
-        manager.enterStep("rollTraining");
+        await manager.enterStep("rollTraining");
       },
     },
 
@@ -423,6 +492,8 @@ export const trainingGroundsMission = {
       enter(manager) {
         disableNearestTrainingBotHelper(manager);
         setWeaponPermissions(manager);
+        manager.runtime.trainingLaserBotsSpawned = false;
+        manager.runtime.laserKills = 0;
         manager.setObjectives("Target Practice", [
           {
             id: "listenLasers",
@@ -432,7 +503,52 @@ export const trainingGroundsMission = {
         ]);
       },
       onEvent(manager, type, payload) {
-        if (type !== "dialogCompleted" || payload.id !== "trainingGroundsLaserIntro") {
+        if (type === "dialogMissionMilestone") {
+          if (
+            payload.dialogId !== "trainingGroundsLaserIntro" ||
+            payload.event !== "trainingLaserBotsSpawn" ||
+            manager.runtime.trainingLaserBotsSpawned
+          ) {
+            return;
+          }
+          manager.runtime.trainingLaserBotsSpawned = true;
+          manager.runtime.laserKills = 0;
+          const positions = getTrainingMissionEnemySpawnPositions(manager.game);
+          enableNearestTrainingBotHelper(manager);
+          void manager.spawnEnemyWave(positions);
+          manager.setObjectives("Target Practice", [
+            {
+              id: "listenLasers",
+              text: "Listen to the target practice briefing.",
+              completed: false,
+            },
+            {
+              id: "laserWave",
+              text: "Destroy the bots (0/3)",
+              completed: false,
+            },
+          ]);
+          return;
+        }
+        if (type === "enemyDestroyed") {
+          if (!manager.runtime.trainingLaserBotsSpawned) return;
+          manager.runtime.laserKills =
+            (manager.runtime.laserKills || 0) + 1;
+          updateCountObjective(
+            manager,
+            "laserWave",
+            "Destroy the bots",
+            manager.runtime.laserKills,
+            3,
+          );
+          return;
+        }
+        if (type !== "dialogCompleted") return;
+        const id = payload.id;
+        if (
+          id !== "trainingGroundsLaserIntroDesktop" &&
+          id !== "trainingGroundsLaserIntroMobile"
+        ) {
           return;
         }
         manager.completeObjective("listenLasers");
@@ -444,17 +560,25 @@ export const trainingGroundsMission = {
       title: "Target Practice",
       enter(manager) {
         setWeaponPermissions(manager, { playerLaserEnabled: true });
-        manager.runtime.laserKills = 0;
-        const positions = getTrainingMissionEnemySpawnPositions(manager.game);
-        enableNearestTrainingBotHelper(manager);
+        if (manager.runtime.laserKills >= 3) {
+          manager.enterStep("missileDialog");
+          return;
+        }
+        if (!manager.runtime.trainingLaserBotsSpawned) {
+          manager.runtime.laserKills = 0;
+          const positions = getTrainingMissionEnemySpawnPositions(manager.game);
+          enableNearestTrainingBotHelper(manager);
+          void manager.spawnEnemyWave(positions);
+          manager.runtime.trainingLaserBotsSpawned = true;
+        }
+        const k = manager.runtime.laserKills;
         manager.setObjectives("Target Practice", [
           {
             id: "laserWave",
-            text: "Destroy the bots (0/3)",
-            completed: false,
+            text: `Destroy the bots (${k}/3)`,
+            completed: k >= 3,
           },
         ]);
-        manager.spawnEnemyWave(positions);
       },
       onEvent(manager, type) {
         if (type !== "enemyDestroyed") return;
@@ -487,9 +611,11 @@ export const trainingGroundsMission = {
         ]);
       },
       onEvent(manager, type, payload) {
+        if (type !== "dialogCompleted") return;
+        const id = payload.id;
         if (
-          type !== "dialogCompleted" ||
-          payload.id !== "trainingGroundsMissileIntro"
+          id !== "trainingGroundsMissileToggleDesktop" &&
+          id !== "trainingGroundsMissileToggleMobile"
         ) {
           return;
         }
@@ -556,22 +682,98 @@ export const trainingGroundsMission = {
           manager.runtime.missileWaveKills >= 3 &&
           manager.areObjectivesComplete(["switchMode", "fireMissile", "clearMissileWave"])
         ) {
-          void (async () => {
-            const allSpawns = getAllLevelEnemySpawnPositions(manager.game);
-            if (allSpawns.length) {
-              try {
-                await manager.spawnEnemyWave(allSpawns);
-              } catch (err) {
-                console.warn("[Training] spawnEnemyWave:", err);
-              }
-            }
-            manager.completeMission(
-              "Training complete — all targets deployed. Keep practicing!",
-              { preserveEnemyPool: true },
-            );
-            manager.refillMissiles();
-          })();
+          if (manager.game.gameManager?.state?.isMobile) {
+            manager.enterStep("ammoCollectibleBrief");
+          } else {
+            manager.enterStep("tildeRemapDesktop");
+          }
         }
+      },
+    },
+
+    tildeRemapDesktop: {
+      title: "Missile Training",
+      enter(manager) {
+        disableNearestTrainingBotHelper(manager);
+        manager.game.dialogManager?.playDialog?.(
+          "trainingGroundsTildeRemapDesktop",
+        );
+      },
+      onEvent(manager, type, payload) {
+        if (type !== "dialogCompleted") return;
+        if (payload.id !== "trainingGroundsTildeRemapDesktop") return;
+        manager.enterStep("ammoCollectibleBrief");
+      },
+    },
+
+    ammoCollectibleBrief: {
+      title: "Resupply",
+      enter(manager) {
+        disableNearestTrainingBotHelper(manager);
+        setWeaponPermissions(manager, {
+          playerLaserEnabled: true,
+          playerMissilesEnabled: true,
+        });
+        manager.setObjectives("Resupply", [
+          {
+            id: "listenAmmoBrief",
+            text: "Listen to the resupply briefing.",
+            completed: false,
+          },
+        ]);
+        manager.game.dialogManager?.playDialog?.(
+          "trainingGroundsAmmoCollectible",
+        );
+      },
+      onEvent(manager, type, payload) {
+        if (type === "dialogCompleted") {
+          if (payload.id !== "trainingGroundsAmmoCollectible") return;
+          manager.completeObjective("listenAmmoBrief");
+          const game = manager.game;
+          const points = game.missileSpawnPoints ?? [];
+          if (points.length === 0) {
+            console.warn(
+              "[Training] No missile spawn points in level data; skipping ammo pickup phase.",
+            );
+            manager.enterStep("trainingCompleteOutro");
+            return;
+          }
+          gameEnemies.spawnMissilePickups(game);
+          const maxM = game.player?.maxMissiles ?? 6;
+          if (game.player) {
+            game.player.missiles = Math.max(0, maxM - 1);
+          }
+          game.updateHUD?.();
+          enableTrainingMissilePickupHelper(manager);
+          manager.setObjectives("Resupply", [
+            {
+              id: "collectMissileAmmo",
+              text: "Fly into the missile ammo pickup to restock.",
+              completed: false,
+            },
+          ]);
+          return;
+        }
+        if (type === "trainingMissilePickupCollected") {
+          manager.completeObjective("collectMissileAmmo");
+          manager.clearDirectionalHelperTarget("missilePickup");
+          manager.enterStep("trainingCompleteOutro");
+        }
+      },
+    },
+
+    trainingCompleteOutro: {
+      title: "Missile Training",
+      enter(manager) {
+        disableNearestTrainingBotHelper(manager);
+        manager.game.dialogManager?.playDialog?.(
+          "trainingGroundsTrainingComplete",
+        );
+      },
+      onEvent(manager, type, payload) {
+        if (type !== "dialogCompleted") return;
+        if (payload.id !== "trainingGroundsTrainingComplete") return;
+        void concludeMissileTraining(manager);
       },
     },
   },
