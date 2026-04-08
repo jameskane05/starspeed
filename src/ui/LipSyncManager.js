@@ -1,3 +1,5 @@
+import proceduralAudio from "../audio/ProceduralAudio.js";
+
 const DIALOG_VOICE_WEBAUDIO_FADE_IN_SEC = 1;
 
 export class LipSyncManager {
@@ -83,14 +85,17 @@ export class LipSyncManager {
 
   async initialize() {
     try {
-      this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      await proceduralAudio.resume();
+      this.audioContext =
+        proceduralAudio.ctx ??
+        new (window.AudioContext || window.webkitAudioContext)();
       this.analyser = this.audioContext.createAnalyser();
       this.analyser.fftSize = 2048;
       this.analyser.smoothingTimeConstant = 0.7;
       const bufferLength = this.analyser.frequencyBinCount;
       this.frequencyData = new Uint8Array(bufferLength);
       this.timeDomainData = new Uint8Array(bufferLength);
-      this.binHz = 44100 / this.analyser.fftSize;
+      this.binHz = this.audioContext.sampleRate / this.analyser.fftSize;
       return true;
     } catch (e) {
       if (this.debug) console.error("[LipSync] init failed:", e);
@@ -98,8 +103,42 @@ export class LipSyncManager {
     }
   }
 
+  _waitForAudioElementReady(audioElement, timeoutMs = 12000) {
+    return new Promise((resolve, reject) => {
+      let done = false;
+      const finish = (fn) => {
+        if (done) return;
+        done = true;
+        clearTimeout(tid);
+        audioElement.removeEventListener("canplaythrough", onThrough);
+        audioElement.removeEventListener("canplay", onCanPlay);
+        audioElement.removeEventListener("loadeddata", onLoadedData);
+        audioElement.removeEventListener("error", onError);
+        fn();
+      };
+      const onThrough = () => finish(() => resolve());
+      const onCanPlay = () => {
+        if (audioElement.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+          finish(() => resolve());
+        }
+      };
+      const onLoadedData = () => finish(() => resolve());
+      const onError = () =>
+        finish(() =>
+          reject(audioElement.error ?? new Error("dialog audio load error")),
+        );
+      const tid = setTimeout(() => finish(() => resolve()), timeoutMs);
+      audioElement.addEventListener("canplaythrough", onThrough, { once: true });
+      audioElement.addEventListener("canplay", onCanPlay, { once: true });
+      audioElement.addEventListener("loadeddata", onLoadedData, { once: true });
+      audioElement.addEventListener("error", onError, { once: true });
+      audioElement.load();
+    });
+  }
+
   async loadAudio(src) {
     if (!this.audioContext) await this.initialize();
+    await proceduralAudio.resume();
     if (this.audioContext.state === "suspended") await this.audioContext.resume();
 
     this.audioElement = document.createElement("audio");
@@ -107,11 +146,7 @@ export class LipSyncManager {
     this.audioElement.crossOrigin = "anonymous";
     this.audioElement.loop = false;
 
-    await new Promise((resolve, reject) => {
-      this.audioElement.addEventListener("canplaythrough", resolve, { once: true });
-      this.audioElement.addEventListener("error", reject, { once: true });
-      this.audioElement.load();
-    });
+    await this._waitForAudioElementReady(this.audioElement);
 
     this._disconnectMediaAudioChain();
     this.audioSource = this.audioContext.createMediaElementSource(this.audioElement);

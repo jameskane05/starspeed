@@ -273,6 +273,7 @@ export class Player {
     this.cockpitStatusContext = null;
     this.cockpitStatusTexture = null;
     this.cockpitStatusUniforms = null;
+    this._cockpitStatusScreenMesh = null;
     this.cockpitStatusTime = 0;
     this.cockpitStatusIcons = {};
     this.cockpitStatusState = {
@@ -492,8 +493,17 @@ export class Player {
     this._updateHoloSpeakerTransition(delta);
   }
 
-  _setActiveDialogSpeaker(speakerId = "alcair") {
+  _setActiveDialogSpeaker(speakerId = "alcair", opts = {}) {
     const next = this._getActiveDialogAvatarRenderer(speakerId);
+    if (opts.forceNotify) {
+      if (this._holoSpeakerTransition && this.visemeHoloUniforms?.uNoiseStatic) {
+        this.visemeHoloUniforms.uNoiseStatic.value = 0;
+      }
+      this._holoSpeakerTransition = null;
+      this._applyHoloSpeakerNow(next);
+      return next.renderer;
+    }
+
     const prevId = this.activeDialogSpeakerId;
 
     if (
@@ -534,7 +544,7 @@ export class Player {
   loadCockpit(scene) {
     const loader = new GLTFLoader();
     loader.load(
-      "./Heavy_INT_03.glb",
+      "./Heavy_INT_04.glb",
       (gltf) => {
         this.cockpit = gltf.scene;
         this.cockpit.scale.setScalar(1.0);
@@ -638,8 +648,8 @@ export class Player {
               musicManager: this.game.musicManager ?? null,
               speakerRenderers: this.dialogSpeakerRenderers,
               defaultSpeakerId: "alcair",
-              onSpeakerChanged: (speakerId) =>
-                this._setActiveDialogSpeaker(speakerId),
+              onSpeakerChanged: (speakerId, _renderer, opts) =>
+                this._setActiveDialogSpeaker(speakerId, opts),
               captionParent: this.camera,
             });
             await dm.initialize();
@@ -777,11 +787,6 @@ export class Player {
       depthTest: false,
       side: THREE.DoubleSide,
     });
-    createProjectedScreenMesh(screenMesh, material, {
-      renderOrder: 9008,
-      rotateQuarterTurns: 3,
-    });
-
     this.cockpitStatusCanvas = canvas;
     this.cockpitStatusContext = context;
     this.cockpitStatusTexture = texture;
@@ -791,6 +796,10 @@ export class Player {
       missiles: this.createCockpitStatusIcon("/images/ui/missiles.png"),
       thrust: this.createCockpitStatusIcon("/images/ui/booster-rockets.png"),
     };
+    this._cockpitStatusScreenMesh = createProjectedScreenMesh(screenMesh, material, {
+      renderOrder: 9008,
+      rotateQuarterTurns: 3,
+    });
     this.cockpitStatusState = {
       healthPercent: null,
       missiles: null,

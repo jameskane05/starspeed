@@ -129,6 +129,10 @@ export async function startSoloDebug(game) {
 
   await game._checkpointVisualPoolInitPromise?.catch?.(() => {});
 
+  if (missionConfig?.missionId === "trainingGrounds") {
+    await prewarmCheckpointPoolDuringFirstView(game);
+  }
+
   if (!missionConfig) {
     game.missionManager.stopMission();
     await gameEnemies.spawnEnemiesFromLevelSpawnPointsWithPrewarm(game);

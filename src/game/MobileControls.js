@@ -19,6 +19,10 @@
 
 import { KeyBindings } from './KeyBindings.js';
 import { GAME_STATES } from '../data/gameData.js';
+import proceduralAudio from '../audio/ProceduralAudio.js';
+
+/** Hold missile fire button past this to switch homing / kinetic (short tap still fires). */
+const MISSILE_MODE_LONG_PRESS_MS = 520;
 
 export class MobileControls {
   constructor(game) {
@@ -188,9 +192,83 @@ export class MobileControls {
       }, { passive: false });
     };
 
-    handle(fireMissile, () => this.game.fireSelectedMissile(), {
-      requireMissiles: true,
-    });
+    if (fireMissile) {
+      let missileBtnTouchId = null;
+      let missileLongPressTimer = null;
+      let missileLongPressConsumed = false;
+      let missileTouchStartMs = 0;
+
+      const clearMissileLongPressTimer = () => {
+        if (missileLongPressTimer != null) {
+          clearTimeout(missileLongPressTimer);
+          missileLongPressTimer = null;
+        }
+      };
+
+      const onMissileTouchEnd = (e, cancelled) => {
+        let touch = null;
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === missileBtnTouchId) {
+            touch = e.changedTouches[i];
+            break;
+          }
+        }
+        if (touch == null) return;
+        e.preventDefault();
+        clearMissileLongPressTimer();
+        const consumed = missileLongPressConsumed;
+        missileBtnTouchId = null;
+        missileLongPressConsumed = false;
+        if (consumed) return;
+        if (cancelled) return;
+        const elapsed = performance.now() - missileTouchStartMs;
+        if (
+          elapsed < MISSILE_MODE_LONG_PRESS_MS &&
+          this.game.canFireMissiles()
+        ) {
+          haptic();
+          this.game.fireSelectedMissile();
+        }
+      };
+
+      fireMissile.addEventListener(
+        'touchstart',
+        (e) => {
+          if (missileBtnTouchId != null) return;
+          const touch = e.changedTouches[0];
+          if (!touch) return;
+          missileBtnTouchId = touch.identifier;
+          missileTouchStartMs = performance.now();
+          missileLongPressConsumed = false;
+          clearMissileLongPressTimer();
+          missileLongPressTimer = window.setTimeout(() => {
+            missileLongPressTimer = null;
+            if (!this.game.gameManager?.isPlaying()) return;
+            missileLongPressConsumed = true;
+            this.game.toggleMissileMode?.();
+            proceduralAudio.uiClick();
+            haptic();
+          }, MISSILE_MODE_LONG_PRESS_MS);
+          e.preventDefault();
+        },
+        { passive: false },
+      );
+
+      fireMissile.addEventListener(
+        'touchend',
+        (e) => {
+          onMissileTouchEnd(e, false);
+        },
+        { passive: false },
+      );
+      fireMissile.addEventListener(
+        'touchcancel',
+        (e) => {
+          onMissileTouchEnd(e, true);
+        },
+        { passive: false },
+      );
+    }
     handle(fireWeapon, () => this.game.firePlayerWeapon());
 
     handle(menuBtn, () => this.game.showEscMenu());

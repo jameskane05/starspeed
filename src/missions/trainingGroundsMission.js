@@ -12,6 +12,28 @@ function updateCountObjective(manager, id, label, count, total) {
   });
 }
 
+function missileTrainingCombatComplete(manager) {
+  return (
+    manager.runtime.missileWaveKills >= 3 &&
+    manager.runtime.missileModeSwitched &&
+    manager.runtime.missileFired
+  );
+}
+
+function enterMissileTrainingCompleteNext(manager) {
+  if (manager.game.gameManager?.state?.isMobile) {
+    manager.enterStep("ammoCollectibleBrief");
+  } else {
+    manager.enterStep("tildeRemapDesktop");
+  }
+}
+
+function missileSwitchObjectiveText(manager) {
+  return manager.gameManager?.getState?.()?.isMobile
+    ? "Long-press the missile button to switch types."
+    : "Switch missile type with G.";
+}
+
 function setWeaponPermissions(
   manager,
   { playerLaserEnabled = true, playerMissilesEnabled = false } = {},
@@ -167,27 +189,42 @@ async function loadTrainingGoalPositionsFromFile() {
       root.traverse((child) => {
         if (!TRAINING_GOAL_ORDER.includes(child.name)) return;
         const pos = new THREE.Vector3();
+        const quat = new THREE.Quaternion();
         child.getWorldPosition(pos);
-        goalMap.set(child.name, pos);
+        child.getWorldQuaternion(quat);
+        goalMap.set(child.name, {
+          position: pos.clone(),
+          quaternion: quat.clone(),
+        });
       });
 
       return TRAINING_GOAL_ORDER.map((name) => goalMap.get(name))
         .filter(Boolean)
-        .map((goalPosition) => goalPosition.clone());
+        .map((entry) => ({
+          position: entry.position.clone(),
+          quaternion: entry.quaternion.clone(),
+        }));
     })().catch((error) => {
       trainingGoalPositionsPromise = null;
       throw error;
     });
   }
 
-  const positions = await trainingGoalPositionsPromise;
-  return positions.map((goalPosition) => goalPosition.clone());
+  const transforms = await trainingGoalPositionsPromise;
+  return transforms.map((entry) => ({
+    position: entry.position.clone(),
+    quaternion: entry.quaternion.clone(),
+  }));
 }
 
-function getAuthoredGoalPositions(game) {
+function getAuthoredGoalTransforms(game) {
   const cachedGoals = game.trainingGoalPoints ?? [];
+  const cachedQuats = game.trainingGoalQuaternions ?? [];
   if (cachedGoals.length >= 3) {
-    return cachedGoals.slice(0, 3).map((goalPosition) => goalPosition.clone());
+    return cachedGoals.slice(0, 3).map((goalPosition, i) => ({
+      position: goalPosition.clone(),
+      quaternion: cachedQuats[i] ? cachedQuats[i].clone() : null,
+    }));
   }
 
   const levelId = game.gameManager?.getState?.()?.currentLevel;
@@ -204,19 +241,27 @@ function getAuthoredGoalPositions(game) {
     const name = child?.name;
     if (!goalOrder.includes(name)) return;
     const pos = new THREE.Vector3();
+    const quat = new THREE.Quaternion();
     child.getWorldPosition(pos);
-    goalMap.set(name, pos);
+    child.getWorldQuaternion(quat);
+    goalMap.set(name, {
+      position: pos.clone(),
+      quaternion: quat.clone(),
+    });
   });
   return goalOrder
     .map((name) => goalMap.get(name))
     .filter(Boolean)
-    .map((goalPosition) => goalPosition.clone());
+    .map((entry) => ({
+      position: entry.position.clone(),
+      quaternion: entry.quaternion.clone(),
+    }));
 }
 
 async function getCheckpointPositions(game) {
   // Prefer markers from the loaded level (world space). GLB-only goals from
   // spaceship-data use that asset's local frame and do not match newworld placement.
-  const authoredGoals = getAuthoredGoalPositions(game);
+  const authoredGoals = getAuthoredGoalTransforms(game);
   if (authoredGoals.length >= 3) {
     return authoredGoals;
   }
@@ -271,24 +316,75 @@ async function getCheckpointPositions(game) {
     .addScaledVector(forward, 20)
     .addScaledVector(right, -20);
 
-  return [first, second, third];
+  return [
+    { position: first, quaternion: null },
+    { position: second, quaternion: null },
+    { position: third, quaternion: null },
+  ];
+}
+
+/** First three authored Enemy* empties (after sort): laser / roll-adjacent wave. */
+export function getTrainingLaserEnemySpawnPositions(game) {
+  return getTrainingEnemySpawnSlice(game, 0, TRAINING_MISSION_WAVE_SIZE);
+}
+
+/** Next three Enemy.003 … Enemy.005 (indices 3–5): missile wave. */
+export function getTrainingMissileEnemySpawnPositions(game) {
+  return getTrainingEnemySpawnSlice(
+    game,
+    TRAINING_MISSION_WAVE_SIZE,
+    TRAINING_MISSION_WAVE_SIZE,
+  );
 }
 
 export function getTrainingMissionEnemySpawnPositions(game) {
-  const enemySpawns = game.spawnPoints ?? [];
-  if (!enemySpawns.length) {
+  return getTrainingLaserEnemySpawnPositions(game);
+}
+
+function getTrainingEnemySpawnSlice(game, startIndex, count) {
+  const all = game.spawnPoints ?? [];
+  if (all.length >= startIndex + count) {
+    return all.slice(startIndex, startIndex + count).map((p) => p.clone());
+  }
+  if (!all.length) {
     const origin = (
-      game.camera.position ??
+      game.camera?.position ??
       game.playerSpawnPoints?.[0] ??
       new THREE.Vector3(0, 0, 0)
     ).clone();
-    return Array.from({ length: TRAINING_MISSION_WAVE_SIZE }, (_, index) =>
-      origin.clone().add(new THREE.Vector3(index * 8 - 8, 3 + index * 2, -35)),
+    if (startIndex === 0) {
+      return Array.from({ length: count }, (_, index) =>
+        origin
+          .clone()
+          .add(new THREE.Vector3(index * 8 - 8, 3 + index * 2, -35)),
+      );
+    }
+    const base = origin.clone().add(new THREE.Vector3(24, 4, -50));
+    return Array.from({ length: count }, (_, i) =>
+      base
+        .clone()
+        .add(new THREE.Vector3(i * 12, (i % 2) * 3, -i * 14)),
     );
   }
-  return enemySpawns
-    .slice(0, TRAINING_MISSION_WAVE_SIZE)
-    .map((spawn) => spawn.clone());
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const idx = startIndex + i;
+    if (idx < all.length) out.push(all[idx].clone());
+  }
+  const padFrom =
+    out[out.length - 1] ??
+    all[all.length - 1]?.clone() ??
+    (
+      game.camera?.position ??
+      game.playerSpawnPoints?.[0] ??
+      new THREE.Vector3(0, 0, 0)
+    ).clone();
+  let k = 0;
+  while (out.length < count) {
+    k += 1;
+    out.push(padFrom.clone().add(new THREE.Vector3(k * 10, (k % 2) * 2, -k * 12)));
+  }
+  return out;
 }
 
 /** Every authored Enemy spawn in the level (post-mission practice wave). */
@@ -513,7 +609,7 @@ export const trainingGroundsMission = {
           }
           manager.runtime.trainingLaserBotsSpawned = true;
           manager.runtime.laserKills = 0;
-          const positions = getTrainingMissionEnemySpawnPositions(manager.game);
+          const positions = getTrainingLaserEnemySpawnPositions(manager.game);
           enableNearestTrainingBotHelper(manager);
           void manager.spawnEnemyWave(positions);
           manager.setObjectives("Target Practice", [
@@ -566,7 +662,7 @@ export const trainingGroundsMission = {
         }
         if (!manager.runtime.trainingLaserBotsSpawned) {
           manager.runtime.laserKills = 0;
-          const positions = getTrainingMissionEnemySpawnPositions(manager.game);
+          const positions = getTrainingLaserEnemySpawnPositions(manager.game);
           enableNearestTrainingBotHelper(manager);
           void manager.spawnEnemyWave(positions);
           manager.runtime.trainingLaserBotsSpawned = true;
@@ -600,6 +696,10 @@ export const trainingGroundsMission = {
       title: "Missile Training",
       enter(manager) {
         disableNearestTrainingBotHelper(manager);
+        manager.runtime.missileWaveBotsSpawned = false;
+        manager.runtime.missileModeSwitched = false;
+        manager.runtime.missileFired = false;
+        manager.runtime.missileWaveKills = 0;
         setWeaponPermissions(manager, { playerLaserEnabled: true });
         manager.refillMissiles();
         manager.setObjectives("Missile Training", [
@@ -611,6 +711,75 @@ export const trainingGroundsMission = {
         ]);
       },
       onEvent(manager, type, payload) {
+        if (type === "dialogMissionMilestone") {
+          if (
+            payload.dialogId !== "trainingGroundsMissileHomingKinetic" ||
+            payload.event !== "trainingMissileBotsSpawn" ||
+            manager.runtime.missileWaveBotsSpawned
+          ) {
+            return;
+          }
+          manager.runtime.missileWaveBotsSpawned = true;
+          setWeaponPermissions(manager, {
+            playerLaserEnabled: true,
+            playerMissilesEnabled: true,
+          });
+          const positions = getTrainingMissileEnemySpawnPositions(manager.game);
+          enableNearestTrainingBotHelper(manager);
+          void manager.spawnEnemyWave(positions);
+          manager.setObjectives("Missile Training", [
+            {
+              id: "listenMissiles",
+              text: "Listen to the missile briefing.",
+              completed: false,
+            },
+            {
+              id: "switchMode",
+              text: missileSwitchObjectiveText(manager),
+              completed: false,
+            },
+            {
+              id: "fireMissile",
+              text: "Fire a missile with the right mouse button.",
+              completed: false,
+            },
+            {
+              id: "clearMissileWave",
+              text: "Destroy the incoming bots (0/3)",
+              completed: false,
+            },
+          ]);
+          return;
+        }
+        if (
+          type === "missileModeSwitched" &&
+          manager.runtime.missileWaveBotsSpawned &&
+          !manager.runtime.missileModeSwitched
+        ) {
+          manager.runtime.missileModeSwitched = true;
+          manager.completeObjective("switchMode");
+          return;
+        }
+        if (
+          type === "missileFired" &&
+          manager.runtime.missileWaveBotsSpawned &&
+          !manager.runtime.missileFired
+        ) {
+          manager.runtime.missileFired = true;
+          manager.completeObjective("fireMissile");
+          return;
+        }
+        if (type === "enemyDestroyed" && manager.runtime.missileWaveBotsSpawned) {
+          manager.runtime.missileWaveKills += 1;
+          updateCountObjective(
+            manager,
+            "clearMissileWave",
+            "Destroy the incoming bots",
+            manager.runtime.missileWaveKills,
+            3,
+          );
+          return;
+        }
         if (type !== "dialogCompleted") return;
         const id = payload.id;
         if (
@@ -631,30 +800,35 @@ export const trainingGroundsMission = {
           playerLaserEnabled: true,
           playerMissilesEnabled: true,
         });
-        manager.runtime.missileModeSwitched = false;
-        manager.runtime.missileFired = false;
-        manager.runtime.missileWaveKills = 0;
         manager.refillMissiles();
-        const positions = getTrainingMissionEnemySpawnPositions(manager.game);
-        enableNearestTrainingBotHelper(manager);
+        if (missileTrainingCombatComplete(manager)) {
+          enterMissileTrainingCompleteNext(manager);
+          return;
+        }
+        if (!manager.runtime.missileWaveBotsSpawned) {
+          const positions = getTrainingMissileEnemySpawnPositions(manager.game);
+          enableNearestTrainingBotHelper(manager);
+          void manager.spawnEnemyWave(positions);
+          manager.runtime.missileWaveBotsSpawned = true;
+        }
+        const k = manager.runtime.missileWaveKills;
         manager.setObjectives("Missile Training", [
           {
             id: "switchMode",
-            text: "Switch missile type with G.",
-            completed: false,
+            text: missileSwitchObjectiveText(manager),
+            completed: manager.runtime.missileModeSwitched,
           },
           {
             id: "fireMissile",
             text: "Fire a missile with the right mouse button.",
-            completed: false,
+            completed: manager.runtime.missileFired,
           },
           {
             id: "clearMissileWave",
-            text: "Destroy the incoming bots (0/3)",
-            completed: false,
+            text: `Destroy the incoming bots (${k}/3)`,
+            completed: k >= 3,
           },
         ]);
-        manager.spawnEnemyWave(positions);
       },
       onEvent(manager, type) {
         if (type === "missileModeSwitched" && !manager.runtime.missileModeSwitched) {
@@ -678,15 +852,8 @@ export const trainingGroundsMission = {
           );
         }
 
-        if (
-          manager.runtime.missileWaveKills >= 3 &&
-          manager.areObjectivesComplete(["switchMode", "fireMissile", "clearMissileWave"])
-        ) {
-          if (manager.game.gameManager?.state?.isMobile) {
-            manager.enterStep("ammoCollectibleBrief");
-          } else {
-            manager.enterStep("tildeRemapDesktop");
-          }
+        if (missileTrainingCombatComplete(manager)) {
+          enterMissileTrainingCompleteNext(manager);
         }
       },
     },

@@ -34,7 +34,10 @@ import SceneManager from "../managers/SceneManager.js";
 import LightManager from "../managers/LightManager.js";
 import { DynamicSceneElementManager } from "../managers/DynamicSceneElementManager.js";
 import { GAME_STATES } from "../data/gameData.js";
-import { getPerformanceProfile } from "../data/performanceSettings.js";
+import {
+  getPerformanceProfile,
+  IOS_MAX_PAGED_SPLATS,
+} from "../data/performanceSettings.js";
 import { ParticleSystem } from "../vfx/ParticleSystem.js";
 import { ExplosionEffect } from "../vfx/effects/ExplosionEffect.js";
 import { SparksEffect } from "../vfx/effects/SparksEffect.js";
@@ -105,7 +108,10 @@ export async function init(game) {
     ? getPerformanceProfile("low")
     : perfProfile;
   const splatSettings = splatProfile.splat ?? {};
-  const maxPagedSplats = splatSettings.maxPagedSplats ?? 256 * 65536;
+  let maxPagedSplats = splatSettings.maxPagedSplats ?? 256 * 65536;
+  if (game.gameManager.state.isIOS) {
+    maxPagedSplats = Math.min(maxPagedSplats, IOS_MAX_PAGED_SPLATS);
+  }
 
   // Spark DoF: focalDistance + apertureAngle (radians, full width). Max boost angle =
   // thin lens: 2 * atan((apertureDiameter/2) / focal) — must match focalDistance passed below.

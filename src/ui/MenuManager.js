@@ -32,7 +32,7 @@ export const SCREENS = {
 };
 
 import NetworkManager from "../network/NetworkManager.js";
-import { LEVELS } from "../data/gameData.js";
+import { multiplayerMapLevels } from "../data/gameData.js";
 import {
   KeyBindings,
   ACTION_LABELS,
@@ -148,9 +148,8 @@ class MenuManager {
     window.dispatchEvent(new Event("app-ready"));
     sfxManager.init(sfxSounds);
 
-    // Initialize procedural audio on first user interaction
     const initAudio = () => {
-      proceduralAudio.init();
+      proceduralAudio.unlockFromUserGesture();
       document.removeEventListener("click", initAudio);
       document.removeEventListener("keydown", initAudio);
     };
@@ -1540,11 +1539,15 @@ class MenuManager {
         quickMatch: true,
       });
     } else {
-      // No rooms available - create and auto-start
+      const pool = multiplayerMapLevels();
+      const pick = pool[Math.floor(Math.random() * pool.length)];
+      const level = pick?.id || "newworld";
       await NetworkManager.joinOrCreate({
         playerName: this.playerName,
         autoStart: true,
         quickMatch: true,
+        level,
+        botsEnabled: true,
       });
     }
   }
@@ -1552,6 +1555,13 @@ class MenuManager {
   show() {
     if (this.container) {
       this.container.classList.remove("hidden");
+    }
+    // PLAYING uses renderPlaying(), which clears menu HTML and adds .hidden.
+    // Without switching screen, syncStartSceneState() keeps the 3D menu paused
+    // and hidden while the game canvas is already off → blank window.
+    if (this.currentScreen === SCREENS.PLAYING) {
+      this.showScreen(SCREENS.MAIN_MENU);
+      return;
     }
     this.syncStartSceneState();
   }
@@ -1576,6 +1586,13 @@ class MenuManager {
   }
 
   emit(event, data) {
+    if (
+      event === "trainingGroundsStart" ||
+      event === "campaignStart" ||
+      event === "gameStart"
+    ) {
+      proceduralAudio.unlockFromUserGesture();
+    }
     if (this.eventListeners[event]) {
       this.eventListeners[event].forEach((cb) => cb(data));
     }

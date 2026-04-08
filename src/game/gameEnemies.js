@@ -46,7 +46,6 @@ import {
   stripCheckpointDissolveMaterials,
 } from "../vfx/checkpointDissolveWarp.js";
 import {
-  getTrainingMissionEnemySpawnPositions,
   getAllLevelEnemySpawnPositions,
   TRAINING_MISSION_WAVE_SIZE,
 } from "../missions/trainingGroundsMission.js";
@@ -215,6 +214,7 @@ function activateEnemyAtSpawn(game, enemy, position, { skipHud = false } = {}) {
         ...dissolveOptsBase,
         dissolvePrecooked: enemy._enemyDissolvePrecooked,
         retainDissolveMaterials: true,
+        particles: false,
       }
     : dissolveOptsBase;
 

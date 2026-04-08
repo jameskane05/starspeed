@@ -72,8 +72,35 @@ class SFXManager {
 
   play(id, position = null, volumeScale = 1) {
     if (!this.ctx || !this.masterGain) return;
-    if (this.ctx.state === "suspended") return;
     this._ensureLoaded();
+    this._playOrQueue(id, position, volumeScale);
+  }
+
+  _playOrQueue(id, position, volumeScale) {
+    if (!this.ctx || !this.masterGain) return;
+
+    const entry = this.buffers.get(id);
+    if (!entry) {
+      if (this._loading) {
+        void this._loading.then(() => this._playOrQueue(id, position, volumeScale));
+      }
+      return;
+    }
+
+    if (this.ctx.state !== "running") {
+      void proceduralAudio.resume().then(() => {
+        if (this.ctx?.state === "running") {
+          this._startSource(id, position, volumeScale);
+        }
+      });
+      return;
+    }
+
+    this._startSource(id, position, volumeScale);
+  }
+
+  _startSource(id, position, volumeScale) {
+    if (!this.ctx || !this.masterGain || this.ctx.state !== "running") return;
 
     const entry = this.buffers.get(id);
     if (!entry) return;

@@ -58,9 +58,38 @@ const CHECKPOINT_POOL_ACCENT = 0x8affff;
  * init runs before PLAYING plus warmGpuProgramsForPlay. See gameEnemies.js header.
  */
 
-/** Ring geometry lies in local XY; Mesh.lookAt aligns local +Z toward `worldTarget` (Three r15x). */
-function orientCheckpointToward(mesh, worldTarget) {
-  mesh.lookAt(worldTarget);
+const _checkpointWobbleAxis = new THREE.Vector3(0, 0, 1);
+const _checkpointWobbleQuat = new THREE.Quaternion();
+
+/** TorusGeometry major ring is in XY; Blender goal empties + glTF Y-up need this to match a vertical hoop. */
+const CHECKPOINT_TORUS_CORRECTION = new THREE.Quaternion().setFromEuler(
+  new THREE.Euler(-Math.PI / 2, 0, 0, "XYZ"),
+);
+
+function composeCheckpointBaseQuaternion(pointQuat) {
+  const q = pointQuat ? pointQuat.clone() : new THREE.Quaternion();
+  q.multiply(CHECKPOINT_TORUS_CORRECTION);
+  return q;
+}
+
+/** @returns {{ position: THREE.Vector3, quaternion: THREE.Quaternion | null }[]} */
+function normalizeCheckpointEntries(points) {
+  if (!Array.isArray(points) || points.length === 0) return [];
+  return points
+    .map((p) => {
+      if (p?.isVector3) {
+        return { position: p.clone(), quaternion: null };
+      }
+      if (p?.position?.isVector3) {
+        const q =
+          p.quaternion && p.quaternion.isQuaternion
+            ? p.quaternion.clone()
+            : null;
+        return { position: p.position.clone(), quaternion: q };
+      }
+      return null;
+    })
+    .filter(Boolean);
 }
 
 /** Clones GPU textures so checkpoint teardown / prewarm dispose cannot affect ship materials. */
@@ -446,7 +475,8 @@ export class MissionManager {
 
   async setCheckpointSequence(points, options = {}) {
     this.clearCheckpoints();
-    if (!points?.length) return;
+    const entries = normalizeCheckpointEntries(points);
+    if (!entries.length) return;
 
     const color = options.color ?? 0x00e8ff;
     const radius = options.radius ?? 5;
@@ -454,7 +484,7 @@ export class MissionManager {
     const accent = options.accentColor ?? 0x8affff;
     const usePool =
       this.game._checkpointVisualPool?.slots &&
-      points.length <= CHECKPOINT_POOL_SIZE &&
+      entries.length <= CHECKPOINT_POOL_SIZE &&
       Math.abs(radius - CHECKPOINT_POOL_RADIUS) < 0.001 &&
       Math.abs(tube - CHECKPOINT_POOL_TUBE) < 0.001 &&
       color === CHECKPOINT_POOL_COLOR &&
@@ -471,19 +501,21 @@ export class MissionManager {
     if (usePool) {
       await this.game._checkpointVisualPoolInitPromise?.catch?.(() => {});
       const { slots } = this.game._checkpointVisualPool;
-      for (let index = 0; index < points.length; index++) {
-        const point = points[index];
+      for (let index = 0; index < entries.length; index++) {
+        const { position: point, quaternion: pointQuat } = entries[index];
+        const baseQuaternion = composeCheckpointBaseQuaternion(pointQuat);
         const slot = slots[index];
         slot.inUse = true;
         const mesh = slot.mesh;
         this.game.checkpointPoolRoot.remove(mesh);
         mesh.position.copy(point);
-        orientCheckpointToward(mesh, this.getPlayerPosition());
+        mesh.quaternion.copy(baseQuaternion);
         mesh.visible = false;
         this.checkpointGroup.add(mesh);
         this.checkpoints.push({
           index,
           position: point.clone(),
+          baseQuaternion,
           radius: options.triggerRadius ?? radius + 1.5,
           mesh,
           spawnWarp: null,
@@ -495,9 +527,10 @@ export class MissionManager {
       }
     } else {
       const sharedShipTex = await loadSharedShipMaterials();
-      for (let index = 0; index < points.length; index++) {
+      for (let index = 0; index < entries.length; index++) {
         await yieldFrame();
-        const point = points[index];
+        const { position: point, quaternion: pointQuat } = entries[index];
+        const baseQuaternion = composeCheckpointBaseQuaternion(pointQuat);
         const mesh = createCheckpointVisual(
           radius,
           tube,
@@ -506,7 +539,7 @@ export class MissionManager {
           sharedShipTex,
         );
         mesh.position.copy(point);
-        orientCheckpointToward(mesh, this.getPlayerPosition());
+        mesh.quaternion.copy(baseQuaternion);
         mesh.visible = false;
         const dissolvePrecooked = precookCheckpointDissolveMaterials(mesh, {
           edgeColor: 0x8affff,
@@ -516,6 +549,7 @@ export class MissionManager {
         this.checkpoints.push({
           index,
           position: point.clone(),
+          baseQuaternion,
           radius: options.triggerRadius ?? radius + 1.5,
           mesh,
           spawnWarp: null,
@@ -623,7 +657,12 @@ export class MissionManager {
       }
       mesh.userData.innerRing?.rotation &&
         (mesh.userData.innerRing.rotation.z -= delta * 0.75);
-      mesh.rotation.z = Math.sin(elapsed * 1.8 + checkpointEntry.index * 0.7) * 0.08;
+      const wobbleZ =
+        Math.sin(elapsed * 1.8 + checkpointEntry.index * 0.7) * 0.08;
+      _checkpointWobbleQuat.setFromAxisAngle(_checkpointWobbleAxis, wobbleZ);
+      mesh.quaternion
+        .copy(checkpointEntry.baseQuaternion)
+        .multiply(_checkpointWobbleQuat);
       const pulse = 0.78 + (Math.sin(elapsed * 3.4 + checkpointEntry.index) + 1) * 0.12;
       for (const arc of mesh.userData.pulseMeshes ?? []) {
         const material = arc?.material;
@@ -733,7 +772,7 @@ export class MissionManager {
     checkpoint.mesh.userData._rimBloomSmooth = null;
     checkpoint.mesh.userData._rimBloomPrevSmooth = null;
     checkpoint.spawnWarp?.dispose?.();
-    orientCheckpointToward(checkpoint.mesh, this.getPlayerPosition());
+    checkpoint.mesh.quaternion.copy(checkpoint.baseQuaternion);
     checkpoint.spawnWarp = beginCheckpointDissolve(checkpoint.mesh, this.game, {
       duration: 3.5,
       edgeColor: 0x8affff,

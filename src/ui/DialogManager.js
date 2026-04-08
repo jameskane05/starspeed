@@ -93,13 +93,21 @@ export class DialogManager {
     return width <= 1050 && width > height;
   }
 
+  _isDesktopViewport() {
+    if (typeof window === "undefined") return false;
+    const width = window.visualViewport?.width ?? window.innerWidth;
+    return width > 1050;
+  }
+
   _getCaptionScaleMultiplier() {
-    return this._isMobileLandscape() ? 2 : 1;
+    if (this._isMobileLandscape()) return 2;
+    if (this._isDesktopViewport()) return 1.45;
+    return 1;
   }
 
   _getResponsiveCaptionOffset() {
     return this._isMobilePortrait()
-      ? new THREE.Vector3(0, -0.145, -0.42)
+      ? new THREE.Vector3(0, -0.1175, -0.42)
       : new THREE.Vector3(0, -0.2, -0.5);
   }
 
@@ -112,11 +120,7 @@ export class DialogManager {
   _applyCaptionScale() {
     if (!this.captionMesh) return;
     const m = this._getCaptionScaleMultiplier();
-    this.captionMesh.scale.set(
-      this.captionScale * m,
-      this.captionScale * m,
-      1,
-    );
+    this.captionMesh.scale.set(this.captionScale * m, this.captionScale * m, 1);
   }
 
   _bindViewportResize() {
@@ -211,9 +215,11 @@ export class DialogManager {
     }
   }
 
-  _setActiveSpeaker(speakerId = this.defaultSpeakerId) {
+  _setActiveSpeaker(speakerId = this.defaultSpeakerId, options = {}) {
+    const forceNotify = options.forceNotify === true;
     const nextRenderer = this._getSpeakerRenderer(speakerId);
     if (
+      !forceNotify &&
       this.activeSpeakerId === speakerId &&
       this.activeSpeakerRenderer === nextRenderer
     ) {
@@ -230,7 +236,7 @@ export class DialogManager {
 
     this.activeSpeakerId = speakerId;
     this.activeSpeakerRenderer = nextRenderer;
-    this.onSpeakerChanged?.(speakerId, nextRenderer);
+    this.onSpeakerChanged?.(speakerId, nextRenderer, { forceNotify });
     return nextRenderer;
   }
 
@@ -464,8 +470,9 @@ export class DialogManager {
       typeof dialogOrId === "string" ? getDialogById(dialogOrId) : dialogOrId;
     if (!dialog) return;
 
-    if (this.isPlaying) {
-      this.stop();
+    const replacedPlayingDialog = this.isPlaying;
+    if (replacedPlayingDialog) {
+      this._clearPlaybackState({ resetSpeaker: false });
     } else {
       this._forEachSpeakerRenderer((renderer) => renderer.stop?.());
     }
@@ -496,17 +503,27 @@ export class DialogManager {
         : null);
     const dialogSpeakerId =
       dialog.speakerId ?? this._getSpeakerId(this.captions[0]);
-    const playbackRenderer = this._setActiveSpeaker(dialogSpeakerId);
+    const playbackRenderer = this._setActiveSpeaker(dialogSpeakerId, {
+      forceNotify: replacedPlayingDialog,
+    });
     if (dialog.audio && playbackRenderer && faceDataUrl) {
       this._audioPlaybackRenderer = playbackRenderer;
       try {
         if (dialog.requiresGesture) {
           this._waitingForGesture = true;
-          const start = () => {
+          const start = async () => {
             this._waitingForGesture = false;
             this._gestureCleanup = null;
-            playbackRenderer.play(dialog.audio, faceDataUrl);
-            this._playbackActive = true;
+            try {
+              const ok = await playbackRenderer.play(dialog.audio, faceDataUrl);
+              if (!ok) this._audioPlaybackRenderer = null;
+              this._playbackActive = true;
+            } catch (e) {
+              this.musicManager?.setDialogDuck?.(false);
+              this.isPlaying = false;
+              this.currentDialog = null;
+              this._audioPlaybackRenderer = null;
+            }
           };
           this._gestureCleanup = () => {
             document.removeEventListener("click", start);
@@ -515,7 +532,8 @@ export class DialogManager {
           document.addEventListener("click", start, { once: true });
           document.addEventListener("keydown", start, { once: true });
         } else {
-          await playbackRenderer.play(dialog.audio, faceDataUrl);
+          const ok = await playbackRenderer.play(dialog.audio, faceDataUrl);
+          if (!ok) this._audioPlaybackRenderer = null;
           this._playbackActive = true;
         }
       } catch (e) {
@@ -716,7 +734,8 @@ export class DialogManager {
     this._updatePlayback();
   }
 
-  stop() {
+  _clearPlaybackState(options = {}) {
+    const resetSpeaker = options.resetSpeaker !== false;
     if (this._gestureCleanup) {
       this._gestureCleanup();
       this._gestureCleanup = null;
@@ -727,13 +746,19 @@ export class DialogManager {
     this.currentCaptionIndex = -1;
     this._forEachSpeakerRenderer((renderer) => renderer.stop?.());
     this._audioPlaybackRenderer = null;
-    this._resetActiveSpeaker();
+    if (resetSpeaker) {
+      this._resetActiveSpeaker();
+    }
     if (this.lipSyncManager) this.lipSyncManager.stop();
     this.currentDialog = null;
     this._dialogMilestoneFired.clear();
     this._clearCanvas();
     if (this.captionMesh) this.captionMesh.visible = false;
     this.musicManager?.setDialogDuck?.(false);
+  }
+
+  stop() {
+    this._clearPlaybackState({ resetSpeaker: true });
   }
 
   destroy() {

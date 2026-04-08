@@ -127,13 +127,17 @@ class NetworkManager {
     }
 
     try {
-      this.room = await this.client.joinOrCreate("game_room", {
+      const joinOpts = {
         mode: options.mode || "ffa",
         isPublic: true,
         name: options.playerName || "Player",
         autoStart: options.autoStart || false,
         quickMatch: options.quickMatch === true,
-      });
+      };
+      if (options.level) joinOpts.level = options.level;
+      if (options.botsEnabled === true) joinOpts.botsEnabled = true;
+
+      this.room = await this.client.joinOrCreate("game_room", joinOpts);
 
       this.sessionId = this.room.sessionId;
       this.setupRoomListeners(false);

@@ -5,17 +5,70 @@ import {
   createVRMAnimationClip,
   VRMAnimationLoaderPlugin,
 } from "@pixiv/three-vrm-animation";
+import proceduralAudio from "../audio/ProceduralAudio.js";
 
 const RT_SIZE = 512;
 const FACE_MATRIX_EPS = 1e-8;
 const DIALOG_VOICE_WEBAUDIO_FADE_IN_SEC = 1;
 
-let _dialogVoiceAudioCtx = null;
+let _dialogVoiceFallbackCtx = null;
+/** Prefer SFX context (unlocked with gameplay) — a separate context often stays suspended on iOS Safari. */
 function getDialogVoiceAudioContext() {
-  if (!_dialogVoiceAudioCtx) {
-    _dialogVoiceAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const shared = proceduralAudio?.ctx;
+  if (shared) return shared;
+  if (!_dialogVoiceFallbackCtx) {
+    _dialogVoiceFallbackCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
-  return _dialogVoiceAudioCtx;
+  return _dialogVoiceFallbackCtx;
+}
+
+function prepareDialogAudioElement(el) {
+  el.loop = false;
+  el.setAttribute("playsinline", "");
+  el.setAttribute("webkit-playsinline", "");
+}
+
+/** WebKit + MediaElementAudioSource often reports success but never advances currentTime; use plain <audio> first. */
+function preferDirectDialogPlaybackOnIOSTouch() {
+  if (typeof navigator === "undefined") return false;
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
+
+/** iOS Safari often never fires `canplaythrough`; without a timeout, dialog init hangs forever. */
+function waitForDialogAudioElementReady(audioElement, timeoutMs = 12000) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const finish = (fn) => {
+      if (done) return;
+      done = true;
+      clearTimeout(tid);
+      audioElement.removeEventListener("canplaythrough", onThrough);
+      audioElement.removeEventListener("canplay", onCanPlay);
+      audioElement.removeEventListener("loadeddata", onLoadedData);
+      audioElement.removeEventListener("error", onError);
+      fn();
+    };
+    const onThrough = () => finish(() => resolve());
+    const onCanPlay = () => {
+      if (audioElement.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+        finish(() => resolve());
+      }
+    };
+    const onLoadedData = () => finish(() => resolve());
+    const onError = () =>
+      finish(() =>
+        reject(audioElement.error ?? new Error("dialog audio load error")),
+      );
+    const tid = setTimeout(() => finish(() => resolve()), timeoutMs);
+    audioElement.addEventListener("canplaythrough", onThrough, { once: true });
+    audioElement.addEventListener("canplay", onCanPlay, { once: true });
+    audioElement.addEventListener("loadeddata", onLoadedData, { once: true });
+    audioElement.addEventListener("error", onError, { once: true });
+    audioElement.load();
+  });
 }
 
 function normalizeMocapFrame(frame, namesLength) {
@@ -392,7 +445,7 @@ function applyFaceToExpressionManager(vrm, names, values) {
 
 export class VRMAvatarRenderer {
   constructor(options = {}) {
-    this.vrmUrl = options.vrmUrl ?? "./model_original_1773065783.vrm";
+    this.vrmUrl = options.vrmUrl ?? "./alcair-opt.vrm";
     this.idleUrl = options.idleUrl ?? "./ani_Idle_Action_01.vrma";
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(28, 1, 0.1, 10);
@@ -454,6 +507,12 @@ export class VRMAvatarRenderer {
     this._lastFaceMatrix = null;
     this._dialogMediaSource = null;
     this._dialogOutputGain = null;
+    /** iOS: decode+BufferSource on shared SFX context (no per-line HTMLAudioElement autoplay). */
+    this._dialogBufSource = null;
+    this._dialogBufGain = null;
+    this._dialogBufferPlaybackStart = 0;
+    this._dialogBufferDuration = 0;
+    this._iosPooledDialogAudio = null;
     this._placeholderTexture = new THREE.DataTexture(
       new Uint8Array([0, 0, 0, 0]),
       1,
@@ -467,6 +526,12 @@ export class VRMAvatarRenderer {
   }
 
   getCurrentTime() {
+    if (this._dialogBufSource && this._playing && proceduralAudio.ctx) {
+      return Math.max(
+        0,
+        proceduralAudio.ctx.currentTime - this._dialogBufferPlaybackStart,
+      );
+    }
     if (this.audioElement) return this.audioElement.currentTime ?? 0;
     if (this._placeholderPlaying) {
       return performance.now() / 1000 - this._placeholderStartTime;
@@ -479,6 +544,16 @@ export class VRMAvatarRenderer {
     if (this._placeholderPlaying) {
       return performance.now() / 1000 - this._placeholderStartTime <
         this._placeholderDuration;
+    }
+    if (
+      this._playing &&
+      this._dialogBufSource &&
+      proceduralAudio.ctx &&
+      this._dialogBufferDuration > 0
+    ) {
+      const elapsed =
+        proceduralAudio.ctx.currentTime - this._dialogBufferPlaybackStart;
+      return elapsed < this._dialogBufferDuration - 0.04;
     }
     return this._playing && this.audioElement && !this.audioElement.ended;
   }
@@ -595,6 +670,86 @@ export class VRMAvatarRenderer {
     }
   }
 
+  _disconnectDialogBufferPlayback() {
+    if (this._dialogBufSource) {
+      try {
+        this._dialogBufSource.stop();
+      } catch (_) {}
+      try {
+        this._dialogBufSource.disconnect();
+      } catch (_) {}
+      this._dialogBufSource = null;
+    }
+    if (this._dialogBufGain) {
+      try {
+        this._dialogBufGain.disconnect();
+      } catch (_) {}
+      this._dialogBufGain = null;
+    }
+    this._dialogBufferPlaybackStart = 0;
+    this._dialogBufferDuration = 0;
+  }
+
+  /**
+   * iOS/Safari: one unlocked AudioContext (procedural) + BufferSource avoids
+   * HTMLMediaElement autoplay limits on every new line and every speaker swap.
+   */
+  async _playDialogFromBuffer(audioUrl) {
+    await proceduralAudio.resume();
+    const ctx = proceduralAudio.ctx;
+    if (!ctx) return false;
+    if (ctx.state === "suspended") await ctx.resume();
+    if (ctx.state !== "running") return false;
+
+    let audioBuffer;
+    try {
+      const resp = await fetch(audioUrl);
+      if (!resp.ok) return false;
+      const ab = await resp.arrayBuffer();
+      audioBuffer = await ctx.decodeAudioData(ab.slice(0));
+    } catch (e) {
+      console.warn("[VRMAvatarRenderer] Dialog decode failed:", audioUrl, e);
+      return false;
+    }
+
+    this._disconnectDialogBufferPlayback();
+
+    const source = ctx.createBufferSource();
+    const gain = ctx.createGain();
+    const when = ctx.currentTime;
+    gain.gain.setValueAtTime(0, when);
+    gain.gain.linearRampToValueAtTime(
+      1,
+      when + DIALOG_VOICE_WEBAUDIO_FADE_IN_SEC,
+    );
+    source.buffer = audioBuffer;
+    source.connect(gain);
+    gain.connect(ctx.destination);
+
+    this._dialogBufferPlaybackStart = when;
+    this._dialogBufferDuration = audioBuffer.duration;
+    this._dialogBufSource = source;
+    this._dialogBufGain = gain;
+
+    source.onended = () => {
+      if (this._dialogBufSource !== source) return;
+      this._playing = false;
+      this._disconnectDialogBufferPlayback();
+    };
+
+    try {
+      source.start(when);
+    } catch (e) {
+      console.warn("[VRMAvatarRenderer] BufferSource.start failed:", e);
+      this._disconnectDialogBufferPlayback();
+      return false;
+    }
+
+    this._playing = true;
+    this.audioElement = null;
+    return true;
+  }
+
   _applyStoredRestBones() {
     const humanoid = this.vrm?.humanoid;
     const state = this._headPoseState;
@@ -611,6 +766,7 @@ export class VRMAvatarRenderer {
     if (chest) chest.quaternion.copy(state.baseChestQuaternion);
   }
 
+  /** @returns {Promise<boolean>} true if dialog audio is playing; false → use caption-only timing in DialogManager */
   async play(audioUrl, faceDataUrl) {
     const prevNames = this.faceData?.names;
     const morphSnapshot =
@@ -619,14 +775,14 @@ export class VRMAvatarRenderer {
         : null;
 
     this.stop();
-    if (!this._ready || !this.vrm) return;
+    if (!this._ready || !this.vrm) return false;
     let faceData = this.faceData;
     if (faceDataUrl && (!faceData || faceData._url !== faceDataUrl)) {
       await this.loadFaceData(faceDataUrl);
       faceData = this.faceData;
       faceData._url = faceDataUrl;
     }
-    if (!faceData?.frames?.length) return;
+    if (!faceData?.frames?.length) return false;
 
     const names = faceData.names;
     const n = names.length;
@@ -635,7 +791,7 @@ export class VRMAvatarRenderer {
       from.set(morphSnapshot);
     }
     const firstVals = sampleFrames(faceData.frames, names, 0);
-    if (!firstVals?.length) return;
+    if (!firstVals?.length) return false;
 
     this._faceSnapFrom = from;
     this._faceFirstFrameArr = Float32Array.from(firstVals);
@@ -645,32 +801,65 @@ export class VRMAvatarRenderer {
     this._hadStartedFaceDialog = false;
     this._lastFaceMatrix = null;
 
-    this.audioElement = document.createElement("audio");
-    this.audioElement.src = audioUrl;
-    this.audioElement.crossOrigin = "anonymous";
-    this.audioElement.loop = false;
+    const bindEnded = (audioEl) => {
+      audioEl.addEventListener(
+        "ended",
+        () => {
+          this._playing = false;
+        },
+        { once: true },
+      );
+    };
+
+    if (preferDirectDialogPlaybackOnIOSTouch()) {
+      if (await this._playDialogFromBuffer(audioUrl)) {
+        this._hadStartedFaceDialog = true;
+        return true;
+      }
+      if (!this._iosPooledDialogAudio) {
+        this._iosPooledDialogAudio = document.createElement("audio");
+        prepareDialogAudioElement(this._iosPooledDialogAudio);
+      }
+      const elIOS = this._iosPooledDialogAudio;
+      elIOS.pause();
+      elIOS.currentTime = 0;
+      elIOS.src = audioUrl;
+      try {
+        await waitForDialogAudioElementReady(elIOS);
+        await elIOS.play();
+        this.audioElement = elIOS;
+        this._playing = true;
+        this._hadStartedFaceDialog = true;
+        bindEnded(elIOS);
+        return true;
+      } catch (e) {
+        console.warn(
+          "[VRMAvatarRenderer] iOS pooled <audio> VO failed, trying Web Audio element path:",
+          e?.message || e,
+        );
+      }
+    }
+
+    let el = document.createElement("audio");
+    prepareDialogAudioElement(el);
+    el.src = audioUrl;
+    el.crossOrigin = "anonymous";
     try {
-      await new Promise((resolve, reject) => {
-        this.audioElement.addEventListener("canplaythrough", resolve, {
-          once: true,
-        });
-        this.audioElement.addEventListener("error", reject, { once: true });
-        this.audioElement.load();
-      });
+      await waitForDialogAudioElementReady(el);
     } catch (e) {
       console.warn("[VRMAvatarRenderer] Audio load failed:", audioUrl, e);
-      this.audioElement = null;
       this._clipBlendInActive = false;
       this._faceSnapFrom = null;
       this._faceFirstFrameArr = null;
-      return;
+      return false;
     }
 
-    this._disconnectDialogVoiceGraph();
-    try {
+    const tryWebAudioPath = async () => {
+      await proceduralAudio.resume();
       const ctx = getDialogVoiceAudioContext();
       if (ctx.state === "suspended") await ctx.resume();
-      this._dialogMediaSource = ctx.createMediaElementSource(this.audioElement);
+      this._disconnectDialogVoiceGraph();
+      this._dialogMediaSource = ctx.createMediaElementSource(el);
       this._dialogOutputGain = ctx.createGain();
       this._dialogMediaSource.connect(this._dialogOutputGain);
       this._dialogOutputGain.connect(ctx.destination);
@@ -681,21 +870,47 @@ export class VRMAvatarRenderer {
         1,
         t0 + DIALOG_VOICE_WEBAUDIO_FADE_IN_SEC,
       );
-    } catch (e) {
-      console.warn("[VRMAvatarRenderer] Web Audio dialog routing failed:", e);
-      this._disconnectDialogVoiceGraph();
-    }
+      await el.play();
+    };
 
-    this.audioElement.play().catch(() => {});
-    this._playing = true;
-    this._hadStartedFaceDialog = true;
-    this.audioElement.addEventListener(
-      "ended",
-      () => {
-        this._playing = false;
-      },
-      { once: true },
-    );
+    try {
+      await tryWebAudioPath();
+      this.audioElement = el;
+      this._playing = true;
+      this._hadStartedFaceDialog = true;
+      bindEnded(el);
+      return true;
+    } catch (e) {
+      console.warn(
+        "[VRMAvatarRenderer] Web Audio VO failed; trying direct element:",
+        e?.message || e,
+      );
+      this._disconnectDialogVoiceGraph();
+      el = null;
+
+      const el2 = document.createElement("audio");
+      prepareDialogAudioElement(el2);
+      el2.src = audioUrl;
+      try {
+        await waitForDialogAudioElementReady(el2);
+        await el2.play();
+      } catch (e2) {
+        console.warn(
+          "[VRMAvatarRenderer] Direct audio failed:",
+          audioUrl,
+          e2?.message || e2,
+        );
+        this._clipBlendInActive = false;
+        this._faceSnapFrom = null;
+        this._faceFirstFrameArr = null;
+        return false;
+      }
+      this.audioElement = el2;
+      this._playing = true;
+      this._hadStartedFaceDialog = true;
+      bindEnded(el2);
+      return true;
+    }
   }
 
   playPlaceholder(durationSeconds = 0) {
@@ -711,6 +926,7 @@ export class VRMAvatarRenderer {
 
   stop() {
     this._disconnectDialogVoiceGraph();
+    this._disconnectDialogBufferPlayback();
     this._playing = false;
     this._placeholderPlaying = false;
     this._placeholderDuration = 0;
@@ -754,7 +970,13 @@ export class VRMAvatarRenderer {
     if (this.audioElement) {
       this.audioElement.pause();
       this.audioElement.currentTime = 0;
-      this.audioElement.src = "";
+      if (this.audioElement === this._iosPooledDialogAudio) {
+        this.audioElement.removeAttribute("src");
+        this.audioElement.load();
+      } else {
+        this.audioElement.src = "";
+        this.audioElement.load();
+      }
       this.audioElement = null;
     }
   }
@@ -768,7 +990,20 @@ export class VRMAvatarRenderer {
       this._placeholderPlaying = false;
     }
 
-    const audioPlaying = !!(this.audioElement && this._playing);
+    let audioPlaying = false;
+    if (this._playing) {
+      if (this.audioElement && !this.audioElement.ended) {
+        audioPlaying = true;
+      } else if (
+        this._dialogBufSource &&
+        proceduralAudio.ctx &&
+        this._dialogBufferDuration > 0
+      ) {
+        const elapsed =
+          proceduralAudio.ctx.currentTime - this._dialogBufferPlaybackStart;
+        audioPlaying = elapsed < this._dialogBufferDuration - 0.04;
+      }
+    }
     const placeholderActive =
       this._placeholderPlaying &&
       performance.now() / 1000 - this._placeholderStartTime <
@@ -802,7 +1037,7 @@ export class VRMAvatarRenderer {
 
     let t = 0;
     if (audioPlaying) {
-      t = this.audioElement.currentTime;
+      t = this.getCurrentTime();
     } else if (placeholderActive) {
       t = performance.now() / 1000 - this._placeholderStartTime;
     }
@@ -989,6 +1224,12 @@ export class VRMAvatarRenderer {
 
   dispose() {
     this.stop();
+    if (this._iosPooledDialogAudio) {
+      this._iosPooledDialogAudio.pause();
+      this._iosPooledDialogAudio.removeAttribute("src");
+      this._iosPooledDialogAudio.load();
+      this._iosPooledDialogAudio = null;
+    }
     this.idleMixer?.stopAllAction();
     this.renderTarget.dispose();
     this._placeholderTexture.dispose();

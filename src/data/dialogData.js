@@ -27,12 +27,12 @@ export const dialogSpeakers = {
   alcair: {
     id: "alcair",
     label: "ALCAIR",
-    vrmUrl: "./model_original_1773065783.vrm",
+    vrmUrl: "./alcair-opt.vrm",
   },
   flightControl: {
     id: "flightControl",
     label: "FLIGHT CONTROL",
-    vrmUrl: "./model_original_1773089969.vrm",
+    vrmUrl: "./flightControl-opt.vrm",
   },
 };
 
@@ -480,6 +480,7 @@ export const dialogTracks = {
       say("while kinetic rounds bounce off walls", 2.86, 5.42),
       say("and do splash damage.", 1.68, 8.34),
     ],
+    missionMilestones: [{ atTimeSec: 0.2, event: "trainingMissileBotsSpawn" }],
     criteria: {
       currentState: GAME_STATES.PLAYING,
       currentMissionId: "trainingGrounds",
@@ -523,8 +524,8 @@ export const dialogTracks = {
       "audio/dialog/training-11-toggle-between-mobile.json",
     ),
     captions: [
-      say("Tap the missile counter", 1.8, 0.98),
-      say("to toggle between the two.", 1.62, 2.8),
+      say("Long-press the missile button", 2.0, 0.98),
+      say("to toggle between the two.", 1.62, 2.95),
     ],
     criteria: {
       currentState: GAME_STATES.PLAYING,
@@ -549,7 +550,7 @@ export const dialogTracks = {
       say("Hold the tilde key to view the controls cheat sheet.", 4.6, 0.18),
       say("And remember, you can remap many of these controls", 3.56, 4.8),
       say(
-        "in your settings menu by hitting the escape key, then Options.",
+        "in your settings menu by hitting the escape key, then options.",
         4.92,
         8.4,
       ),
@@ -566,7 +567,7 @@ export const dialogTracks = {
   },
   trainingGroundsAmmoCollectible: {
     id: "trainingGroundsAmmoCollectible",
-    speakerId: "alcair",
+    speakerId: "flightControl",
     audio: dialogPublicUrl(
       "audio/dialog/training-13-ammo-collectible.audio.mp3",
     ),

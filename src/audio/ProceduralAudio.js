@@ -32,11 +32,38 @@ class ProceduralAudio {
   }
 
   /**
+   * Create AudioContext + master gain synchronously (no await).
+   * Safari requires `ctx.resume()` in the same user-gesture stack as menu → play;
+   * init() alone leaves the context suspended until SFX fires.
+   */
+  unlockFromUserGesture() {
+    if (!this.initialized) {
+      try {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.connect(this.ctx.destination);
+        this.setVolume(AudioSettings.getSfxVolume());
+        this.initialized = true;
+        this._volumeUnsub = AudioSettings.onChange(() =>
+          this.setVolume(AudioSettings.getSfxVolume()),
+        );
+        console.log("[ProceduralAudio] Initialized (user gesture)");
+      } catch (e) {
+        console.error("[ProceduralAudio] Failed to initialize:", e);
+        return;
+      }
+    }
+    if (this.ctx && this.ctx.state === "suspended") {
+      void this.ctx.resume();
+    }
+  }
+
+  /**
    * Initialize audio context (must be called after user interaction)
    */
   async init() {
     if (this.initialized) return;
-    
+
     try {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
       this.masterGain = this.ctx.createGain();

@@ -345,7 +345,13 @@ class SceneManager {
       } else if (name === "Goal" || name.startsWith("Goal.")) {
         const pos = new THREE.Vector3();
         child.getWorldPosition(pos);
-        goals.push({ name, position: pos.clone() });
+        const quat = new THREE.Quaternion();
+        child.getWorldQuaternion(quat);
+        goals.push({
+          name,
+          position: pos.clone(),
+          quaternion: quat.clone(),
+        });
       }
     });
     playerEntries.sort((a, b) =>
@@ -364,7 +370,8 @@ class SceneManager {
       player,
       playerMarkerQuaternions,
       missile,
-      goals: goals.map((entry) => entry.position),
+      goals: goals.map((entry) => entry.position.clone()),
+      goalQuaternions: goals.map((entry) => entry.quaternion.clone()),
     };
   }
 

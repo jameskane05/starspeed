@@ -58,6 +58,7 @@ export class Game {
     this.playerSpawnMarkerQuaternions = [];
     this.enemyRespawnQueue = [];
     this.trainingGoalPoints = [];
+    this.trainingGoalQuaternions = [];
     this.projectiles = [];
     this.missiles = [];
     this.explosions = [];
@@ -127,6 +128,7 @@ export class Game {
     }
     this._levelSpawnCache = null;
     this.trainingGoalPoints = [];
+    this.trainingGoalQuaternions = [];
     this.pendingMissionConfig = {
       missionId: "trainingGrounds",
       levelId,

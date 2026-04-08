@@ -144,6 +144,8 @@ export const PERFORMANCE_PROFILES = {
 
 export const DEFAULT_PROFILE = "medium";
 
+export const IOS_MAX_PAGED_SPLATS = 24 * 65536;
+
 export function getPerformanceProfile(name) {
   return PERFORMANCE_PROFILES[name] || PERFORMANCE_PROFILES[DEFAULT_PROFILE];
 }
