@@ -594,6 +594,7 @@ class MenuManager {
     const gm = window.gameManager;
     const lookSensitivity = gm?.getLookSensitivity?.() ?? 0.65;
     const shipAutoLevel = gm?.getShipAutoLeveling?.() !== false;
+    const captionsEnabled = gm?.getCaptionsEnabled?.() !== false;
 
     return `
       <div class="options-section gameplay-section">
@@ -614,6 +615,16 @@ class MenuManager {
         </div>
         <p class="options-hint" style="margin-top: 8px; opacity: 0.5; font-size: 12px;">
           When on, roll gently settles to the nearest 90° bank relative to level (Descent-style). Turn off for fully free roll.
+        </p>
+        <div class="keybind-row" style="grid-template-columns: 1fr 1fr; margin-top: 20px;">
+          <span class="keybind-action">CAPTIONS</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="captions-toggle" ${captionsEnabled ? "checked" : ""}>
+            <span class="toggle-label" id="captions-toggle-label">${captionsEnabled ? "ON" : "OFF"}</span>
+          </label>
+        </div>
+        <p class="options-hint" style="margin-top: 8px; opacity: 0.5; font-size: 12px;">
+          Show on-screen text for mission dialog and tutorials. Audio still plays when off.
         </p>
       </div>
     `;
@@ -957,6 +968,16 @@ class MenuManager {
         const label = document.getElementById("ship-auto-level-toggle-label");
         if (label) label.textContent = enabled ? "ON" : "OFF";
         window.gameManager?.setShipAutoLeveling?.(enabled);
+      });
+    }
+
+    const captionsToggle = document.getElementById("captions-toggle");
+    if (captionsToggle) {
+      captionsToggle.addEventListener("change", () => {
+        const enabled = captionsToggle.checked;
+        const label = document.getElementById("captions-toggle-label");
+        if (label) label.textContent = enabled ? "ON" : "OFF";
+        window.gameManager?.setCaptionsEnabled?.(enabled);
       });
     }
   }

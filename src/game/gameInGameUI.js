@@ -28,6 +28,11 @@ const _helperProjected = new THREE.Vector3();
 const _helperView = new THREE.Vector3();
 const _helperDir2 = new THREE.Vector2();
 const _helperDir3 = new THREE.Vector3();
+const _helperCamWorld = new THREE.Vector3();
+
+/** Camera–target distance at which the helper is most faded/shrunk; ramps to full size by `PROX_FAR`. */
+const DIRECTIONAL_HELPER_PROX_NEAR = 14;
+const DIRECTIONAL_HELPER_PROX_FAR = 95;
 
 function normalizeAngle(angle) {
   let out = angle;
@@ -692,6 +697,18 @@ export function updateDirectionalHelper(game, delta) {
   let desiredPosition = helper.position.clone();
 
   if (canShow) {
+    game.camera.getWorldPosition(_helperCamWorld);
+    const distToTarget = _helperCamWorld.distanceTo(worldPos);
+    const proxSpan = Math.max(1e-3, DIRECTIONAL_HELPER_PROX_FAR - DIRECTIONAL_HELPER_PROX_NEAR);
+    const proxT = THREE.MathUtils.clamp(
+      (distToTarget - DIRECTIONAL_HELPER_PROX_NEAR) / proxSpan,
+      0,
+      1,
+    );
+    const proxEase = proxT * proxT * (3 - 2 * proxT);
+    const proxScaleMul = THREE.MathUtils.lerp(0.5, 1, proxEase);
+    const proxOpacityMul = THREE.MathUtils.lerp(0.38, 1, proxEase);
+
     _helperProjected.copy(worldPos).project(game.camera);
     _helperView.copy(worldPos).applyMatrix4(game.camera.matrixWorldInverse);
     const inFront = _helperView.z < 0;
@@ -714,8 +731,8 @@ export function updateDirectionalHelper(game, delta) {
         -depth,
       );
       desiredAngle = 0;
-      targetOpacity = 0.28;
-      targetScale = 0.52;
+      targetOpacity = 0.28 * proxOpacityMul;
+      targetScale = 0.52 * proxScaleMul;
     } else {
       _helperDir2.set(
         inFront ? _helperProjected.x : _helperView.x,
@@ -733,8 +750,8 @@ export function updateDirectionalHelper(game, delta) {
         -depth,
       );
       desiredAngle = Math.atan2(_helperDir2.y, _helperDir2.x) - Math.PI / 2;
-      targetOpacity = 1;
-      targetScale = 1;
+      targetOpacity = 1 * proxOpacityMul;
+      targetScale = 1 * proxScaleMul;
     }
   }
 
@@ -800,7 +817,11 @@ function updateMissionPanel(game) {
 
   const statusLabel =
     state.missionStatus === "complete" ? "COMPLETE" : "OBJECTIVES";
-  game.missionPanel.style.display = "block";
+  const hideObjectivesUiForTraining =
+    state.currentMissionId === "trainingGrounds";
+  game.missionPanel.style.display = hideObjectivesUiForTraining
+    ? "none"
+    : "block";
   if (game.missionPanelContent) {
     game.missionPanelContent.innerHTML = `
       <div class="mission-panel-title">${state.missionStepTitle || "Mission"}</div>

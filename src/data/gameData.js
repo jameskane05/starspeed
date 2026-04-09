@@ -126,6 +126,8 @@ export const initialState = {
   playerMissilesEnabled: true,
   /** Roll toward wings-level (world up) when not manually rolling — Descent-style ship auto-leveling */
   shipAutoLeveling: true,
+  /** Dialog / mission caption overlay (3D text) */
+  captionsEnabled: true,
 
   // Player stats
   playerHealth: 100,

@@ -51,6 +51,9 @@ class GameManager {
     if (this.savedSettings.shipAutoLeveling !== undefined) {
       this.state.shipAutoLeveling = !!this.savedSettings.shipAutoLeveling;
     }
+    if (this.savedSettings.captionsEnabled !== undefined) {
+      this.state.captionsEnabled = !!this.savedSettings.captionsEnabled;
+    }
   }
 
   loadSettings() {
@@ -101,6 +104,16 @@ class GameManager {
     const on = !!enabled;
     this.setSetting("shipAutoLeveling", on);
     this.setState({ shipAutoLeveling: on });
+  }
+
+  getCaptionsEnabled() {
+    return this.state.captionsEnabled !== false;
+  }
+
+  setCaptionsEnabled(enabled) {
+    const on = !!enabled;
+    this.setSetting("captionsEnabled", on);
+    this.setState({ captionsEnabled: on });
   }
 
   setPerformanceProfile(profile) {

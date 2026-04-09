@@ -143,6 +143,8 @@ const _vecA = new THREE.Vector3();
 const _vecB = new THREE.Vector3();
 const _vecC = new THREE.Vector3();
 const _eulerA = new THREE.Euler();
+const _quatIdleRestBlend = new THREE.Quaternion();
+const _vecIdleRestBlend = new THREE.Vector3();
 
 const FACE_SMOOTHING = 9;
 const HEAD_SMOOTHING = 6.5;
@@ -358,63 +360,65 @@ function scaleFaceValues(values, weight, state) {
   return state.values;
 }
 
+/** Bones idle VRMA does not drive (head/face/arms); must match clip filter. */
+const IDLE_CLIP_EXCLUDED_BONES = new Set([
+  "neck",
+  "head",
+  "leftEye",
+  "rightEye",
+  "jaw",
+  "leftShoulder",
+  "rightShoulder",
+  "leftUpperArm",
+  "rightUpperArm",
+  "leftLowerArm",
+  "rightLowerArm",
+  "leftHand",
+  "rightHand",
+  "leftThumbMetacarpal",
+  "rightThumbMetacarpal",
+  "leftThumbProximal",
+  "rightThumbProximal",
+  "leftThumbDistal",
+  "rightThumbDistal",
+  "leftIndexProximal",
+  "rightIndexProximal",
+  "leftIndexIntermediate",
+  "rightIndexIntermediate",
+  "leftIndexDistal",
+  "rightIndexDistal",
+  "leftMiddleProximal",
+  "rightMiddleProximal",
+  "leftMiddleIntermediate",
+  "rightMiddleIntermediate",
+  "leftMiddleDistal",
+  "rightMiddleDistal",
+  "leftRingProximal",
+  "rightRingProximal",
+  "leftRingIntermediate",
+  "rightRingIntermediate",
+  "leftRingDistal",
+  "rightRingDistal",
+  "leftLittleProximal",
+  "rightLittleProximal",
+  "leftLittleIntermediate",
+  "rightLittleIntermediate",
+  "leftLittleDistal",
+  "rightLittleDistal",
+]);
+
 function createHumanoidOnlyClip(vrmAnimation, vrm) {
   const clip = createVRMAnimationClip(vrmAnimation, vrm);
   const allowedTracks = new Set();
-  const excludedBones = new Set([
-    "neck",
-    "head",
-    "leftEye",
-    "rightEye",
-    "jaw",
-    "leftShoulder",
-    "rightShoulder",
-    "leftUpperArm",
-    "rightUpperArm",
-    "leftLowerArm",
-    "rightLowerArm",
-    "leftHand",
-    "rightHand",
-    "leftThumbMetacarpal",
-    "rightThumbMetacarpal",
-    "leftThumbProximal",
-    "rightThumbProximal",
-    "leftThumbDistal",
-    "rightThumbDistal",
-    "leftIndexProximal",
-    "rightIndexProximal",
-    "leftIndexIntermediate",
-    "rightIndexIntermediate",
-    "leftIndexDistal",
-    "rightIndexDistal",
-    "leftMiddleProximal",
-    "rightMiddleProximal",
-    "leftMiddleIntermediate",
-    "rightMiddleIntermediate",
-    "leftMiddleDistal",
-    "rightMiddleDistal",
-    "leftRingProximal",
-    "rightRingProximal",
-    "leftRingIntermediate",
-    "rightRingIntermediate",
-    "leftRingDistal",
-    "rightRingDistal",
-    "leftLittleProximal",
-    "rightLittleProximal",
-    "leftLittleIntermediate",
-    "rightLittleIntermediate",
-    "leftLittleDistal",
-    "rightLittleDistal",
-  ]);
 
   for (const boneName of vrmAnimation.humanoidTracks.rotation.keys()) {
-    if (excludedBones.has(boneName)) continue;
+    if (IDLE_CLIP_EXCLUDED_BONES.has(boneName)) continue;
     const nodeName = vrm.humanoid.getNormalizedBoneNode(boneName)?.name;
     if (nodeName) allowedTracks.add(`${nodeName}.quaternion`);
   }
 
   for (const boneName of vrmAnimation.humanoidTracks.translation.keys()) {
-    if (excludedBones.has(boneName)) continue;
+    if (IDLE_CLIP_EXCLUDED_BONES.has(boneName)) continue;
     const nodeName = vrm.humanoid.getNormalizedBoneNode(boneName)?.name;
     if (nodeName) allowedTracks.add(`${nodeName}.position`);
   }
@@ -475,6 +479,8 @@ export class VRMAvatarRenderer {
     this.idleMixer = null;
     this.idleAction = null;
     this._idleBlendWeight = 1;
+    /** @type {{ node: THREE.Object3D; restQuat: THREE.Quaternion; restPos: THREE.Vector3 | null; hasPos: boolean }[] | null} */
+    this._idleBodyRestTargets = null;
     this._headPoseState = {
       dialogWeight: 0,
       clipRigMul: 1,
@@ -599,13 +605,38 @@ export class VRMAvatarRenderer {
         (gltf) => {
           const vrmAnimation = gltf.userData.vrmAnimations?.[0];
           if (!vrmAnimation) {
+            this._idleBodyRestTargets = null;
             resolve(null);
             return;
           }
           const clip = createHumanoidOnlyClip(vrmAnimation, this.vrm);
           if (!clip.tracks.length) {
+            this._idleBodyRestTargets = null;
             resolve(null);
             return;
+          }
+          this.vrm.humanoid.resetNormalizedPose();
+          const idleBoneNames = new Set();
+          for (const boneName of vrmAnimation.humanoidTracks.rotation.keys()) {
+            if (!IDLE_CLIP_EXCLUDED_BONES.has(boneName)) idleBoneNames.add(boneName);
+          }
+          const trans = vrmAnimation.humanoidTracks.translation;
+          if (trans) {
+            for (const boneName of trans.keys()) {
+              if (!IDLE_CLIP_EXCLUDED_BONES.has(boneName)) idleBoneNames.add(boneName);
+            }
+          }
+          this._idleBodyRestTargets = [];
+          for (const boneName of idleBoneNames) {
+            const node = this.vrm.humanoid.getNormalizedBoneNode(boneName);
+            if (!node) continue;
+            const hasPos = !!(trans && trans.has(boneName));
+            this._idleBodyRestTargets.push({
+              node,
+              restQuat: node.quaternion.clone(),
+              restPos: hasPos ? node.position.clone() : null,
+              hasPos,
+            });
           }
           this.idleMixer = new THREE.AnimationMixer(this.vrm.scene);
           this.idleAction = this.idleMixer.clipAction(clip);
@@ -748,6 +779,26 @@ export class VRMAvatarRenderer {
     this._playing = true;
     this.audioElement = null;
     return true;
+  }
+
+  _applyIdleRestBlend(weight) {
+    const targets = this._idleBodyRestTargets;
+    if (!targets?.length) return;
+    const w = Math.min(1, Math.max(0, weight));
+    for (let i = 0; i < targets.length; i++) {
+      const { node, restQuat, restPos, hasPos } = targets[i];
+      if (w <= 1e-6) {
+        node.quaternion.copy(restQuat);
+        if (hasPos && restPos) node.position.copy(restPos);
+        continue;
+      }
+      _quatIdleRestBlend.copy(node.quaternion);
+      node.quaternion.copy(restQuat).slerp(_quatIdleRestBlend, w);
+      if (hasPos && restPos) {
+        _vecIdleRestBlend.copy(node.position);
+        node.position.copy(restPos).lerp(_vecIdleRestBlend, w);
+      }
+    }
   }
 
   _applyStoredRestBones() {
@@ -1178,6 +1229,7 @@ export class VRMAvatarRenderer {
       if (!this.idleAction.paused && this._idleBlendWeight > 0) {
         this.idleMixer.update(delta);
       }
+      this._applyIdleRestBlend(this._idleBlendWeight);
     }
 
     const weightedFaceValues = scaleFaceValues(
@@ -1236,6 +1288,7 @@ export class VRMAvatarRenderer {
     if (this.vrm?.scene) this.scene.remove(this.vrm.scene);
     this.vrm = null;
     this.faceData = null;
+    this._idleBodyRestTargets = null;
     this._ready = false;
   }
 }
