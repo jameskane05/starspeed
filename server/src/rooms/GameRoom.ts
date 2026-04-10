@@ -74,10 +74,10 @@ const BOT_WANDER_SPEED = 7;
 const BOT_LASER_SPEED = 18;
 const BOT_LASER_DAMAGE = 25;
 const BOT_FIRE_INTERVAL = 1.2;
-/** Same as Enemy.js: 25m laser range */
-const BOT_ATTACK_RANGE_SQ = 625;
-/** Same as Enemy.js detectionRange / detectionRangeSq */
-const BOT_DETECTION_RANGE_SQ = 2500;
+/** Same as Enemy.js: fire from just under 100m detection range */
+const BOT_ATTACK_RANGE_SQ = 8100;
+/** Same as Enemy.js detectionRange / detectionRangeSq (100m) */
+const BOT_DETECTION_RANGE_SQ = 10000;
 /** Same as Enemy: stop closing inside ~8m */
 const BOT_CLOSE_HOLD_SQ = 64;
 const BOT_HIT_RADIUS = 2.5;

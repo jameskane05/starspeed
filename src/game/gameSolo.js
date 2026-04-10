@@ -17,8 +17,8 @@
  * GPU / LOADING: Training uses prewarmCheckpointPoolDuringFirstView alongside waitForFirstViewReady
  * so checkpoint shaders compile under the overlay (MissionManager.js “Checkpoint GPU pipeline”).
  * Mission enemy pool is prewarmed earlier in startSoloDebug via initTrainingMissionEnemyPool
- * (narrow scene + compile); add a first-view pass there too if a future campaign step shows
- * cold enemy shaders after splats finish loading.
+ * or initCharonMissionEnemyPool (same pooled path as training); add a first-view pass if a
+ * campaign step shows cold enemy shaders after splats finish loading.
  *
  * =============================================================================
  */
@@ -101,9 +101,27 @@ export async function startSoloDebug(game) {
 
   if (missionConfig?.missionId === "trainingGrounds") {
     await gameEnemies.initTrainingMissionEnemyPool(game);
+  } else if (missionConfig?.missionId === "charon") {
+    game._charonInitialEnemyPositions =
+      game.spawnPoints.length > 0
+        ? game.spawnPoints.map((p) => p.clone())
+        : [];
+    if (game._charonInitialEnemyPositions.length > 0) {
+      await gameEnemies.initCharonMissionEnemyPool(
+        game,
+        game._charonInitialEnemyPositions,
+      );
+    } else {
+      game._charonInitialEnemyPositions = null;
+    }
+  } else {
+    game._charonInitialEnemyPositions = null;
   }
 
-  if (missionConfig?.missionId === "trainingGrounds") {
+  if (
+    missionConfig?.missionId === "trainingGrounds" ||
+    missionConfig?.missionId === "charon"
+  ) {
     if (!applyAuthoredPlayerSpawn(game, 0)) {
       game.camera.position.set(0, 0, 0);
       game.player.velocity.set(0, 0, 0);
@@ -135,6 +153,7 @@ export async function startSoloDebug(game) {
 
   if (!missionConfig) {
     game.missionManager.stopMission();
+    gameEnemies.clearDeferredEnemySpawnState(game);
     await gameEnemies.spawnEnemiesFromLevelSpawnPointsWithPrewarm(game);
     gameEnemies.spawnMissilePickups(game);
   } else {
@@ -150,6 +169,7 @@ export async function startSoloDebug(game) {
       missionLevelId: missionConfig.levelId,
       missionStatus: "starting",
     });
+    gameEnemies.clearDeferredEnemySpawnState(game);
   }
 
   if (!xrActive && !game.input.mobile.shouldSkipPointerLock()) {
@@ -166,6 +186,7 @@ export async function startSoloDebug(game) {
   });
 
   if (missionConfig) {
+    game.levelTriggerManager?.resetSession?.();
     await game.missionManager.startMission(
       missionConfig.missionId,
       missionConfig,

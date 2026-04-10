@@ -27,6 +27,7 @@ import proceduralAudio from "../audio/ProceduralAudio.js";
 import engineAudio from "../audio/EngineAudio.js";
 import * as gameInGameUI from "./gameInGameUI.js";
 import { syncNetworkBotsWithState } from "./gameMultiplayer.js";
+import { processDeferredProximityEnemySpawns } from "./gameEnemies.js";
 
 const _audioForward = new THREE.Vector3();
 const _audioUp = new THREE.Vector3();
@@ -158,6 +159,9 @@ export function tick(game, delta, timestamp, frame) {
       if (game.player) {
         game.player.update(delta, game.clock.elapsedTime);
         game.dialogManager?.update(delta);
+        if (!game.isMultiplayer) {
+          game.levelTriggerManager?.update();
+        }
         if (game.isMultiplayer) {
           const localPlayer = NetworkManager.getLocalPlayer();
           if (localPlayer) {
@@ -248,6 +252,7 @@ export function tick(game, delta, timestamp, frame) {
     }
 
     if (!game.isMultiplayer) {
+      processDeferredProximityEnemySpawns(game);
       // Respawns before enemy.update so pooled bots get spawnWarp.update() the same frame
       // they become visible (otherwise first paint can miss dissolve / look like a pop-in).
       game.tickEnemyRespawns(delta);

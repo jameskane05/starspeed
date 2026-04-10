@@ -380,8 +380,8 @@ export class Enemy {
     this.level = level;
     this.health = 100;
     this.speed = (3 + Math.random() * 3) * 1.25;
-    this.detectionRange = 50;
-    this.detectionRangeSq = 2500;
+    this.detectionRange = 100;
+    this.detectionRangeSq = 10000;
     this.fireRate = 2;
     this.fireCooldown = 0;
     this.collisionRadius = 3;
@@ -609,8 +609,8 @@ export class Enemy {
 
     this.physicsFrame++;
 
-    // Medium distance (50-100m): render but freeze wandering enemies
-    if (distToPlayerSq > 2500 && this.state === "wander") return;
+    // Keep distant wanderers cheap until the player is inside engage range.
+    if (distToPlayerSq > this.detectionRangeSq && this.state === "wander") return;
 
     // Scale LOS check frequency by distance — fewer checks at range.
     // Stagger by _physicsSlot so not all enemies do physics the same frame.
@@ -658,7 +658,7 @@ export class Enemy {
         }
       }
 
-      if (this.hasLOS && this.fireCooldown <= 0 && distToPlayerSq < 625) {
+      if (this.hasLOS && this.fireCooldown <= 0 && distToPlayerSq < 8100) {
         let firePos = this.mesh.position;
         if (this.weaponMarkers.length > 0) {
           const marker =

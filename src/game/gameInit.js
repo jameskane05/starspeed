@@ -61,6 +61,7 @@ import engineAudio from "../audio/EngineAudio.js";
 import { XRManager } from "../xr/XRManager.js";
 import { getDebugMissionSpawn } from "../utils/debugSpawner.js";
 import { initCheckpointVisualPool } from "../missions/MissionManager.js";
+import { LevelTriggerManager } from "./levelTriggerManager.js";
 
 export async function init(game) {
   initPhysics();
@@ -270,6 +271,8 @@ export async function init(game) {
 
   gameInGameUI.setup(game);
 
+  game.levelTriggerManager = new LevelTriggerManager(game);
+
   game.level = new Level(game.scene);
   game.level.generate({ skipVisuals: true, skipPhysics: true });
 
@@ -292,7 +295,7 @@ export async function init(game) {
 
   await MenuManager.init();
   MenuManager.on("gameStart", async () => await game.startMultiplayerGame());
-  MenuManager.on("campaignStart", () => game.startSoloDebug());
+  MenuManager.on("campaignStart", () => game.startCharonCampaign());
   MenuManager.on("trainingGroundsStart", (levelId) =>
     game.startTrainingGrounds(levelId || "newworld"),
   );

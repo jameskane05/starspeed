@@ -205,6 +205,8 @@ class SceneManager {
             }
 
             const spawnPoints = this._extractSpawnPointsFromModel(model);
+            const levelTriggerVolumes =
+              this._extractTriggerVolumesFromModel(model);
             const markerGroup = this._extractMarkerGroupFromModel(model);
             const container = new THREE.Group();
             container.add(geometryRoot);
@@ -224,6 +226,7 @@ class SceneManager {
             }
 
             container.userData.extractedSpawnPoints = spawnPoints;
+            container.userData.levelTriggerVolumes = levelTriggerVolumes;
             if (dynamicElements.length > 0) container.userData.dynamicSceneElements = dynamicElements;
 
             if (position) {
@@ -247,7 +250,11 @@ class SceneManager {
               await this._applyDynamicElementMaterial(dynamicElements, dynConfig);
             }
             if (options.physicsCollider) {
-              const skipPrefixes = ["Cube", ...(dynConfig?.meshNamePrefix ? [dynConfig.meshNamePrefix] : [])];
+              const skipPrefixes = [
+                "Cube",
+                "Trigger",
+                ...(dynConfig?.meshNamePrefix ? [dynConfig.meshNamePrefix] : []),
+              ];
               const pos = { x: container.position.x, y: container.position.y, z: container.position.z };
               requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
@@ -316,7 +323,7 @@ class SceneManager {
   }
 
   _extractSpawnPointsFromModel(model) {
-    const enemy = [];
+    const enemyEntries = [];
     const playerEntries = [];
     const missile = [];
     const goals = [];
@@ -327,7 +334,7 @@ class SceneManager {
       if (name.startsWith("Enemy")) {
         const pos = new THREE.Vector3();
         child.getWorldPosition(pos);
-        enemy.push(pos.clone());
+        enemyEntries.push({ name, position: pos.clone() });
       } else if (name.startsWith("Spawn")) {
         const pos = new THREE.Vector3();
         child.getWorldPosition(pos);
@@ -357,6 +364,10 @@ class SceneManager {
     playerEntries.sort((a, b) =>
       a.name.localeCompare(b.name, undefined, { numeric: true }),
     );
+    enemyEntries.sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { numeric: true }),
+    );
+    const enemy = enemyEntries.map((e) => e.position);
     const player = playerEntries.map((e) => e.position);
     const playerMarkerQuaternions = playerEntries.map((e) => e.quaternion);
     goals.sort((a, b) => {
@@ -373,6 +384,37 @@ class SceneManager {
       goals: goals.map((entry) => entry.position.clone()),
       goalQuaternions: goals.map((entry) => entry.quaternion.clone()),
     };
+  }
+
+  /**
+   * Box meshes named `Trigger` or `Trigger.001`, … — local AABB in mesh space + inverse world matrix
+   * for point-in-OBB tests (LevelTriggerManager).
+   */
+  _extractTriggerVolumesFromModel(model) {
+    const volumes = [];
+    model.updateMatrixWorld(true);
+    model.traverse((child) => {
+      if (!child.isMesh) return;
+      const name = child.name || "";
+      if (name !== "Trigger" && !name.startsWith("Trigger.")) return;
+      const geo = child.geometry;
+      if (!geo) return;
+      if (!geo.boundingBox) geo.computeBoundingBox();
+      child.updateWorldMatrix(true, false);
+      const inverseWorld = new THREE.Matrix4()
+        .copy(child.matrixWorld)
+        .invert();
+      volumes.push({
+        objectName: name,
+        inverseWorld,
+        min: geo.boundingBox.min.clone(),
+        max: geo.boundingBox.max.clone(),
+      });
+    });
+    volumes.sort((a, b) =>
+      a.objectName.localeCompare(b.objectName, undefined, { numeric: true }),
+    );
+    return volumes;
   }
 
   _extractMarkerGroupFromModel(model) {

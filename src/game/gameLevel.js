@@ -223,6 +223,7 @@ export function extractSpawnPoints(game) {
   game.missileSpawnPoints = [];
   game.trainingGoalPoints = [];
   game.trainingGoalQuaternions = [];
+  game._levelTriggerVolumes = [];
   game.dynamicSceneElementManager?.setElements([]);
 
   const level = game.gameManager.getState().currentLevel;
@@ -277,6 +278,8 @@ export function extractSpawnPoints(game) {
     game.dynamicSceneElementManager?.setElements(
       levelData.userData.dynamicSceneElements || [],
     );
+    game._levelTriggerVolumes =
+      levelData.userData.levelTriggerVolumes ?? [];
     console.log(
       `[Game] Parsed ${levelDataId}: ${game.spawnPoints.length} enemies, ${game.playerSpawnPoints.length} player spawns, ${game.missileSpawnPoints.length} missile pickups, ${game.trainingGoalPoints.length} goals`,
     );
@@ -307,6 +310,13 @@ export function extractSpawnPoints(game) {
     console.log(
       `[Game] Restored ${level} spawns from cache (${game.spawnPoints.length} enemies, ${game.playerSpawnPoints.length} player spawns, ${game.missileSpawnPoints.length} missile pickups, ${game.trainingGoalPoints.length} goals)`,
     );
+    {
+      const ld =
+        levelDataId && game.sceneManager?.getObject
+          ? game.sceneManager.getObject(levelDataId)
+          : null;
+      game._levelTriggerVolumes = ld?.userData?.levelTriggerVolumes ?? [];
+    }
     applyLevelBounds(game);
     return;
   }

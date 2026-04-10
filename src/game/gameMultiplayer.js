@@ -43,24 +43,22 @@ import {
   hideFirstViewLoading,
   waitForFirstViewReady,
 } from "./gameFirstViewLoading.js";
+import { prewarmEnemyMeshesInPlace } from "./gameEnemies.js";
 import { markerQuaternionToCameraQuaternion } from "../utils/playerSpawnOrientation.js";
 import { loadShipModels, shipModels } from "../entities/Enemy.js";
 import {
+  allocateCheckpointDissolveBatchSerial,
   beginCheckpointDissolve,
   ENEMY_SPAWN_DISSOLVE_DURATION,
+  precookCheckpointDissolveMaterials,
 } from "../vfx/checkpointDissolveWarp.js";
 
 /** In-flight addNetworkBot per id (async); syncNetworkBotsWithState may call every frame until done. */
 const pendingNetworkBotAdds = new Set();
+const NETWORK_BOT_POOL_HIDE_Y = -200000;
+const NETWORK_BOT_POOL_MAX = 8;
 
-function hashBotId(id) {
-  let h = 0;
-  const s = String(id || "");
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-
-function createBotPlaceholderMesh(scene) {
+function createBotPlaceholderMesh() {
   const geometry = new THREE.CylinderGeometry(0.35, 0.45, 1.8, 8);
   geometry.rotateX(Math.PI / 2);
   const material = new THREE.MeshStandardMaterial({
@@ -70,17 +68,10 @@ function createBotPlaceholderMesh(scene) {
     metalness: 0.3,
     roughness: 0.7,
   });
-  const mesh = new THREE.Mesh(geometry, material);
-  scene.add(mesh);
-  return mesh;
+  return new THREE.Mesh(geometry, material);
 }
 
-function buildBotShipGroup(id) {
-  const root = new THREE.Group();
-  const n = shipModels.length;
-  if (n === 0) return { root, usesSharedShip: false };
-
-  const template = shipModels[hashBotId(id) % n];
+function cloneBotShipTemplate(template) {
   const clone = template.clone();
   clone.scale.setScalar(2.0);
   clone.rotation.set(0, Math.PI, 0);
@@ -90,37 +81,184 @@ function buildBotShipGroup(id) {
     if (name.startsWith("thruster_") || name.startsWith("weapon_")) {
       child.visible = false;
     }
+    if (child.material) {
+      if (Array.isArray(child.material)) {
+        child.material = child.material.map((m) => (m?.clone ? m.clone() : m));
+      } else if (child.material.clone) {
+        child.material = child.material.clone();
+      }
+    }
   });
+  return clone;
+}
+
+function buildBotShipGroup(poolIndex) {
+  const root = new THREE.Group();
+  const n = shipModels.length;
+  if (n === 0) return { root, usesSharedGeometry: false };
+
+  const template = shipModels[poolIndex % n];
+  const clone = cloneBotShipTemplate(template);
   root.add(clone);
-  return { root, usesSharedShip: true };
+  return { root, usesSharedGeometry: true };
 }
 
 const NETWORK_BOT_DISSOLVE_COLOR = 0xff6600;
 
-function attachNetworkBotSpawnDissolve(game, root) {
+/** One serial for all MP bot ships so dissolve shaders compile once, not per respawn id. */
+function ensureNetworkBotDissolveBatchSerial(game) {
+  if (game._networkBotDissolveBatchSerial == null) {
+    game._networkBotDissolveBatchSerial = allocateCheckpointDissolveBatchSerial();
+  }
+  return game._networkBotDissolveBatchSerial;
+}
+
+function attachNetworkBotSpawnDissolve(game, root, options = {}) {
+  const batchSerial = ensureNetworkBotDissolveBatchSerial(game);
+  const precooked = precookCheckpointDissolveMaterials(root, {
+    sharedDissolveBatchSerial: batchSerial,
+    edgeColor: NETWORK_BOT_DISSOLVE_COLOR,
+    edgeColor2: NETWORK_BOT_DISSOLVE_COLOR,
+  });
   return beginCheckpointDissolve(root, game, {
     duration: ENEMY_SPAWN_DISSOLVE_DURATION,
     edgeColor: NETWORK_BOT_DISSOLVE_COLOR,
     particleColor: NETWORK_BOT_DISSOLVE_COLOR,
     particleDecimation: 8,
     particleSize: 26,
+    dissolvePrecooked: precooked,
+    deferParticleAttach: true,
+    retainDissolveMaterials: options.retainDissolveMaterials === true,
   });
+}
+
+function parkNetworkBotEntry(entry) {
+  if (!entry?.mesh) return;
+  entry.assignedId = null;
+  entry.mesh.visible = false;
+  entry.mesh.position.set(0, NETWORK_BOT_POOL_HIDE_Y, 0);
+  entry.mesh.quaternion.identity();
+  entry.spawnWarp?.freeze?.();
 }
 
 function disposeNetworkBotEntry(game, entry) {
   if (!entry?.mesh) return;
   entry.spawnWarp?.dispose?.();
   game.scene.remove(entry.mesh);
-  if (!entry.usesSharedShip) {
-    entry.mesh.traverse?.((child) => {
-      if (!child.isMesh) return;
+  entry.mesh.traverse?.((child) => {
+    if (!child.isMesh) return;
+    if (!entry.usesSharedGeometry) {
       child.geometry?.dispose?.();
-      const mats = Array.isArray(child.material)
-        ? child.material
-        : [child.material];
-      for (const m of mats) m?.dispose?.();
-    });
+    }
+    const mats = Array.isArray(child.material)
+      ? child.material
+      : [child.material];
+    for (const m of mats) m?.dispose?.();
+  });
+}
+
+function createPooledNetworkBotEntry(game, poolIndex) {
+  const { root, usesSharedGeometry } = buildBotShipGroup(poolIndex);
+  const mesh = root.children.length > 0 ? root : createBotPlaceholderMesh();
+  const entry = {
+    mesh,
+    usesSharedGeometry: root.children.length > 0 ? usesSharedGeometry : false,
+    spawnWarp: null,
+    assignedId: null,
+  };
+  game.scene.add(mesh);
+  entry.spawnWarp = attachNetworkBotSpawnDissolve(game, mesh, {
+    retainDissolveMaterials: true,
+  });
+  while (!entry.spawnWarp.finished) {
+    entry.spawnWarp.update(0.25);
   }
+  entry.spawnWarp.restart({ hold: true });
+  parkNetworkBotEntry(entry);
+  return entry;
+}
+
+function getNetworkBotPoolSize(game, state) {
+  const liveCount = state?.bots?.size ?? 0;
+  const authoredCount = Math.max(
+    game.spawnPoints?.length ?? 0,
+    game.playerSpawnPoints?.length ?? 0,
+  );
+  if (authoredCount > 0) {
+    return Math.max(liveCount, Math.min(NETWORK_BOT_POOL_MAX, authoredCount));
+  }
+  return Math.max(liveCount, NETWORK_BOT_POOL_MAX);
+}
+
+function getNetworkBotPrewarmPositions(game, state, poolSize) {
+  const positions = [];
+  state?.bots?.forEach((bot) => {
+    positions.push(new THREE.Vector3(bot.x, bot.y, bot.z));
+  });
+  const authored =
+    game.spawnPoints?.length > 0
+      ? game.spawnPoints
+      : game.playerSpawnPoints?.length > 0
+        ? game.playerSpawnPoints
+        : null;
+  if (authored) {
+    for (const p of authored) {
+      positions.push(new THREE.Vector3(p.x, p.y, p.z));
+    }
+  }
+  if (positions.length === 0) {
+    positions.push(new THREE.Vector3(0, 4, -45));
+  }
+  while (positions.length < poolSize) {
+    positions.push(positions[positions.length - 1].clone());
+  }
+  return positions;
+}
+
+async function ensureNetworkBotPool(game, state = NetworkManager.getState()) {
+  if (game._networkBotPool?.length) return game._networkBotPool;
+  if (game._networkBotPoolInitPromise) {
+    return game._networkBotPoolInitPromise;
+  }
+  game._networkBotPoolInitPromise = (async () => {
+    await loadShipModels();
+    if (game._networkBotPool?.length) return game._networkBotPool;
+    const poolSize = getNetworkBotPoolSize(game, state);
+    const pool = [];
+    for (let i = 0; i < poolSize; i++) {
+      pool.push(createPooledNetworkBotEntry(game, i));
+    }
+    game._networkBotPool = pool;
+    await prewarmEnemyMeshesInPlace(
+      game,
+      pool,
+      getNetworkBotPrewarmPositions(game, state, poolSize),
+    );
+    return pool;
+  })();
+  try {
+    return await game._networkBotPoolInitPromise;
+  } finally {
+    game._networkBotPoolInitPromise = null;
+  }
+}
+
+function acquireNetworkBotEntry(game, id) {
+  let entry = game._networkBotPool?.find((slot) => slot.assignedId == null);
+  if (!entry) {
+    entry = createPooledNetworkBotEntry(game, game._networkBotPool.length);
+    game._networkBotPool.push(entry);
+  }
+  entry.assignedId = id;
+  return entry;
+}
+
+function applyNetworkBotState(entry, bot) {
+  entry.mesh.position.set(bot.x, bot.y, bot.z);
+  entry.mesh.quaternion.set(bot.qx, bot.qy, bot.qz, bot.qw);
+  entry.mesh.visible = true;
+  entry.spawnWarp?.restart?.();
+  entry.spawnWarp?.update?.(0);
 }
 
 export async function addNetworkBot(game, id, bot) {
@@ -128,23 +266,11 @@ export async function addNetworkBot(game, id, bot) {
   if (pendingNetworkBotAdds.has(id)) return;
   pendingNetworkBotAdds.add(id);
   try {
-    await loadShipModels();
+    await ensureNetworkBotPool(game);
     if (game.networkBots.has(id)) return;
-
-    const { root, usesSharedShip } = buildBotShipGroup(id);
-    if (root.children.length === 0) {
-      const fallback = createBotPlaceholderMesh(game.scene);
-      fallback.position.set(bot.x, bot.y, bot.z);
-      fallback.quaternion.set(bot.qx, bot.qy, bot.qz, bot.qw);
-      const spawnWarp = attachNetworkBotSpawnDissolve(game, fallback);
-      game.networkBots.set(id, { mesh: fallback, usesSharedShip: false, spawnWarp });
-      return;
-    }
-    game.scene.add(root);
-    root.position.set(bot.x, bot.y, bot.z);
-    root.quaternion.set(bot.qx, bot.qy, bot.qz, bot.qw);
-    const spawnWarp = attachNetworkBotSpawnDissolve(game, root);
-    game.networkBots.set(id, { mesh: root, usesSharedShip, spawnWarp });
+    const entry = acquireNetworkBotEntry(game, id);
+    applyNetworkBotState(entry, bot);
+    game.networkBots.set(id, entry);
   } finally {
     pendingNetworkBotAdds.delete(id);
   }
@@ -153,7 +279,7 @@ export async function addNetworkBot(game, id, bot) {
 export function removeNetworkBot(game, id, deathData = null) {
   const entry = game.networkBots.get(id);
   if (entry) {
-    disposeNetworkBotEntry(game, entry);
+    parkNetworkBotEntry(entry);
     game.networkBots.delete(id);
   }
   if (deathData && deathData.x !== undefined) {
@@ -163,11 +289,13 @@ export function removeNetworkBot(game, id, deathData = null) {
       pos,
       0xff4400,
       game.dynamicLights,
-      { big: true },
+      { big: false },
     );
     game.explosions.push(explosion);
     sfxManager.play("ship-explosion", pos);
-    if (game.particles) game.explosionEffect?.emitBigExplosion?.(pos);
+    if (game.particles) {
+      game.explosionEffect?.emitExplosionParticles?.(pos, undefined, 16);
+    }
   }
 }
 
@@ -182,6 +310,11 @@ export function syncNetworkBotsWithState(game) {
     return;
   }
   if (!state.bots) return;
+  if (!game._networkBotPool?.length && !game._networkBotPoolInitPromise) {
+    void ensureNetworkBotPool(game, state).catch((err) =>
+      console.warn("[Multiplayer] ensureNetworkBotPool failed", err),
+    );
+  }
 
   const ids = new Set();
   state.bots.forEach((bot, id) => {
@@ -533,8 +666,9 @@ export async function startMultiplayerGame(game) {
     }
   });
 
-  if (state?.botsEnabled && state?.bots) {
+  if (state?.botsEnabled) {
     await game.ensureEnemyShipAssetsLoaded();
+    await ensureNetworkBotPool(game, state);
   }
 
   if (!game.input.mobile.shouldSkipPointerLock()) {
@@ -591,11 +725,17 @@ export function onMatchEnd(game) {
 export function cleanupMultiplayer(game) {
   game._mpWasAlive = undefined;
   game._levelSpawnCache = null;
+  game._networkBotDissolveBatchSerial = undefined;
+  game._networkBotPoolInitPromise = null;
   game.remotePlayers.forEach((remote) => remote.dispose());
   game.remotePlayers.clear();
 
-  game.networkBots.forEach((entry) => disposeNetworkBotEntry(game, entry));
+  game.networkBots.forEach((entry) => parkNetworkBotEntry(entry));
   game.networkBots.clear();
+  for (const entry of game._networkBotPool || []) {
+    disposeNetworkBotEntry(game, entry);
+  }
+  game._networkBotPool = [];
   pendingNetworkBotAdds.clear();
 
   game.networkProjectiles.forEach((data) => {

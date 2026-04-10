@@ -1,27 +1,13 @@
 import { GAME_STATES } from "./gameData.js";
 import { checkCriteria } from "./sceneData.js";
+import {
+  say,
+  sayAs,
+  dialogPublicUrl,
+} from "./dialogDataHelpers.js";
+import { charonDialogTracks } from "./dialogDataCharon.js";
 
-/** Caption line; dialog-level `speakerId` is applied in DialogManager. Use sayAs() to override. */
-const say = (text, duration, startTime) => {
-  const o = { text, duration };
-  if (startTime !== undefined && startTime !== null) {
-    const t = Number(startTime);
-    if (Number.isFinite(t)) o.startTime = t;
-  }
-  return o;
-};
-
-export function sayAs(speakerId, text, duration, startTime) {
-  const o = say(text, duration, startTime);
-  o.speakerId = speakerId;
-  return o;
-}
-
-const dialogPublicUrl = (relativePath) => {
-  const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "") || "";
-  const path = relativePath.replace(/^\//, "");
-  return base ? `${base}/${path}` : `/${path}`;
-};
+export { sayAs };
 
 export const dialogSpeakers = {
   alcair: {
@@ -37,6 +23,7 @@ export const dialogSpeakers = {
 };
 
 export const dialogTracks = {
+  ...charonDialogTracks,
   trainingGroundsIntro: {
     id: "trainingGroundsIntro",
     speakerId: "alcair",

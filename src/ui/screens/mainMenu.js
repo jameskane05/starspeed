@@ -52,7 +52,7 @@ export function renderMainMenu(manager) {
               </div>
               <label>SINGLE-PLAYER</label>
               <button class="menu-btn" id="btn-training" ${matchmakingActive ? "disabled" : ""}>TRAINING GROUNDS</button>
-              <button class="menu-btn" id="btn-campaign" disabled>CAMPAIGN</button>
+              <button class="menu-btn" id="btn-campaign" ${matchmakingActive ? "disabled" : ""}>CAMPAIGN</button>
               <label>MULTI-PLAYER</label>
               <button class="menu-btn" id="btn-quick" ${matchmakingActive ? "disabled" : ""}>QUICKMATCH</button>
               <button class="menu-btn" id="btn-join" ${matchmakingActive ? "disabled" : ""}>JOIN MATCH</button>
@@ -87,6 +87,10 @@ export function renderMainMenu(manager) {
 
   document.getElementById("btn-training").addEventListener("click", () => {
     manager.emit("trainingGroundsStart", "newworld");
+  });
+
+  document.getElementById("btn-campaign").addEventListener("click", () => {
+    manager.emit("campaignStart");
   });
 
   document.getElementById("btn-create").addEventListener("click", () => {

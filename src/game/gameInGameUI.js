@@ -34,6 +34,9 @@ const _helperCamWorld = new THREE.Vector3();
 const DIRECTIONAL_HELPER_PROX_NEAR = 14;
 const DIRECTIONAL_HELPER_PROX_FAR = 95;
 
+/** Set true to show the mission objectives panel (title + checklist). */
+const SHOW_MISSION_OBJECTIVES_PANEL = false;
+
 function normalizeAngle(angle) {
   let out = angle;
   while (out <= -Math.PI) out += Math.PI * 2;
@@ -801,6 +804,13 @@ export function cycleEnemyTargetReticle(_game) {}
 
 function updateMissionPanel(game) {
   if (!game.missionPanel) return;
+  if (!SHOW_MISSION_OBJECTIVES_PANEL) {
+    game.missionPanel.style.display = "none";
+    if (game.missionPanelContent) {
+      game.missionPanelContent.innerHTML = "";
+    }
+    return;
+  }
   const state = game.gameManager?.getState?.();
   const activeMission =
     state?.currentMissionId &&

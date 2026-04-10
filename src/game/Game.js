@@ -90,6 +90,8 @@ export class Game {
     this.remotePlayers = new Map();
     this.networkProjectiles = new Map();
     this.networkBots = new Map();
+    this._networkBotPool = [];
+    this._networkBotPoolInitPromise = null;
     this.collectibles = new Map();
     this.isEscMenuOpen = false;
     this.escMenu = null;
@@ -110,6 +112,8 @@ export class Game {
     this.projectileSplatLayer = null;
     this.missionManager = null;
     this.pendingMissionConfig = null;
+    this.levelTriggerManager = null;
+    this._levelTriggerVolumes = [];
   }
 
   async init() {
@@ -131,6 +135,26 @@ export class Game {
     this.trainingGoalQuaternions = [];
     this.pendingMissionConfig = {
       missionId: "trainingGrounds",
+      levelId,
+    };
+    this.gameManager.setState({
+      currentLevel: levelId,
+      missionLevelId: levelId,
+    });
+    return this.startSoloDebug();
+  }
+
+  async startCharonCampaign() {
+    const levelId = "charon";
+    const levelDataId = `${levelId}LevelData`;
+    if (this.sceneManager?.hasObject?.(levelDataId)) {
+      this.sceneManager.removeObject(levelDataId);
+    }
+    this._levelSpawnCache = null;
+    this.trainingGoalPoints = [];
+    this.trainingGoalQuaternions = [];
+    this.pendingMissionConfig = {
+      missionId: "charon",
       levelId,
     };
     this.gameManager.setState({

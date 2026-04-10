@@ -9,6 +9,8 @@
  * KEY RESPONSIBILITIES:
  * - spawnEnemies(game): create Enemy instances at game.spawnPoints; set enemiesRemaining
  * - spawnEnemiesFromLevelSpawnPointsWithPrewarm / spawnEnemiesAtPointsWithPrewarm: bulk GPU-prewarmed spawn
+ * - spawnEnemiesByProximity / processDeferredProximityEnemySpawns: large levels (e.g. Charon) spawn
+ *   nearby bots staggered across rAF (no batch compile); the rest queue until activateRadius.
  * - prewarmEnemyMeshesInPlace(game, enemies, positions): shared compile pass for any Enemy batch
  * - spawnMissilePickups(game): create Collectible missile pickups at missileSpawnPoints
  * - processEnemyRespawnQueue(game, delta): respawn dead enemies after delay
@@ -94,6 +96,122 @@ export async function spawnEnemiesFromLevelSpawnPointsWithPrewarm(game) {
   game.updateHUD();
 }
 
+export function clearDeferredEnemySpawnState(game) {
+  if (game._deferredEnemySpawnQueue?.length) {
+    game._deferredEnemySpawnQueue.length = 0;
+  }
+  game._proximityEnemySpawnConfig = null;
+}
+
+/**
+ * Spawn enemies near `anchor` across animation frames (avoids batch prewarm / compileAsync).
+ * Queue the rest until the player enters `activateRadius` of each spawn.
+ */
+export async function spawnEnemiesByProximity(game, anchor, options = {}) {
+  clearDeferredEnemySpawnState(game);
+  if (!game.spawnPoints?.length) {
+    console.warn("[Game] No spawn points for proximity spawn");
+    return;
+  }
+
+  const immediateRadius = options.immediateRadius ?? 350;
+  const activateRadius = options.activateRadius ?? 320;
+  const minInitialIfNoneInRange = Math.max(
+    1,
+    options.minInitialIfNoneInRange ?? 4,
+  );
+  const maxSpawnsPerFrame = Math.max(
+    1,
+    options.maxSpawnsPerFrame ?? 1,
+  );
+  const staggerFramesBetween = Math.max(
+    0,
+    options.staggerFramesBetween ?? 1,
+  );
+  const staggerIdleMs = Math.max(0, options.staggerIdleMs ?? 0);
+  const maxImmediateSpawns = Math.max(
+    1,
+    options.maxImmediateSpawns ?? 12,
+  );
+
+  const positions = game.spawnPoints.map((p) => p.clone());
+  positions.sort(
+    (a, b) => a.distanceToSquared(anchor) - b.distanceToSquared(anchor),
+  );
+
+  let split = 0;
+  while (
+    split < positions.length &&
+    positions[split].distanceTo(anchor) <= immediateRadius
+  ) {
+    split++;
+  }
+
+  let immediate = positions.slice(0, split);
+  let deferred = positions.slice(split);
+
+  if (immediate.length === 0 && positions.length > 0) {
+    const n = Math.min(minInitialIfNoneInRange, positions.length);
+    immediate = positions.slice(0, n);
+    deferred = positions.slice(n);
+  }
+
+  if (immediate.length > maxImmediateSpawns) {
+    const overflow = immediate.slice(maxImmediateSpawns);
+    immediate = immediate.slice(0, maxImmediateSpawns);
+    deferred = [...overflow, ...deferred];
+  }
+
+  game._deferredEnemySpawnQueue = deferred;
+  game._proximityEnemySpawnConfig = { activateRadius, maxSpawnsPerFrame };
+
+  if (immediate.length > 0) {
+    await spawnEnemiesAtPointsStaggered(game, immediate, {
+      lite: true,
+      framesBetween: staggerFramesBetween,
+      idleMs: staggerIdleMs,
+    });
+  }
+
+  const totalPlanned = immediate.length + deferred.length;
+  console.log(
+    `[Game] Proximity spawn: ${immediate.length} staggered now, ${deferred.length} deferred (${totalPlanned} total)`,
+  );
+  game.updateHUD();
+}
+
+export function processDeferredProximityEnemySpawns(game) {
+  const queue = game._deferredEnemySpawnQueue;
+  if (!queue?.length) return;
+
+  const cfg = game._proximityEnemySpawnConfig;
+  const r = cfg?.activateRadius ?? 340;
+  const rSq = r * r;
+  const maxN = cfg?.maxSpawnsPerFrame ?? 2;
+
+  const playerPos =
+    game.xrManager?.isPresenting && game.xrManager.rig
+      ? game.xrManager.rig.position
+      : game.camera?.position;
+  if (!playerPos) return;
+
+  let spawned = 0;
+  let i = 0;
+  while (i < queue.length && spawned < maxN) {
+    if (playerPos.distanceToSquared(queue[i]) <= rSq) {
+      spawnAtPoint(game, queue[i], { lite: true });
+      queue.splice(i, 1);
+      spawned++;
+    } else {
+      i++;
+    }
+  }
+
+  if (queue.length === 0) {
+    game._proximityEnemySpawnConfig = null;
+  }
+}
+
 export function spawnMissilePickups(game) {
   if (game.missileSpawnPoints.length === 0) return;
 
@@ -174,13 +292,49 @@ export function checkMissilePickups(game, playerPos, delta) {
   }
 }
 
-export function spawnAtPoint(game, pos) {
+function nextAnimationFrame() {
+  return new Promise((resolve) => requestAnimationFrame(resolve));
+}
+
+/**
+ * One enemy per frame (plus optional idle) — avoids long main-thread stalls from batch prewarm.
+ * `lite` skips spawn dissolve VFX (deferSpawnWarp) for cheaper construction.
+ */
+export async function spawnEnemiesAtPointsStaggered(
+  game,
+  positions,
+  opts = {},
+) {
+  if (!positions?.length) return;
+  const lite = opts.lite !== false;
+  const framesBetween = Math.max(0, opts.framesBetween ?? 1);
+  const idleMs = Math.max(0, opts.idleMs ?? 0);
+
+  for (let i = 0; i < positions.length; i++) {
+    spawnAtPoint(game, positions[i], { lite });
+    if (i + 1 >= positions.length) break;
+    for (let f = 0; f < framesBetween; f++) {
+      await nextAnimationFrame();
+    }
+    if (idleMs > 0) {
+      await new Promise((r) => setTimeout(r, idleMs));
+    }
+  }
+  game.gameManager.setState({ enemiesRemaining: game.enemies.length });
+  game.updateHUD?.();
+}
+
+export function spawnAtPoint(game, pos, spawnOpts = {}) {
+  const lite = spawnOpts.lite === true;
   const enemy = new Enemy(
     game.scene,
     pos.clone(),
     game.level,
     game._levelBounds,
-    enemySpawnOptions(game),
+    {
+      ...enemySpawnOptions(game),
+      ...(lite ? { deferSpawnWarp: true } : {}),
+    },
   );
   game.enemies.push(enemy);
   game.gameManager.setState({ enemiesRemaining: game.enemies.length });
@@ -459,10 +613,13 @@ export async function prewarmEnemyMeshesInPlace(game, enemies, positions) {
   }
 }
 
-async function prewarmMissionEnemyPoolInPlace(game) {
+async function prewarmMissionEnemyPoolInPlace(game, worldPositions) {
   const pool = game._missionEnemyPool;
   if (!pool?.length) return;
-  const padded = getAllLevelEnemySpawnPositions(game).slice();
+  const padded =
+    worldPositions != null && worldPositions.length > 0
+      ? worldPositions.map((p) => p.clone())
+      : getAllLevelEnemySpawnPositions(game).slice();
   const padRef =
     padded[padded.length - 1] ?? new THREE.Vector3(0, 4, -45);
   while (padded.length < pool.length) {
@@ -471,8 +628,7 @@ async function prewarmMissionEnemyPoolInPlace(game) {
   await prewarmEnemyMeshesInPlace(game, pool, padded);
 }
 
-export async function initTrainingMissionEnemyPool(game) {
-  disposeMissionEnemyPool(game);
+function buildMissionEnemyPoolOfSize(game, poolCount) {
   const base = new THREE.Vector3(0, MISSION_POOL_HIDE_Y, 0);
   const opts = {
     ...enemySpawnOptions(game),
@@ -480,8 +636,6 @@ export async function initTrainingMissionEnemyPool(game) {
   };
   const pool = [];
   const nModels = shipModels.length;
-  const poolCount = getTrainingMissionPoolCount(game);
-  // One dissolve batch id for every pooled ship — same pattern as checkpoint pool (checkpointDissolveWarp header).
   const enemyPoolDissolveBatchSerial = allocateCheckpointDissolveBatchSerial();
   for (let i = 0; i < poolCount; i++) {
     const modelIndex = nModels > 0 ? i % nModels : undefined;
@@ -522,7 +676,25 @@ export async function initTrainingMissionEnemyPool(game) {
     pool.push(enemy);
   }
   game._missionEnemyPool = pool;
-  await prewarmMissionEnemyPoolInPlace(game);
+}
+
+export async function initTrainingMissionEnemyPool(game) {
+  disposeMissionEnemyPool(game);
+  const poolCount = getTrainingMissionPoolCount(game);
+  buildMissionEnemyPoolOfSize(game, poolCount);
+  await prewarmMissionEnemyPoolInPlace(game, null);
+}
+
+/**
+ * Same pooled + precooked + narrow prewarm path as training; pass authored positions for GPU prewarm.
+ * Activate with spawnMissionWaveFromPool(game, samePositions) in mission start.
+ */
+export async function initCharonMissionEnemyPool(game, prewarmPositions) {
+  disposeMissionEnemyPool(game);
+  const n = prewarmPositions?.length ?? 0;
+  if (n === 0) return;
+  buildMissionEnemyPoolOfSize(game, n);
+  await prewarmMissionEnemyPoolInPlace(game, prewarmPositions);
 }
 
 export function spawnMissionWaveFromPool(game, positions) {

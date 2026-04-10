@@ -10,9 +10,12 @@
  *   ?debugMission=trainingGrounds
  *   ?debugMission=trainingGrounds&debugStep=missileWave
  *   ?debugMission=trainingGrounds&debugStep=laserWave&debugLevel=arenatech
+ *   ?debugMission=charon
  *
  * Training Grounds step ids: introDialog, movementGoals, rollDialog, rollTraining,
  * laserDialog, laserWave, missileDialog, missileWave
+ *
+ * Charon step ids: briefing
  *
  * Add new missions in missions/missionsIndex.js; step ids are keys of mission.steps.
  */
