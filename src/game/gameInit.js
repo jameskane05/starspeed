@@ -323,6 +323,9 @@ export async function init(game) {
       ...(debugMissionSpawn.debugStepId
         ? { debugStepId: debugMissionSpawn.debugStepId }
         : {}),
+      ...(debugMissionSpawn.debugSpawnIndex != null
+        ? { debugSpawnIndex: debugMissionSpawn.debugSpawnIndex }
+        : {}),
     };
     game.gameManager.setState({
       currentLevel: debugMissionSpawn.levelId,

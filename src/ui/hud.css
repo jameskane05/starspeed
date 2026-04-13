@@ -568,6 +568,16 @@ canvas {
   transform: translateX(-50%) scale(1.1);
 }
 
+.pickup-message--escape {
+  color: #ff6644;
+  text-shadow:
+    0 0 18px rgba(255, 80, 40, 0.95),
+    0 0 36px rgba(255, 40, 20, 0.7);
+  font-size: 1.35rem;
+  letter-spacing: 0.06em;
+  top: 26%;
+}
+
 #mobile-controls {
   display: none;
   pointer-events: none;
@@ -726,6 +736,26 @@ canvas {
 
 #mobile-menu-btn {
   margin-bottom: calc(0.95rem + 12px);
+}
+
+#mobile-map-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  display: block;
+  margin-bottom: 8px;
+}
+#mobile-map-btn img {
+  width: 56px;
+  height: 56px;
+  display: block;
+  object-fit: contain;
+  transition: filter 0.05s;
+}
+#mobile-map-btn:active img {
+  filter: brightness(0.75);
 }
 
 #mobile-controls .combat-center button {

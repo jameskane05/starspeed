@@ -24,16 +24,18 @@ export class Explosion {
     this.scene = scene;
     this.elapsed = 0;
     this.isBig = options.big || false;
-    this.duration = this.isBig ? 0.5 : 0.25;
+    this.scaleMult = options.scaleMult ?? 1;
+    this.duration = this.isBig ? 0.5 * Math.max(1, Math.min(this.scaleMult, 3) * 0.5) : 0.25;
     this.disposed = false;
 
     // Dynamic light flash
     if (lightPool) {
+      const sm = Math.min(this.scaleMult, 3);
       lightPool.flash(position, color, {
-        intensity: this.isBig ? 80 : 22,
-        distance: this.isBig ? 60 : 26,
-        ttl: this.isBig ? 0.2 : 0.12,
-        fade: this.isBig ? 0.4 : 0.22,
+        intensity: (this.isBig ? 80 : 22) * sm,
+        distance: (this.isBig ? 60 : 26) * sm,
+        ttl: (this.isBig ? 0.2 : 0.12) * Math.max(1, sm * 0.5),
+        fade: (this.isBig ? 0.4 : 0.22) * Math.max(1, sm * 0.5),
       });
     }
 
@@ -70,10 +72,11 @@ export class Explosion {
       return false;
     }
 
-    // Shockwave: fast expand, very quick fade
     if (this.shockwave) {
-      const t = Math.min(this.elapsed / 0.12, 1);  // 120ms expand
-      const scale = 0.5 + t * 12;
+      const sm = Math.min(this.scaleMult, 3);
+      const expandTime = 0.12 * Math.max(1, sm * 0.4);
+      const t = Math.min(this.elapsed / expandTime, 1);
+      const scale = (0.5 + t * 12) * sm;
       this.shockwave.scale.setScalar(scale);
       this.shockwave.material.opacity = 0.15 * (1 - t);
     }

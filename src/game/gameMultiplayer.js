@@ -565,6 +565,9 @@ export function setupNetworkListeners(game) {
   });
 
   NetworkManager.on("botDeath", (data) => {
+    if (data?.killerId === NetworkManager.sessionId) {
+      proceduralAudio.killConfirm({ streak: true });
+    }
     removeNetworkBot(game, data.botId, data);
   });
 }
@@ -651,6 +654,13 @@ export async function startMultiplayerGame(game) {
   if (NetworkManager.isHost()) {
     pushLevelSpawnsToServer(game);
   }
+
+  // Pass level geometry to the automap
+  const _mpLevelId = game.gameManager.getState().currentLevel;
+  const _mpGeomRoot = _mpLevelId
+    ? game.sceneManager.getGeometryRoot(`${_mpLevelId}LevelData`)
+    : null;
+  if (_mpGeomRoot) game.player.automap.setLevel(_mpGeomRoot);
 
   game.camera.position.set(localPlayer.x, localPlayer.y, localPlayer.z);
   game.camera.quaternion.set(

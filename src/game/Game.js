@@ -54,6 +54,8 @@ export class Game {
     this.level = null;
     this.enemies = [];
     this.spawnPoints = [];
+    /** Parallel to spawnPoints: true for `Enemy.* - Heavy` authored spawns. */
+    this.enemySpawnHeavyFlags = null;
     this.playerSpawnPoints = [];
     this.playerSpawnMarkerQuaternions = [];
     this.enemyRespawnQueue = [];
@@ -84,6 +86,8 @@ export class Game {
     this._directionalHelperOpacity = 0;
     this._enemyReticleEnemy = null;
     this._spawnWarpPrewarmed = false;
+    /** @type {THREE.Vector3 | null} World position (trigger AABB center) for solo respawn after last level-trigger enter. */
+    this._lastTriggerRespawnWorldPos = null;
 
     // Multiplayer state
     this.isMultiplayer = false;

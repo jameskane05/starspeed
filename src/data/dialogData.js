@@ -20,6 +20,21 @@ export const dialogSpeakers = {
     label: "FLIGHT CONTROL",
     vrmUrl: "./flightControl-opt.vrm",
   },
+  leader: {
+    id: "leader",
+    label: "LEADER",
+    vrmUrl: "./leader-opt.vrm",
+  },
+  starspeed: {
+    id: "starspeed",
+    label: "STARSPEED",
+    vrmUrl: "./starspeed-opt.vrm",
+  },
+  mobius: {
+    id: "mobius",
+    label: "MOBIUS",
+    vrmUrl: "./mobius-opt.vrm",
+  },
 };
 
 export const dialogTracks = {
@@ -30,7 +45,7 @@ export const dialogTracks = {
     audio: dialogPublicUrl("audio/dialog/training-00-greetings.audio.mp3"),
     faceDataUrl: dialogPublicUrl("audio/dialog/training-00-greetings.json"),
     captions: [
-      say("ALCAIR: Greetings, Starspeed!", 3.54),
+      say("Greetings, Starspeed!", 3.54),
       say("I am Alcair, your shipboard computer,", 3.0),
       say("here to guide you through this training exercise", 3.56),
       say("for the XR0 anti-gravity starfighter.", 5.0),
@@ -53,7 +68,7 @@ export const dialogTracks = {
     audio: dialogPublicUrl("audio/dialog/training-01-were-all-set.audio.mp3"),
     faceDataUrl: dialogPublicUrl("audio/dialog/training-01-were-all-set.json"),
     captions: [
-      say("FLIGHT CONTROL: We're all set.", 2.25),
+      say("We're all set.", 2.25),
       say("Let's get going, pilot.", 2.0),
     ],
     criteria: {
@@ -79,7 +94,7 @@ export const dialogTracks = {
       "audio/dialog/training-02-look-direction-desktop.json",
     ),
     captions: [
-      say("ALCAIR: Your mouse controls look direction.", 2.38),
+      say("Your mouse controls look direction.", 2.38),
       say("WASD keys control forward, backward,", 3.72),
       say("and lateral motion along that look direction.", 3.16),
     ],
@@ -103,7 +118,7 @@ export const dialogTracks = {
       "audio/dialog/training-02-look-direction-mobile.json",
     ),
     captions: [
-      say("ALCAIR: The right joystick controls look direction.", 3.38),
+      say("The right joystick controls look direction.", 3.38),
       say("Left joystick controls your forward, backward,", 3.42),
       say("and lateral motion along that look direction.", 3.34),
     ],
@@ -234,7 +249,7 @@ export const dialogTracks = {
       "audio/dialog/training-04-ace-flying-roll-control.json",
     ),
     captions: [
-      say("FLIGHT CONTROL: Ace flying!", 0.96, 0.88),
+      say("Ace flying!", 0.96, 0.88),
       say("Now the tricky part: roll control.", 3.7, 2.68),
       say("Your ship will attempt to level itself during flight,", 3.5, 7.12),
       say("but at times you'll want to manually adjust", 2.72, 10.96),
@@ -263,7 +278,7 @@ export const dialogTracks = {
     ),
     captions: [
       say(
-        "ALCAIR: The Q and E keys roll left and right, respectively.",
+        "The Q and E keys roll left and right, respectively.",
         4.74,
         0.64,
       ),
@@ -288,7 +303,7 @@ export const dialogTracks = {
       "audio/dialog/training-05-roll-left-right-mobile.json",
     ),
     captions: [
-      say("ALCAIR: The buttons above the right joystick", 2.72, 0.56),
+      say("The buttons above the right joystick", 2.72, 0.56),
       say("roll left and right, respectively.", 2.96, 3.54),
     ],
     criteria: {
@@ -334,7 +349,7 @@ export const dialogTracks = {
       "audio/dialog/training-07-not-bad-target-practice.json",
     ),
     captions: [
-      say("ALCAIR: Not bad...", 1.1, 1.34),
+      say("Not bad...", 1.1, 1.34),
       say("for a mammal.", 0.72, 3.34),
       say("Time for target practice.", 1.52, 5.4),
       say("Enemy bots are armed.", 1.74, 7.14),

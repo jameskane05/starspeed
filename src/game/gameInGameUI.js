@@ -437,6 +437,7 @@ export function showControlsHelp(game, visible) {
       ["Homing missile", "missile"],
       ["Kinetic missile", "kineticMissile"],
       ["Headlight", "toggleHeadlight"],
+      ["Map", "toggleAutomap"],
       ["Leaderboard", "leaderboard"],
       ["Pause", "pause"],
     ];

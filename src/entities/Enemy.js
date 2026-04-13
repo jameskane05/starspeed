@@ -378,7 +378,7 @@ function biasedWaypoint(currentPos, center, size, centroidBias = 0.35) {
 export class Enemy {
   constructor(scene, position, level, bounds, options = {}) {
     this.level = level;
-    this.health = 100;
+    this.health = options.isHeavy ? 300 : 100;
     this.speed = (3 + Math.random() * 3) * 1.25;
     this.detectionRange = 100;
     this.detectionRangeSq = 10000;
@@ -422,6 +422,10 @@ export class Enemy {
     this.weaponMarkerIndex = 0;
     this.engineMarkers = [];
     this.weaponMarkers = [];
+    this.isHeavy = !!options.isHeavy;
+    this.heavyMissileInterval = 10;
+    // Start ready so first heavy missile can fire immediately on LOS.
+    this.heavyMissileTimer = this.heavyMissileInterval;
     this.laserColor = 0xff8800;
     this.laserIntensity = 1.0;
     this.usesSharedTemplateModel = false;
@@ -442,8 +446,15 @@ export class Enemy {
     if (shipTemplate) {
       const clone = shipTemplate.clone();
       this.usesSharedTemplateModel = true;
-      clone.scale.setScalar(2.0);
+      const shipScale = this.isHeavy ? 4.0 : 2.0;
+      clone.scale.setScalar(shipScale);
       clone.rotation.set(0, Math.PI, 0);
+      if (this.isHeavy) {
+        this.collisionRadius *= 2;
+        this.hitExtents.x *= 2;
+        this.hitExtents.y *= 2;
+        this.hitExtents.z *= 2;
+      }
       this.laserColor = shipTemplate.userData?.enemyLaserColor ?? this.laserColor;
       this.laserIntensity = shipTemplate.userData?.enemyLaserIntensity ?? this.laserIntensity;
       clone.traverse((child) => {
@@ -486,7 +497,8 @@ export class Enemy {
         this.shipLight.position.z += 6;
       }
     } else {
-      const fallbackGeo = new THREE.OctahedronGeometry(0.8, 0);
+      const fallbackR = this.isHeavy ? 1.2 : 0.8;
+      const fallbackGeo = new THREE.OctahedronGeometry(fallbackR, 0);
       const fallbackMat = new THREE.MeshStandardMaterial({
         color: 0xff3333,
         emissive: 0xff0000,
@@ -564,7 +576,14 @@ export class Enemy {
     return !hit;
   }
 
-  update(delta, playerPos, fireCallback, frameCount = 0, cullDistance = 200) {
+  update(
+    delta,
+    playerPos,
+    fireCallback,
+    frameCount = 0,
+    cullDistance = 200,
+    game = null,
+  ) {
     if (this.disposed) return;
 
     if (
@@ -596,14 +615,38 @@ export class Enemy {
       : wasCulled
         ? distToPlayerSq > cullInSq
         : distToPlayerSq > cullOutSq;
+    let revealWarpTriggered = false;
     if (this.mesh.visible === culled) {
       this.mesh.visible = !culled;
       if (this.shipLight) {
         this.shipLight.intensity = culled ? 0 : this.shipLightIntensity;
       }
+      if (!culled && wasCulled) {
+        if (this.spawnWarp && !this.spawnWarp.disposed) {
+          this.spawnWarp.restart({ color: this.laserColor });
+        } else if (game) {
+          this.spawnWarp = beginCheckpointDissolve(this.mesh, game, {
+            duration: ENEMY_SPAWN_DISSOLVE_DURATION,
+            edgeColor: this.laserColor,
+            particleColor: this.laserColor,
+            particleDecimation: 8,
+            particleSize: 26,
+          });
+        } else {
+          this.spawnWarp = beginSpawnWarp(this.mesh, {
+            duration: ENEMY_SPAWN_DISSOLVE_DURATION,
+            color: this.laserColor,
+            materialEffect: false,
+          });
+        }
+        if (this.spawnWarp && !this.spawnWarp.disposed && !this.spawnWarp.finished) {
+          this.spawnWarp.update(1 / 60);
+          revealWarpTriggered = true;
+        }
+      }
     }
     if (culled) return;
-    if (spawnVfxActive) return;
+    if (spawnVfxActive || revealWarpTriggered) return;
 
     this.fireCooldown -= delta;
 
@@ -658,7 +701,8 @@ export class Enemy {
         }
       }
 
-      if (this.hasLOS && this.fireCooldown <= 0 && distToPlayerSq < 8100) {
+      const laserRangeSq = this.isHeavy ? this.detectionRangeSq : 8100;
+      if (this.hasLOS && this.fireCooldown <= 0 && distToPlayerSq < laserRangeSq) {
         let firePos = this.mesh.position;
         if (this.weaponMarkers.length > 0) {
           const marker =
@@ -673,8 +717,40 @@ export class Enemy {
         fireCallback(firePos, _direction, {
           color: this.laserColor,
           intensity: this.laserIntensity,
+          ...(this.isHeavy
+            ? { projectileSpeed: 34, projectileLifetime: 5 }
+            : {}),
         });
         this.fireCooldown = 1 / this.fireRate;
+      }
+
+      if (
+        this.isHeavy &&
+        game &&
+        !game.isMultiplayer &&
+        this.hasLOS &&
+        distToPlayerSq < this.detectionRangeSq
+      ) {
+        this.heavyMissileTimer += delta;
+        if (this.heavyMissileTimer >= this.heavyMissileInterval) {
+          let muzzle = this.mesh.position;
+          if (this.weaponMarkers.length > 0) {
+            const marker =
+              this.weaponMarkers[
+                this.weaponMarkerIndex % this.weaponMarkers.length
+              ];
+            this.weaponMarkerIndex++;
+            marker.getWorldPosition(_muzzlePos);
+            muzzle = _muzzlePos;
+          }
+          _direction.subVectors(playerPos, muzzle).normalize();
+          fireCallback(muzzle, _direction, {
+            color: this.laserColor,
+            intensity: this.laserIntensity,
+            weaponType: "enemyKineticMissile",
+          });
+          this.heavyMissileTimer = 0;
+        }
       }
     } else {
       this._updateWander(delta, frameCount);

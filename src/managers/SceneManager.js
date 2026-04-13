@@ -26,6 +26,67 @@ import {
 } from "../physics/Physics.js";
 import { loadSharedShipMaterials } from "../entities/Enemy.js";
 
+/**
+ * Strip optional authoring label after first "-", e.g. Trigger-Main → Trigger,
+ * Trigger.003-Cold → Trigger.003. Bindings still use ordinal ids (Trigger, Trigger.001, …).
+ */
+function levelTriggerMeshBaseName(raw) {
+  const name = (raw || "").trim();
+  const dash = name.indexOf("-");
+  if (dash === -1) return name;
+  return name.slice(0, dash).trim();
+}
+
+function isLevelTriggerMeshName(raw) {
+  const name = levelTriggerMeshBaseName(raw);
+  if (name === "Trigger") return true;
+  if (name.startsWith("Trigger.")) return true;
+  return /^Trigger\d+$/.test(name);
+}
+
+/** Map base / GLTFLoader names to binding ids: Trigger, Trigger.001, Trigger.002, … */
+function canonicalLevelTriggerVolumeId(raw) {
+  const name = levelTriggerMeshBaseName(raw);
+  if (name === "Trigger") return "Trigger";
+  if (name.startsWith("Trigger.")) {
+    const rest = name.slice("Trigger.".length);
+    if (/^\d+$/.test(rest)) {
+      const padded = rest.length >= 3 ? rest : rest.padStart(3, "0");
+      return `Trigger.${padded}`;
+    }
+    return name;
+  }
+  const m = /^Trigger(\d+)$/.exec(name);
+  if (m) {
+    const num = m[1];
+    const padded = num.length >= 3 ? num : num.padStart(3, "0");
+    return `Trigger.${padded}`;
+  }
+  return name;
+}
+
+let _levelTriggerHiddenMaterial = null;
+
+function getLevelTriggerHiddenMaterial() {
+  if (!_levelTriggerHiddenMaterial) {
+    _levelTriggerHiddenMaterial = new THREE.MeshBasicMaterial({
+      colorWrite: false,
+      depthWrite: false,
+      depthTest: false,
+    });
+  }
+  return _levelTriggerHiddenMaterial;
+}
+
+function disposeMeshMaterials(mesh) {
+  if (!mesh?.material) return;
+  if (Array.isArray(mesh.material)) {
+    mesh.material.forEach((m) => m?.dispose());
+  } else {
+    mesh.material.dispose();
+  }
+}
+
 class SceneManager {
   constructor(scene, options = {}) {
     this.scene = scene;
@@ -196,8 +257,7 @@ class SceneManager {
 
           if (combined) {
             const geometryName = combined.geometryName || "LevelGeometry";
-            const geometryRoot = model.getObjectByName(geometryName);
-            if (!geometryRoot) {
+            if (!model.getObjectByName(geometryName)) {
               reject(
                 new Error(`Combined level missing object "${geometryName}"`),
               );
@@ -205,19 +265,29 @@ class SceneManager {
             }
 
             const spawnPoints = this._extractSpawnPointsFromModel(model);
-            const levelTriggerVolumes =
-              this._extractTriggerVolumesFromModel(model);
             const markerGroup = this._extractMarkerGroupFromModel(model);
-            const container = new THREE.Group();
-            container.add(geometryRoot);
-            if (markerGroup) {
-              container.add(markerGroup);
-            }
 
             let dynamicElements = [];
             const dynConfig = combined.dynamicSceneElements;
             if (dynConfig?.meshNamePrefix) {
-              dynamicElements = this._extractDynamicSceneElementsFromModel(model, dynConfig.meshNamePrefix);
+              dynamicElements = this._extractDynamicSceneElementsFromModel(
+                model,
+                dynConfig.meshNamePrefix,
+              );
+            }
+
+            const container = new THREE.Group();
+            // GLTF root is a flat list: LevelGeometry mesh plus Enemy/Spawn/Trigger siblings.
+            // Reparent *all* of them — only adding LevelGeometry left triggers off-scene and
+            // produced empty levelTriggerVolumes + invisible debug meshes.
+            while (model.children.length > 0) {
+              container.add(model.children[0]);
+            }
+
+            if (markerGroup) {
+              container.add(markerGroup);
+            }
+            if (dynamicElements.length > 0) {
               const dynGroup = new THREE.Group();
               for (const { mesh } of dynamicElements) {
                 dynGroup.add(mesh);
@@ -225,9 +295,40 @@ class SceneManager {
               container.add(dynGroup);
             }
 
+            const geometryRoot = container.getObjectByName(geometryName);
+            if (!geometryRoot) {
+              reject(
+                new Error(
+                  `Combined level lost "${geometryName}" after reparenting`,
+                ),
+              );
+              return;
+            }
+
             container.userData.extractedSpawnPoints = spawnPoints;
-            container.userData.levelTriggerVolumes = levelTriggerVolumes;
             if (dynamicElements.length > 0) container.userData.dynamicSceneElements = dynamicElements;
+
+            const spawnMeshesToRemove = [];
+            container.traverse((child) => {
+              const n = child.name || "";
+              if (
+                n.startsWith("Enemy") ||
+                n.startsWith("Spawn") ||
+                n.startsWith("Missile") ||
+                n === "Goal" ||
+                n.startsWith("Goal.")
+              ) {
+                spawnMeshesToRemove.push(child);
+              }
+            });
+            for (const obj of spawnMeshesToRemove) {
+              obj.removeFromParent();
+              obj.geometry?.dispose();
+              if (obj.material) {
+                if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose());
+                else obj.material.dispose();
+              }
+            }
 
             if (position) {
               container.position.set(position.x || 0, position.y || 0, position.z || 0);
@@ -243,9 +344,17 @@ class SceneManager {
               }
             }
 
+            container.updateMatrixWorld(true);
+            container.userData.levelTriggerVolumes =
+              this._extractTriggerVolumesFromPlacedRoot(container);
+
             if (options.occluder) {
               this._applyOccluderMaterial(container, options.debugWireframe);
             }
+            this._configureLevelTriggerMeshes(
+              container,
+              options?.debugLevelTriggers === true,
+            );
             if (dynamicElements.length > 0) {
               await this._applyDynamicElementMaterial(dynamicElements, dynConfig);
             }
@@ -311,6 +420,10 @@ class SceneManager {
               this._createPhysicsCollider(id, model, position);
             }
           }
+          this._configureLevelTriggerMeshes(
+            model,
+            options?.debugLevelTriggers === true,
+          );
 
           this.scene.add(model);
           if (onProgress) onProgress(1);
@@ -368,6 +481,9 @@ class SceneManager {
       a.name.localeCompare(b.name, undefined, { numeric: true }),
     );
     const enemy = enemyEntries.map((e) => e.position);
+    const enemyIsHeavy = enemyEntries.map((e) =>
+      /(?:\s-\s*|-\s*)Heavy\s*$/i.test((e.name || "").trim()),
+    );
     const player = playerEntries.map((e) => e.position);
     const playerMarkerQuaternions = playerEntries.map((e) => e.quaternion);
     goals.sort((a, b) => {
@@ -378,6 +494,7 @@ class SceneManager {
     });
     return {
       enemy,
+      enemyIsHeavy,
       player,
       playerMarkerQuaternions,
       missile,
@@ -387,28 +504,23 @@ class SceneManager {
   }
 
   /**
-   * Box meshes named `Trigger` or `Trigger.001`, … — local AABB in mesh space + inverse world matrix
-   * for point-in-OBB tests (LevelTriggerManager).
+   * Trigger meshes under the placed level root (`Trigger`, `Trigger001`, `Trigger-Main`, …).
+   * Labels after the first `-` are ignored; volumes use canonical ids (`Trigger`, `Trigger.001`, …).
+   * World-space AABB via Box3.setFromObject. Run after container transform + updateMatrixWorld.
    */
-  _extractTriggerVolumesFromModel(model) {
+  _extractTriggerVolumesFromPlacedRoot(root) {
     const volumes = [];
-    model.updateMatrixWorld(true);
-    model.traverse((child) => {
-      if (!child.isMesh) return;
-      const name = child.name || "";
-      if (name !== "Trigger" && !name.startsWith("Trigger.")) return;
-      const geo = child.geometry;
-      if (!geo) return;
-      if (!geo.boundingBox) geo.computeBoundingBox();
-      child.updateWorldMatrix(true, false);
-      const inverseWorld = new THREE.Matrix4()
-        .copy(child.matrixWorld)
-        .invert();
+    const box = new THREE.Box3();
+    root.updateMatrixWorld(true);
+    root.traverse((child) => {
+      const name = (child.name || "").trim();
+      if (!isLevelTriggerMeshName(name)) return;
+      box.setFromObject(child);
+      if (box.isEmpty()) return;
       volumes.push({
-        objectName: name,
-        inverseWorld,
-        min: geo.boundingBox.min.clone(),
-        max: geo.boundingBox.max.clone(),
+        objectName: canonicalLevelTriggerVolumeId(name),
+        worldMin: box.min.clone(),
+        worldMax: box.max.clone(),
       });
     });
     volumes.sort((a, b) =>
@@ -559,6 +671,41 @@ class SceneManager {
   }
 
   /**
+   * Level trigger volumes (Trigger / Trigger.001 / …): never use authored GLTF materials,
+   * never participate in splat occlusion (see _applyOccluderMaterial skip). Hidden by default;
+   * set `options.debugLevelTriggers: true` on the GLTF object in sceneData to show magenta wireframes.
+   */
+  _configureLevelTriggerMeshes(root, debugLevelTriggers = false) {
+    const roots = [];
+    root.updateMatrixWorld(true);
+    root.traverse((child) => {
+      if (isLevelTriggerMeshName(child.name)) roots.push(child);
+    });
+    const hiddenMat = getLevelTriggerHiddenMaterial();
+    for (const tr of roots) {
+      tr.traverse((desc) => {
+        if (!desc.isMesh) return;
+        disposeMeshMaterials(desc);
+        if (debugLevelTriggers) {
+          desc.material = new THREE.MeshBasicMaterial({
+            color: 0xff00ff,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.45,
+            depthWrite: false,
+            depthTest: true,
+          });
+        } else {
+          desc.material = hiddenMat;
+        }
+        desc.castShadow = false;
+        desc.receiveShadow = false;
+      });
+      tr.visible = debugLevelTriggers;
+    }
+  }
+
+  /**
    * Apply occluder material to a model - writes to depth buffer to occlude transparent objects
    * @param {THREE.Object3D} model - The model to apply the material to
    * @param {boolean} debugWireframe - If true, show a visible wireframe for alignment
@@ -566,6 +713,7 @@ class SceneManager {
   _applyOccluderMaterial(model, debugWireframe = false) {
     model.traverse((child) => {
       if (child.isMesh) {
+        if (isLevelTriggerMeshName(child.name)) return;
         if (Array.isArray(child.material)) {
           child.material.forEach((m) => m.dispose());
         } else if (child.material) {
@@ -615,6 +763,14 @@ class SceneManager {
     const object = this.objects.get(id);
     if (object) {
       this._applyOccluderMaterial(object, debugWireframe);
+    }
+  }
+
+  /** Toggle trigger volume visibility (magenta wireframe) after load; production keeps this false. */
+  setLevelTriggerDebug(id, debugLevelTriggers) {
+    const object = this.objects.get(id);
+    if (object) {
+      this._configureLevelTriggerMeshes(object, debugLevelTriggers === true);
     }
   }
 
@@ -735,6 +891,16 @@ class SceneManager {
    */
   hasObject(id) {
     return this.objects.has(id);
+  }
+
+  /**
+   * Get the LevelGeometry root node from a combined level container.
+   * Returns null if the object isn't loaded or has no LevelGeometry child.
+   */
+  getGeometryRoot(id, geometryName = 'LevelGeometry') {
+    const container = this.objects.get(id);
+    if (!container) return null;
+    return container.getObjectByName(geometryName) ?? null;
   }
 
   /**

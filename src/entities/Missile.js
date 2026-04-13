@@ -66,6 +66,8 @@ export class Missile {
     this.trailsEffect = options.trailsEffect || null;
     this.spawnTimer = 0;
     this.spawnRate = 0.02;
+    /** Solo: homes on player; collision targets player instead of enemies. */
+    this.enemyOwned = options.enemyOwned === true;
 
     this.group = new THREE.Group();
     this.group.position.copy(position);

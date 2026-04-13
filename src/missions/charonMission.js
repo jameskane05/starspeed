@@ -1,4 +1,15 @@
 import { spawnMissionWaveFromPool } from "../game/gameEnemies.js";
+import { initCharonReactorCoreForCharonMission } from "../game/charonReactorCore.js";
+
+/** Call when the Charon reactor core is destroyed; sets mission flags and queues Mobius taunt autoplay. */
+export function notifyCharonReactorCoreDestroyed(game) {
+  if (!game?.gameManager?.getState) return;
+  if (game.gameManager.getState().currentMissionId !== "charon") return;
+  game.gameManager.setState({
+    charonReactorCoreDestroyed: true,
+    charonMobiusReactorTauntPending: true,
+  });
+}
 
 export const charonMission = {
   id: "charon",
@@ -12,11 +23,19 @@ export const charonMission = {
       selectedMissileMode: "homing",
       playerLaserEnabled: true,
       playerMissilesEnabled: true,
+      charonHeavyMissileIntroPending: false,
+      charonHeavyMissileIntroDone: false,
+      charonReactorCoreDestroyed: false,
+      charonMobiusReactorTauntPending: false,
+      charonMobiusReactorTauntDone: false,
+      charonEscapeActive: false,
+      charonEscapeSucceeded: false,
     });
     const positions = game._charonInitialEnemyPositions;
     if (positions?.length) {
       spawnMissionWaveFromPool(game, positions);
     }
+    initCharonReactorCoreForCharonMission(game);
   },
 
   steps: {
@@ -33,7 +52,16 @@ export const charonMission = {
       },
       onEvent(manager, type, _payload) {
         if (type === "charonTriggerMain") {
-          // Wire dialog in levelTriggerData.js (playDialog) or play here.
+          // Dialog: levelTriggerData playDialog → charonControlRoomIced
+        }
+        if (type === "charonEscapeComplete") {
+          manager.setObjectives("Charon", [
+            {
+              id: "evacuated",
+              text: "Reached the main dome.",
+              completed: true,
+            },
+          ]);
         }
       },
     },

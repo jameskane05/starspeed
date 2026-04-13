@@ -120,7 +120,24 @@ export function finishSoloRespawn(game) {
   game.player.missiles = game.player.maxMissiles;
   game.player.lastDamageTime = 0;
 
-  if (game.playerSpawnPoints?.length > 0) {
+  const ck = game._lastTriggerRespawnWorldPos;
+  if (ck) {
+    if (game.xrManager?.isPresenting && game.xrManager.rig) {
+      game.xrManager.rig.position.copy(ck);
+      game.xrManager.rig.quaternion.setFromAxisAngle(
+        new THREE.Vector3(0, 1, 0),
+        (-70 * Math.PI) / 180,
+      );
+      game.camera.quaternion.identity();
+    } else {
+      game.camera.position.copy(ck);
+      game.camera.quaternion.setFromAxisAngle(
+        new THREE.Vector3(0, 1, 0),
+        (-70 * Math.PI) / 180,
+      );
+    }
+    game.player?.velocity?.set(0, 0, 0);
+  } else if (game.playerSpawnPoints?.length > 0) {
     applyAuthoredPlayerSpawn(
       game,
       Math.floor(Math.random() * game.playerSpawnPoints.length),

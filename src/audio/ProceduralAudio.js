@@ -17,6 +17,11 @@
  */
 
 import { AudioSettings } from "../game/AudioSettings.js";
+import {
+  DIALOG_DUCK_LEVEL,
+  DIALOG_DUCK_RAMP_DOWN_SEC,
+  DIALOG_DUCK_RAMP_UP_SEC,
+} from "./dialogDuckShared.js";
 
 class ProceduralAudio {
   constructor() {
@@ -24,11 +29,22 @@ class ProceduralAudio {
     this.masterGain = null;
     this.sfxVolume = 0.5;
     this.initialized = false;
+
+    this._dialogDuckMul = 1;
+    this._dialogDuckTarget = 1;
+    this._duckRampFrom = 1;
+    this._duckRampDuration = 1;
+    this._duckRampElapsed = 0;
+    this._duckRampActive = false;
     
     // Listener position (camera position) for spatial audio
     this.listenerPosition = { x: 0, y: 0, z: 0 };
     this.listenerForward = { x: 0, y: 0, z: -1 };
     this.listenerUp = { x: 0, y: 1, z: 0 };
+
+    this._killStreakCount = 0;
+    this._lastKillConfirmAtMs = 0;
+    this._killStreakWindowMs = 1800;
   }
 
   /**
@@ -126,9 +142,54 @@ class ProceduralAudio {
    */
   setVolume(volume) {
     this.sfxVolume = Math.max(0, Math.min(1, volume));
+    this._syncMasterGain();
+  }
+
+  _syncMasterGain() {
     if (this.masterGain) {
-      this.masterGain.gain.value = this.sfxVolume;
+      this.masterGain.gain.value = this.sfxVolume * this._dialogDuckMul;
     }
+  }
+
+  /**
+   * Same dialog duck as music — lasers, explosions, shield loops, etc. use this bus.
+   * Dialog VO bypasses masterGain (VRMAvatarRenderer → destination or HTMLAudioElement).
+   */
+  setDialogDuck(active) {
+    const target = active ? DIALOG_DUCK_LEVEL : 1;
+    if (
+      !this._duckRampActive &&
+      Math.abs(this._dialogDuckMul - target) < 0.005
+    ) {
+      return;
+    }
+    this._dialogDuckTarget = target;
+    this._duckRampFrom = this._dialogDuckMul;
+    this._duckRampDuration = active
+      ? DIALOG_DUCK_RAMP_DOWN_SEC
+      : DIALOG_DUCK_RAMP_UP_SEC;
+    this._duckRampElapsed = 0;
+    this._duckRampActive = true;
+  }
+
+  _smoothDialogDuck(dt) {
+    const d = typeof dt === "number" && dt > 0 ? dt : 1 / 60;
+    if (this._duckRampActive) {
+      this._duckRampElapsed += d;
+      const t = Math.min(1, this._duckRampElapsed / this._duckRampDuration);
+      this._dialogDuckMul =
+        this._duckRampFrom +
+        (this._dialogDuckTarget - this._duckRampFrom) * t;
+      if (t >= 1) {
+        this._dialogDuckMul = this._dialogDuckTarget;
+        this._duckRampActive = false;
+      }
+      this._syncMasterGain();
+    }
+  }
+
+  update(dt) {
+    this._smoothDialogDuck(dt);
   }
 
   // ============================================
@@ -719,6 +780,44 @@ class ProceduralAudio {
     });
   }
 
+  escapeWarningBeep(urgency = 0) {
+    if (!this.ctx || this.ctx.state === "suspended") return;
+    const now = this.ctx.currentTime;
+    const freq = 600 + urgency * 400;
+    const vol = 0.08 + urgency * 0.1;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(freq, now);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.7, now + 0.12);
+    gain.gain.setValueAtTime(vol, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + 0.15);
+  }
+
+  escapeWarningSiren() {
+    if (!this.ctx || this.ctx.state === "suspended") return;
+    const now = this.ctx.currentTime;
+    const dur = 0.6;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(380, now);
+    osc.frequency.linearRampToValueAtTime(620, now + dur * 0.5);
+    osc.frequency.linearRampToValueAtTime(380, now + dur);
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.1, now + 0.05);
+    gain.gain.setValueAtTime(0.1, now + dur - 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + dur);
+  }
+
   /**
    * Respawn sound
    */
@@ -835,10 +934,27 @@ class ProceduralAudio {
   /**
    * Kill confirmed sound
    */
-  killConfirm() {
+  killConfirm({ streak = false } = {}) {
     if (!this.ctx || this.ctx.state === "suspended") return;
     
     const now = this.ctx.currentTime;
+    let pitchMul = 1;
+
+    if (streak) {
+      const nowMs =
+        typeof performance !== "undefined" ? performance.now() : Date.now();
+      if (
+        this._lastKillConfirmAtMs > 0 &&
+        nowMs - this._lastKillConfirmAtMs <= this._killStreakWindowMs
+      ) {
+        this._killStreakCount += 1;
+      } else {
+        this._killStreakCount = 1;
+      }
+      this._lastKillConfirmAtMs = nowMs;
+      const semitoneSteps = Math.min(this._killStreakCount - 1, 8);
+      pitchMul = 2 ** (semitoneSteps / 12);
+    }
     
     // Satisfying "ding" with harmonics
     const freqs = [880, 1320, 1760]; // A5 + harmonics
@@ -848,7 +964,7 @@ class ProceduralAudio {
       const gain = this.ctx.createGain();
       
       osc.type = "sine";
-      osc.frequency.value = freq;
+      osc.frequency.value = freq * pitchMul;
       
       gain.gain.setValueAtTime(0.2 / (i + 1), now);
       gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);

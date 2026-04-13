@@ -76,6 +76,7 @@ export class Input {
     document.addEventListener('keyup', (e) => this.onKeyUp(e));
     document.addEventListener('mousemove', (e) => this.onMouseMove(e));
     document.addEventListener('mousedown', (e) => this.onMouseDown(e));
+    document.addEventListener('mouseup', (e) => this.onMouseUp(e));
     document.addEventListener('contextmenu', (e) => {
       const onLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
       const hitCanvas = e.target instanceof HTMLCanvasElement;
@@ -144,12 +145,16 @@ export class Input {
       this.game.missionManager?.debugReplayCheckpointWarp?.();
       return;
     }
+    if (KeyBindings.isKeyBound('toggleAutomap', e.code) && !e.repeat && this.game.gameManager?.isPlaying()) {
+      e.preventDefault();
+      this.game.player?.automap?.toggle();
+      return;
+    }
     if (e.code === 'Backquote') {
       e.preventDefault();
       this.game.showControlsHelp?.(true);
       return;
     }
-    if (e.code === 'Tab' && this.game.gameManager?.isPlaying()) e.preventDefault();
     this.setKey(e.code, true);
     if (!e.repeat && this.game.gameManager?.isPlaying()) {
       if (KeyBindings.isKeyBound('switchMissileMode', e.code)) {
@@ -207,6 +212,12 @@ export class Input {
 
   onMouseMove(e) {
     if (document.pointerLockElement) {
+      if (this.game.player?.automap?.isOpen) {
+        const am = this.game.player.automap;
+        if (am.isPanDragging)   { am.addPanDelta(e.movementX, e.movementY);   return; }
+        if (am.isOrbitDragging) { am.addOrbitDelta(e.movementX, e.movementY); return; }
+      }
+
       this.mouse.x = e.movementX;
       this.mouse.y = e.movementY;
       
@@ -219,12 +230,22 @@ export class Input {
 
   onMouseDown(e) {
     if (!document.pointerLockElement) return;
-    
+
+    if (this.game.player?.automap?.isOpen) {
+      if (e.button === 0) this.game.player.automap.startOrbitDrag();
+      if (e.button === 2) this.game.player.automap.startPanDrag();
+      return;
+    }
+
     if (e.button === 0) {
       this.game.firePlayerWeapon();
     } else if (e.button === 2) {
       this.game.fireSelectedMissile();
     }
+  }
+
+  onMouseUp(e) {
+    this.game.player?.automap?.endDrag();
   }
 
   onPointerLockChange() {

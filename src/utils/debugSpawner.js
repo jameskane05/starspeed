@@ -5,12 +5,14 @@
  *   debugMission   — mission id registered in missions/missionsIndex.js (e.g. trainingGrounds)
  *   debugStep      — step id on that mission (e.g. laserWave, missileWave). Omit to use mission.startStepId.
  *   debugLevel     — level id (e.g. arenatech). Omit to use mission.defaultLevelId.
+ *   debugSpawn     — player spawn point index (e.g. 5 for Spawn.005). Omit to use default (0).
  *
  * Examples:
  *   ?debugMission=trainingGrounds
  *   ?debugMission=trainingGrounds&debugStep=missileWave
  *   ?debugMission=trainingGrounds&debugStep=laserWave&debugLevel=arenatech
  *   ?debugMission=charon
+ *   ?debugMission=charon&debugSpawn=5
  *
  * Training Grounds step ids: introDialog, movementGoals, rollDialog, rollTraining,
  * laserDialog, laserWave, missileDialog, missileWave
@@ -25,6 +27,7 @@ import { MISSIONS } from "../missions/missionsIndex.js";
 const P_MISSION = "debugMission";
 const P_STEP = "debugStep";
 const P_LEVEL = "debugLevel";
+const P_SPAWN = "debugSpawn";
 
 export function getDebugMissionSpawn() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -58,10 +61,14 @@ export function getDebugMissionSpawn() {
     }
   }
 
+  const spawnRaw = urlParams.get(P_SPAWN)?.trim();
+  const debugSpawnIndex = spawnRaw != null ? parseInt(spawnRaw, 10) : null;
+
   const config = {
     missionId,
     levelId,
     ...(debugStepId ? { debugStepId } : {}),
+    ...(debugSpawnIndex != null && !isNaN(debugSpawnIndex) ? { debugSpawnIndex } : {}),
   };
   console.log("[DebugSpawner] URL spawn:", config);
   return config;

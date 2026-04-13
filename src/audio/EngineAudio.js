@@ -1,3 +1,9 @@
+import {
+  DIALOG_DUCK_LEVEL,
+  DIALOG_DUCK_RAMP_DOWN_SEC,
+  DIALOG_DUCK_RAMP_UP_SEC,
+} from "./dialogDuckShared.js";
+
 /**
  * EngineAudio.js - PLAYER ENGINE AND AFTERBURNER SOUND
  * =============================================================================
@@ -36,6 +42,13 @@ class EngineAudio {
     // Master
     this.masterGain = null;
     this.volume = 0.75;
+
+    this._dialogDuckMul = 1;
+    this._dialogDuckTarget = 1;
+    this._duckRampFrom = 1;
+    this._duckRampDuration = 1;
+    this._duckRampElapsed = 0;
+    this._duckRampActive = false;
 
     // Smoothed values
     this.currentEngineVolume = 0;
@@ -130,8 +143,55 @@ class EngineAudio {
     this.afterburnerNoise.start(0);
   }
 
+  setDialogDuck(active) {
+    const target = active ? DIALOG_DUCK_LEVEL : 1;
+    if (
+      !this._duckRampActive &&
+      Math.abs(this._dialogDuckMul - target) < 0.005
+    ) {
+      return;
+    }
+    this._dialogDuckTarget = target;
+    this._duckRampFrom = this._dialogDuckMul;
+    this._duckRampDuration = active
+      ? DIALOG_DUCK_RAMP_DOWN_SEC
+      : DIALOG_DUCK_RAMP_UP_SEC;
+    this._duckRampElapsed = 0;
+    this._duckRampActive = true;
+  }
+
+  _smoothDialogDuck(dt) {
+    const d = typeof dt === "number" && dt > 0 ? dt : 1 / 60;
+    if (this._duckRampActive) {
+      this._duckRampElapsed += d;
+      const t = Math.min(1, this._duckRampElapsed / this._duckRampDuration);
+      this._dialogDuckMul =
+        this._duckRampFrom +
+        (this._dialogDuckTarget - this._duckRampFrom) * t;
+      if (t >= 1) {
+        this._dialogDuckMul = this._dialogDuckTarget;
+        this._duckRampActive = false;
+      }
+    }
+  }
+
+  _syncEngineMasterGain() {
+    if (this.masterGain) {
+      this.masterGain.gain.value = this.volume * this._dialogDuckMul;
+    }
+  }
+
+  /** Call every frame (including menu) so dialog duck ramps while the engine graph is idle. */
+  updateDialogDuck(delta) {
+    this._smoothDialogDuck(delta);
+    this._syncEngineMasterGain();
+  }
+
   update(delta, player) {
-    if (!this.initialized || !this.engineLoaded || !player) return;
+    if (!this.initialized || !this.engineLoaded || !player) {
+      this._syncEngineMasterGain();
+      return;
+    }
 
     if (this.ctx.state === 'suspended') {
       this.ctx.resume();
@@ -183,13 +243,13 @@ class EngineAudio {
       // Shift filter frequency with intensity for more character
       this.afterburnerFilter.frequency.value = 150 + intensity * 300;
     }
+
+    this._syncEngineMasterGain();
   }
 
   setVolume(vol) {
     this.volume = Math.max(0, Math.min(1, vol));
-    if (this.masterGain) {
-      this.masterGain.gain.value = this.volume;
-    }
+    this._syncEngineMasterGain();
   }
 
   stop() {

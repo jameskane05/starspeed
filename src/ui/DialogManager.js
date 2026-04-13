@@ -1,5 +1,12 @@
 import * as THREE from "three";
-import { getDialogsForState, getDialogById } from "../data/dialogData.js";
+import {
+  getDialogsForState,
+  getDialogById,
+  getDialogSpeakerById,
+} from "../data/dialogData.js";
+import { checkCriteria } from "../data/sceneData.js";
+import proceduralAudio from "../audio/ProceduralAudio.js";
+import engineAudio from "../audio/EngineAudio.js";
 
 export class DialogManager {
   constructor(options = {}) {
@@ -22,10 +29,8 @@ export class DialogManager {
     this.dialogStartTime = 0;
     this._playbackActive = false;
     this._audioPlaybackRenderer = null;
-    this.activeSpeakerId = this.defaultSpeakerId;
-    this.activeSpeakerRenderer = this._getSpeakerRenderer(
-      this.defaultSpeakerId,
-    );
+    this.activeSpeakerId = null;
+    this.activeSpeakerRenderer = null;
 
     this.captions = [];
     this.currentCaptionIndex = -1;
@@ -60,6 +65,8 @@ export class DialogManager {
     this._captionUsesResponsiveOffset = options.captionOffset == null;
     this._viewportResizeHandler = null;
     this._dialogMilestoneFired = new Set();
+    this._captionMissionId = null;
+    this._lastCaptionSpeakerId = null;
   }
 
   async initialize() {
@@ -176,6 +183,7 @@ export class DialogManager {
   }
 
   _getSpeakerRenderer(speakerId = this.defaultSpeakerId) {
+    if (speakerId == null) return null;
     if (this.speakerRenderers instanceof Map) {
       return (
         this.speakerRenderers.get(speakerId) ??
@@ -199,6 +207,74 @@ export class DialogManager {
     return caption?.speakerId ?? this.defaultSpeakerId;
   }
 
+  _getDialogMissionId(dialog = this.currentDialog) {
+    const criteriaMissionId = dialog?.criteria?.currentMissionId;
+    if (criteriaMissionId != null && criteriaMissionId !== "") {
+      return criteriaMissionId;
+    }
+    return this.gameManager?.getState?.()?.currentMissionId ?? null;
+  }
+
+  _withSpeakerCaptionPrefix(text, speakerId) {
+    if (speakerId == null || speakerId === "") return text;
+    const speaker = getDialogSpeakerById(speakerId);
+    const label = speaker?.label;
+    if (!label) return text;
+    const prefix = `${label}:`;
+    const trimmed = String(text ?? "").trimStart();
+    if (trimmed.startsWith(prefix)) return text;
+    return `${prefix} ${text}`;
+  }
+
+  _prepareCaptions(captions = [], dialog = this.currentDialog) {
+    const missionId = this._getDialogMissionId(dialog);
+    if (missionId !== this._captionMissionId) {
+      this._captionMissionId = missionId;
+      this._lastCaptionSpeakerId = null;
+    }
+
+    const defaultSpeakerId = dialog?.speakerId;
+    const prepared = [];
+    let previousSpeakerId = this._lastCaptionSpeakerId;
+
+    for (const caption of captions) {
+      if (!caption || typeof caption !== "object") {
+        prepared.push(caption);
+        continue;
+      }
+
+      const speakerId =
+        caption.speakerId != null && caption.speakerId !== ""
+          ? caption.speakerId
+          : defaultSpeakerId;
+      const captionWithSpeaker =
+        caption.speakerId == null && speakerId != null && speakerId !== ""
+          ? { ...caption, speakerId }
+          : { ...caption };
+
+      if (
+        speakerId != null &&
+        speakerId !== "" &&
+        speakerId !== previousSpeakerId &&
+        typeof captionWithSpeaker.text === "string"
+      ) {
+        captionWithSpeaker.text = this._withSpeakerCaptionPrefix(
+          captionWithSpeaker.text,
+          speakerId,
+        );
+      }
+
+      if (speakerId != null && speakerId !== "") {
+        previousSpeakerId = speakerId;
+      }
+
+      prepared.push(captionWithSpeaker);
+    }
+
+    this._lastCaptionSpeakerId = previousSpeakerId;
+    return prepared;
+  }
+
   _forEachSpeakerRenderer(callback) {
     const seen = new Set();
     const renderers =
@@ -217,9 +293,12 @@ export class DialogManager {
 
   _setActiveSpeaker(speakerId = this.defaultSpeakerId, options = {}) {
     const forceNotify = options.forceNotify === true;
-    const nextRenderer = this._getSpeakerRenderer(speakerId);
+    const dialogEndOutro = options.dialogEndOutro === true;
+    const nextRenderer =
+      speakerId == null ? null : this._getSpeakerRenderer(speakerId);
     if (
       !forceNotify &&
+      !dialogEndOutro &&
       this.activeSpeakerId === speakerId &&
       this.activeSpeakerRenderer === nextRenderer
     ) {
@@ -234,14 +313,17 @@ export class DialogManager {
       this.activeSpeakerRenderer.stop?.();
     }
 
-    this.activeSpeakerId = speakerId;
+    this.activeSpeakerId = speakerId == null ? null : speakerId;
     this.activeSpeakerRenderer = nextRenderer;
-    this.onSpeakerChanged?.(speakerId, nextRenderer, { forceNotify });
+    this.onSpeakerChanged?.(speakerId, nextRenderer, {
+      forceNotify,
+      dialogEndOutro,
+    });
     return nextRenderer;
   }
 
-  _resetActiveSpeaker() {
-    this._setActiveSpeaker(this.defaultSpeakerId);
+  _resetActiveSpeaker(options = {}) {
+    this._setActiveSpeaker(null, options);
   }
 
   _getCanvasHeight() {
@@ -435,6 +517,12 @@ export class DialogManager {
     this.gameManager.on("state:changed", this._stateHandler);
   }
 
+  _setDialogDuck(active) {
+    this.musicManager?.setDialogDuck?.(active);
+    proceduralAudio.setDialogDuck(active);
+    engineAudio.setDialogDuck(active);
+  }
+
   _checkAutoPlayDialogs(state) {
     if (this.isPlaying) return;
     const matching = getDialogsForState(state, this.playedDialogs);
@@ -477,20 +565,31 @@ export class DialogManager {
       this._forEachSpeakerRenderer((renderer) => renderer.stop?.());
     }
 
-    this.musicManager?.setDialogDuck?.(true);
+    this._setDialogDuck(true);
 
     this._dialogMilestoneFired.clear();
     this.currentDialog = dialog;
-    const defaultSp = dialog.speakerId;
+    if (dialog.id === "charonAlcairMissilesIncoming") {
+      const s = this.gameManager.getState();
+      if (s.charonHeavyMissileIntroPending || !s.charonHeavyMissileIntroDone) {
+        this.gameManager.setState({
+          charonHeavyMissileIntroPending: false,
+          charonHeavyMissileIntroDone: true,
+        });
+      }
+    }
+    if (dialog.id === "charonAlcairSirWeNeedToLeave") {
+      const s = this.gameManager.getState();
+      if (s.charonMobiusReactorTauntPending || !s.charonMobiusReactorTauntDone) {
+        this.gameManager.setState({
+          charonMobiusReactorTauntPending: false,
+          charonMobiusReactorTauntDone: true,
+        });
+      }
+    }
     const rawCaptions = dialog.captions || [];
-    const captionsWithSpeaker = rawCaptions.map((c) => {
-      if (!c || typeof c !== "object") return c;
-      if (c.speakerId != null && c.speakerId !== "") return c;
-      if (defaultSp != null && defaultSp !== "")
-        return { ...c, speakerId: defaultSp };
-      return c;
-    });
-    this.captions = this._normalizeCaptions(captionsWithSpeaker);
+    const preparedCaptions = this._prepareCaptions(rawCaptions, dialog);
+    this.captions = this._normalizeCaptions(preparedCaptions);
     this.currentCaptionIndex = -1;
     this.isPlaying = true;
     this.dialogStartTime = performance.now();
@@ -519,7 +618,7 @@ export class DialogManager {
               if (!ok) this._audioPlaybackRenderer = null;
               this._playbackActive = true;
             } catch (e) {
-              this.musicManager?.setDialogDuck?.(false);
+              this._setDialogDuck(false);
               this.isPlaying = false;
               this.currentDialog = null;
               this._audioPlaybackRenderer = null;
@@ -537,7 +636,7 @@ export class DialogManager {
           this._playbackActive = true;
         }
       } catch (e) {
-        this.musicManager?.setDialogDuck?.(false);
+        this._setDialogDuck(false);
         this.isPlaying = false;
         this.currentDialog = null;
         this._audioPlaybackRenderer = null;
@@ -564,7 +663,7 @@ export class DialogManager {
           this._playbackActive = true;
         }
       } catch (e) {
-        this.musicManager?.setDialogDuck?.(false);
+        this._setDialogDuck(false);
         this.isPlaying = false;
         this.currentDialog = null;
       }
@@ -676,35 +775,51 @@ export class DialogManager {
     if (typeof playNext === "string") return playNext;
     if (typeof playNext !== "object" || playNext === null) return null;
     const mobile = this.gameManager?.getState?.()?.isMobile === true;
-    if (mobile && playNext.mobile) return playNext.mobile;
-    if (!mobile && playNext.desktop) return playNext.desktop;
+    const hasDesktop = Object.prototype.hasOwnProperty.call(playNext, "desktop");
+    const hasMobile = Object.prototype.hasOwnProperty.call(playNext, "mobile");
+    if (hasDesktop || hasMobile) {
+      if (mobile) {
+        return hasMobile ? playNext.mobile ?? null : null;
+      }
+      return hasDesktop ? playNext.desktop ?? null : null;
+    }
     return playNext.desktop || playNext.mobile || null;
   }
 
   _handleDialogComplete() {
     const completed = this.currentDialog;
+    const nextId = this._resolvePlayNextId(completed?.playNext);
+    const nextDialog = nextId ? getDialogById(nextId) : null;
+    const chainImmediately =
+      Boolean(nextId && nextDialog) &&
+      !(nextDialog.delay && nextDialog.delay > 0);
+
     this.isPlaying = false;
     this._playbackActive = false;
     this.currentDialog = null;
     this.currentCaptionIndex = -1;
     this._forEachSpeakerRenderer((renderer) => renderer.stop?.());
     this._audioPlaybackRenderer = null;
-    this._resetActiveSpeaker();
+    if (!chainImmediately) {
+      this._resetActiveSpeaker({ dialogEndOutro: true });
+    }
     if (this.lipSyncManager) this.lipSyncManager.stop();
     this._clearCanvas();
     if (this.captionMesh) this.captionMesh.visible = false;
-
-    const nextId = this._resolvePlayNextId(completed?.playNext);
-    const nextDialog = nextId ? getDialogById(nextId) : null;
     if (!nextId) {
-      this.musicManager?.setDialogDuck?.(false);
+      this._setDialogDuck(false);
     } else if (nextDialog?.delay && nextDialog.delay > 0) {
-      this.musicManager?.setDialogDuck?.(false);
+      this._setDialogDuck(false);
     }
 
     if (completed?.onComplete) completed.onComplete(this.gameManager);
     this.gameManager?.emit?.("dialog:completed", completed);
     if (nextId && nextDialog) {
+      const state = this.gameManager?.getState?.();
+      if (nextDialog.criteria && state && !checkCriteria(state, nextDialog.criteria)) {
+        this._setDialogDuck(false);
+        return;
+      }
       if (nextDialog.delay && nextDialog.delay > 0) {
         this.pendingDialogs.set(nextDialog.id, {
           dialog: nextDialog,
@@ -754,7 +869,7 @@ export class DialogManager {
     this._dialogMilestoneFired.clear();
     this._clearCanvas();
     if (this.captionMesh) this.captionMesh.visible = false;
-    this.musicManager?.setDialogDuck?.(false);
+    this._setDialogDuck(false);
   }
 
   stop() {

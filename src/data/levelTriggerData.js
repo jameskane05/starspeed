@@ -1,21 +1,24 @@
 /**
- * Binds level-authored trigger mesh names (see SceneManager: `Trigger`, `Trigger.001`, …)
- * to gameplay: criteria, one-shot, GameManager patches, dialog, and mission events.
+ * Binds level trigger volumes by ordinal id (`Trigger`, `Trigger.001`, …). Mesh names may
+ * append `-Label`; that suffix is ignored when resolving (see SceneManager).
  *
- * Geometry (world OBB) comes from the GLB; this file only links names → behavior.
+ * Geometry (world-space AABB from named objects in the GLB) is baked at load; this file links names → behavior.
  */
 
 import { GAME_STATES } from "./gameData.js";
 
 /**
  * @typedef {object} LevelTriggerBinding
- * @property {string} objectName - Blender object name (e.g. "Trigger", "Trigger.001")
+ * @property {string} objectName - Ordinal id matching volume after strip (e.g. "Trigger", "Trigger.002").
+ *   Several meshes may share one id (e.g. Trigger.002-A / -B); one `once` binding fires once for any of them,
+ *   then all volumes with that id are ignored (LevelTriggerManager).
  * @property {string} id - Stable id for once-tracking and logging
  * @property {boolean} [once]
  * @property {object} [criteria] - Passed to sceneData.checkCriteria(gameState)
  * @property {object} [onEnter]
  * @property {object} [onEnter.setState] - Partial GameManager.setState
- * @property {string} [onEnter.playDialog] - Dialog track id for DialogManager.playDialog
+ * @property {string | { desktop?: string, mobile?: string }} [onEnter.playDialog] -
+ *   Dialog track id, or desktop/mobile ids (same rules as dialog playNext).
  * @property {string} [onEnter.emitMissionEvent] - MissionManager.reportEvent(type, payload)
  * @property {object} [onEnter.missionPayload] - Extra payload merged with trigger metadata
  */
@@ -31,8 +34,83 @@ export const charonLevelTriggerBindings = [
       currentState: GAME_STATES.PLAYING,
     },
     onEnter: {
-      // Add playDialog: "yourTrackId" when assets exist.
+      playDialog: "charonControlRoomIced",
       emitMissionEvent: "charonTriggerMain",
+    },
+  },
+  {
+    objectName: "Trigger.001",
+    id: "charon-trigger-001-resistance",
+    once: true,
+    criteria: {
+      currentMissionId: "charon",
+      currentState: GAME_STATES.PLAYING,
+    },
+    onEnter: {
+      playDialog: "charonAlcairEncounteringResistance",
+    },
+  },
+  {
+    objectName: "Trigger.002",
+    id: "charon-trigger-002-pump-air",
+    once: true,
+    criteria: {
+      currentMissionId: "charon",
+      currentState: GAME_STATES.PLAYING,
+    },
+    onEnter: {
+      playDialog: "charonStarspeedWhyPumpAir",
+    },
+  },
+  {
+    objectName: "Trigger.003",
+    id: "charon-trigger-003-any-sympathies",
+    once: true,
+    criteria: {
+      currentMissionId: "charon",
+      currentState: GAME_STATES.PLAYING,
+    },
+    onEnter: {
+      playDialog: "charonStarspeedAnySympathies",
+    },
+  },
+  {
+    objectName: "Trigger.004",
+    id: "charon-trigger-004-submit-starspeed",
+    once: true,
+    criteria: {
+      currentMissionId: "charon",
+      currentState: GAME_STATES.PLAYING,
+    },
+    onEnter: {
+      playDialog: "charonHostileSubmitStarspeed",
+    },
+  },
+  {
+    objectName: "Trigger.005",
+    id: "charon-trigger-005-map-tutorial",
+    once: true,
+    criteria: {
+      currentMissionId: "charon",
+      currentState: GAME_STATES.PLAYING,
+    },
+    onEnter: {
+      playDialog: {
+        desktop: "charonAlcairToggleMapDesktop",
+        mobile: "charonAlcairToggleMapMobile",
+      },
+    },
+  },
+  {
+    objectName: "Trigger.006",
+    id: "charon-trigger-006-energy-field",
+    once: true,
+    criteria: {
+      currentMissionId: "charon",
+      currentState: GAME_STATES.PLAYING,
+    },
+    onEnter: {
+      playDialog: "charonLeaderThatEnergyField",
     },
   },
 ];

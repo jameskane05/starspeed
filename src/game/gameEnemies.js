@@ -341,9 +341,10 @@ export function spawnAtPoint(game, pos, spawnOpts = {}) {
 }
 
 function activateEnemyAtSpawn(game, enemy, position, { skipHud = false } = {}) {
-  enemy.health = 100;
+  enemy.health = enemy.isHeavy ? 300 : 100;
   enemy.state = "wander";
   enemy.fireCooldown = 0;
+  if (enemy.isHeavy) enemy.heavyMissileTimer = enemy.heavyMissileInterval;
   enemy.hasLOS = false;
   enemy.losCheckCounter = 0;
   enemy.velocity.set(0, 0, 0);
@@ -628,7 +629,7 @@ async function prewarmMissionEnemyPoolInPlace(game, worldPositions) {
   await prewarmEnemyMeshesInPlace(game, pool, padded);
 }
 
-function buildMissionEnemyPoolOfSize(game, poolCount) {
+function buildMissionEnemyPoolOfSize(game, poolCount, perSlotOptions = null) {
   const base = new THREE.Vector3(0, MISSION_POOL_HIDE_Y, 0);
   const opts = {
     ...enemySpawnOptions(game),
@@ -638,6 +639,7 @@ function buildMissionEnemyPoolOfSize(game, poolCount) {
   const nModels = shipModels.length;
   const enemyPoolDissolveBatchSerial = allocateCheckpointDissolveBatchSerial();
   for (let i = 0; i < poolCount; i++) {
+    const slotExtra = perSlotOptions?.[i] ?? {};
     const modelIndex = nModels > 0 ? i % nModels : undefined;
     const enemy = new Enemy(
       game.scene,
@@ -647,6 +649,7 @@ function buildMissionEnemyPoolOfSize(game, poolCount) {
       {
         ...opts,
         missionPoolSlot: i,
+        ...slotExtra,
         ...(modelIndex !== undefined ? { modelIndex } : {}),
       },
     );
@@ -693,7 +696,7 @@ export async function initCharonMissionEnemyPool(game, prewarmPositions) {
   disposeMissionEnemyPool(game);
   const n = prewarmPositions?.length ?? 0;
   if (n === 0) return;
-  buildMissionEnemyPoolOfSize(game, n);
+  buildMissionEnemyPoolOfSize(game, n, game._charonEnemyPerSlotOptions);
   await prewarmMissionEnemyPoolInPlace(game, prewarmPositions);
 }
 
@@ -731,4 +734,19 @@ export function tickEnemyRespawns(game, delta) {
       spawnAtPoint(game, pos);
     }
   }
+}
+
+export function respawnCharonEscapeEnemies(game) {
+  const pool = game._missionEnemyPool;
+  const positions = game._charonInitialEnemyPositions;
+  if (!pool?.length || !positions?.length) return;
+
+  for (let i = 0; i < pool.length; i++) {
+    const enemy = pool[i];
+    if (game.enemies.includes(enemy)) continue;
+    const pos = positions[i] ?? positions[0];
+    activateEnemyAtSpawn(game, enemy, pos, { skipHud: true });
+  }
+  game.gameManager.setState({ enemiesRemaining: game.enemies.length });
+  game.updateHUD?.();
 }

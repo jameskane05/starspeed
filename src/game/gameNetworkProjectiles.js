@@ -111,7 +111,9 @@ export function handleCollectiblePickup(game, data) {
 }
 
 export function showPickupMessage(game, text) {
-  const existing = document.querySelector(".pickup-message");
+  const existing = document.querySelector(
+    ".pickup-message:not(.pickup-message--persistent)",
+  );
   if (existing) existing.remove();
 
   const msg = document.createElement("div");

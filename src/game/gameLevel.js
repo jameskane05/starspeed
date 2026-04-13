@@ -26,6 +26,11 @@ import {
 } from "../data/sceneData.js";
 import NetworkManager from "../network/NetworkManager.js";
 import MenuManager from "../ui/MenuManager.js";
+import { bindCharonReactorCoreFromLevelData } from "./charonReactorCore.js";
+import {
+  cacheCharonEscapeRoomAabb,
+  stopCharonEscapeSequenceForLevelChange,
+} from "./charonEscapeSequence.js";
 
 function getLevelOcclusion(game) {
   const level = game.gameManager.getState().currentLevel;
@@ -142,6 +147,12 @@ export async function loadLevelAndStart(game) {
   MenuManager.loadingComplete();
 }
 
+function parseEnemySpawnIsHeavy(name) {
+  const n = (name || "").trim();
+  // Blender often exports "Enemy.027-Heavy"; authors may also use "Enemy.027 - Heavy".
+  return /(?:\s-\s*|-\s*)Heavy\s*$/i.test(n);
+}
+
 function saveLevelSpawnCache(
   game,
   level,
@@ -151,6 +162,7 @@ function saveLevelSpawnCache(
   goalArr = [],
   playerMarkerQuats = null,
   goalQuats = null,
+  enemyHeavyFlags = null,
 ) {
   if (
     enemyArr.length === 0 &&
@@ -176,6 +188,12 @@ function saveLevelSpawnCache(
     goals: goalArr.map((v) => v.clone()),
     goalQuats: goalQuatList.map((q) => (q ? q.clone() : null)),
     playerMarkerQuats: markerQuats.map((q) => (q ? q.clone() : null)),
+    enemyHeavy:
+      enemyHeavyFlags &&
+      enemyHeavyFlags.length === enemyArr.length &&
+      enemyArr.length > 0
+        ? enemyHeavyFlags.slice()
+        : null,
   };
 }
 
@@ -217,7 +235,9 @@ function extractOrderedGoalsFromObject(root) {
 }
 
 export function extractSpawnPoints(game) {
+  stopCharonEscapeSequenceForLevelChange(game);
   game.spawnPoints = [];
+  game.enemySpawnHeavyFlags = [];
   game.playerSpawnPoints = [];
   game.playerSpawnMarkerQuaternions = [];
   game.missileSpawnPoints = [];
@@ -239,6 +259,7 @@ export function extractSpawnPoints(game) {
   if (levelData?.userData?.extractedSpawnPoints) {
     const {
       enemy,
+      enemyIsHeavy,
       player,
       playerMarkerQuaternions = [],
       missile,
@@ -246,6 +267,10 @@ export function extractSpawnPoints(game) {
       goalQuaternions = [],
     } = levelData.userData.extractedSpawnPoints;
     game.spawnPoints = enemy.map((v) => v.clone());
+    game.enemySpawnHeavyFlags =
+      enemyIsHeavy?.length === enemy.length
+        ? enemyIsHeavy.slice()
+        : enemy.map(() => false);
     game.playerSpawnPoints = player.map((v) => v.clone());
     game.playerSpawnMarkerQuaternions = game.playerSpawnPoints.map((_, i) =>
       playerMarkerQuaternions[i]
@@ -274,6 +299,7 @@ export function extractSpawnPoints(game) {
       game.trainingGoalPoints,
       game.playerSpawnMarkerQuaternions,
       game.trainingGoalQuaternions,
+      game.enemySpawnHeavyFlags,
     );
     game.dynamicSceneElementManager?.setElements(
       levelData.userData.dynamicSceneElements || [],
@@ -284,6 +310,8 @@ export function extractSpawnPoints(game) {
       `[Game] Parsed ${levelDataId}: ${game.spawnPoints.length} enemies, ${game.playerSpawnPoints.length} player spawns, ${game.missileSpawnPoints.length} missile pickups, ${game.trainingGoalPoints.length} goals`,
     );
     applyLevelBounds(game);
+    bindCharonReactorCoreFromLevelData(game);
+    cacheCharonEscapeRoomAabb(game);
     return;
   }
 
@@ -296,6 +324,10 @@ export function extractSpawnPoints(game) {
   ) {
     const c = game._levelSpawnCache;
     game.spawnPoints = c.enemy.map((v) => v.clone());
+    game.enemySpawnHeavyFlags =
+      c.enemyHeavy?.length === c.enemy.length
+        ? c.enemyHeavy.slice()
+        : game.spawnPoints.map(() => false);
     game.playerSpawnPoints = c.player.map((v) => v.clone());
     game.playerSpawnMarkerQuaternions = game.playerSpawnPoints.map((_, i) => {
       const q = c.playerMarkerQuats?.[i];
@@ -318,6 +350,8 @@ export function extractSpawnPoints(game) {
       game._levelTriggerVolumes = ld?.userData?.levelTriggerVolumes ?? [];
     }
     applyLevelBounds(game);
+    bindCharonReactorCoreFromLevelData(game);
+    cacheCharonEscapeRoomAabb(game);
     return;
   }
 
@@ -359,7 +393,10 @@ export function extractSpawnPoints(game) {
     enemyEntries.sort((a, b) =>
       a.name.localeCompare(b.name, undefined, { numeric: true }),
     );
-    for (const e of enemyEntries) game.spawnPoints.push(e.position);
+    for (const e of enemyEntries) {
+      game.spawnPoints.push(e.position);
+      game.enemySpawnHeavyFlags.push(parseEnemySpawnIsHeavy(e.name));
+    }
     spawnEntries.sort((a, b) =>
       a.name.localeCompare(b.name, undefined, { numeric: true }),
     );
@@ -377,6 +414,7 @@ export function extractSpawnPoints(game) {
       game.trainingGoalPoints,
       game.playerSpawnMarkerQuaternions,
       game.trainingGoalQuaternions,
+      game.enemySpawnHeavyFlags,
     );
     console.log(
       `[Game] Parsed ${spawnId}: ${game.spawnPoints.length} enemies, ${game.playerSpawnPoints.length} player spawns, ${game.missileSpawnPoints.length} missile pickups`,
@@ -397,6 +435,7 @@ export function extractSpawnPoints(game) {
       const pos = new THREE.Vector3();
       child.getWorldPosition(pos);
       game.spawnPoints.push(pos.clone());
+      game.enemySpawnHeavyFlags.push(false);
       toRemove.push(child);
     });
 
@@ -414,6 +453,7 @@ export function extractSpawnPoints(game) {
       game.trainingGoalPoints,
       game.playerSpawnMarkerQuaternions,
       game.trainingGoalQuaternions,
+      game.enemySpawnHeavyFlags,
     );
     console.log(
       `[Game] Extracted ${game.spawnPoints.length} spawn points from occlusion mesh (fallback)`,
@@ -421,6 +461,8 @@ export function extractSpawnPoints(game) {
   }
 
   applyLevelBounds(game);
+  bindCharonReactorCoreFromLevelData(game);
+  cacheCharonEscapeRoomAabb(game);
 }
 
 export { LEVEL_OBJECT_IDS, getSceneObject, getSceneObjectsForState };

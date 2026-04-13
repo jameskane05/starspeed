@@ -23,13 +23,11 @@ import { Howl } from "howler";
 import { musicTracks, shuffled } from "./musicData.js";
 import { AudioSettings } from "../game/AudioSettings.js";
 import { GAME_STATES } from "../data/gameData.js";
-
-/** Music multiplier while dialog is active (fraction of user music volume). */
-const DIALOG_DUCK_LEVEL = 0.17;
-/** Linear ramp: full music → ducked when dialog starts. */
-const DIALOG_DUCK_RAMP_DOWN_SEC = 1;
-/** Linear ramp: ducked → full when dialog ends (longer so return feels gentle). */
-const DIALOG_DUCK_RAMP_UP_SEC = 2;
+import {
+  DIALOG_DUCK_LEVEL,
+  DIALOG_DUCK_RAMP_DOWN_SEC,
+  DIALOG_DUCK_RAMP_UP_SEC,
+} from "./dialogDuckShared.js";
 
 class MusicManager {
   constructor() {

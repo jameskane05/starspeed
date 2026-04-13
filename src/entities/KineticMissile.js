@@ -49,6 +49,8 @@ export class KineticMissile {
     this.maxBounces = 4;
     this.bouncesLeft = this.maxBounces;
     this.isKinetic = true;
+    /** Solo: damages player on hit / splash; does not use homing targets. */
+    this.enemyOwned = options.enemyOwned === true;
 
     this.trailsEffect = options.trailsEffect || null;
     this.spawnTimer = 0;

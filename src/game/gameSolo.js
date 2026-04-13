@@ -97,6 +97,13 @@ export async function startSoloDebug(game) {
     game.player.setXRMode(game.xrManager);
   }
 
+  // Pass level geometry to the automap so it can build the wire dataset
+  const _soloLevelId = game.gameManager.getState().currentLevel;
+  const _soloGeomRoot = _soloLevelId
+    ? game.sceneManager.getGeometryRoot(`${_soloLevelId}LevelData`)
+    : null;
+  if (_soloGeomRoot) game.player.automap.setLevel(_soloGeomRoot);
+
   game._extractSpawnPoints();
 
   if (missionConfig?.missionId === "trainingGrounds") {
@@ -106,6 +113,13 @@ export async function startSoloDebug(game) {
       game.spawnPoints.length > 0
         ? game.spawnPoints.map((p) => p.clone())
         : [];
+    const hf = game.enemySpawnHeavyFlags;
+    game._charonEnemyPerSlotOptions =
+      game._charonInitialEnemyPositions.length > 0
+        ? game._charonInitialEnemyPositions.map((_, i) => ({
+            isHeavy: hf?.[i] === true,
+          }))
+        : null;
     if (game._charonInitialEnemyPositions.length > 0) {
       await gameEnemies.initCharonMissionEnemyPool(
         game,
@@ -113,23 +127,30 @@ export async function startSoloDebug(game) {
       );
     } else {
       game._charonInitialEnemyPositions = null;
+      game._charonEnemyPerSlotOptions = null;
     }
   } else {
     game._charonInitialEnemyPositions = null;
+    game._charonEnemyPerSlotOptions = null;
+  }
+
+  const debugSpawnIdx = missionConfig?.debugSpawnIndex ?? null;
+  if (debugSpawnIdx != null) {
+    game.gameManager.setState({ debugSpawnActive: true });
   }
 
   if (
     missionConfig?.missionId === "trainingGrounds" ||
     missionConfig?.missionId === "charon"
   ) {
-    if (!applyAuthoredPlayerSpawn(game, 0)) {
+    if (!applyAuthoredPlayerSpawn(game, debugSpawnIdx ?? 0)) {
       game.camera.position.set(0, 0, 0);
       game.player.velocity.set(0, 0, 0);
     }
   } else if (game.playerSpawnPoints.length > 0) {
     applyAuthoredPlayerSpawn(
       game,
-      Math.floor(Math.random() * game.playerSpawnPoints.length),
+      debugSpawnIdx ?? Math.floor(Math.random() * game.playerSpawnPoints.length),
     );
   }
 

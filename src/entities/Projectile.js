@@ -76,7 +76,10 @@ export class Projectile {
     }
     this.speed = speed !== null ? speed : isPlayerOwned ? 240 : 18;
     this.isPlayerOwned = isPlayerOwned;
-    this.lifetime = 3;
+    this.lifetime =
+      typeof visual?.projectileLifetime === "number" && visual.projectileLifetime > 0
+        ? visual.projectileLifetime
+        : 3;
     this.disposed = false;
     this.spawnOrigin = position.clone();
     this.prevPosition = position.clone();

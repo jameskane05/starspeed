@@ -28,6 +28,12 @@ import engineAudio from "../audio/EngineAudio.js";
 import * as gameInGameUI from "./gameInGameUI.js";
 import { syncNetworkBotsWithState } from "./gameMultiplayer.js";
 import { processDeferredProximityEnemySpawns } from "./gameEnemies.js";
+import { updateCharonReactorExplosionFlash, updateCharonReactorCoreHealthBar, updateCoreSplatFx } from "./charonReactorCore.js";
+import {
+  applyCharonEscapeShakeEndFrame,
+  applyCharonEscapeShakeStartFrame,
+  updateCharonReactorEscapeSequence,
+} from "./charonEscapeSequence.js";
 
 const _audioForward = new THREE.Vector3();
 const _audioUp = new THREE.Vector3();
@@ -36,6 +42,23 @@ const _networkBotTargetPos = new THREE.Vector3();
 const _networkBotTargetQuat = new THREE.Quaternion();
 
 const MISSILE_BOT_POOL_START = 32;
+
+function buildSoloPlayerHomingTarget(game) {
+  if (!game._soloPlayerHomingTarget) {
+    const o = new THREE.Object3D();
+    game._soloPlayerHomingTarget = {
+      mesh: o,
+      health: 100,
+      alive: true,
+    };
+  }
+  const pos =
+    game.xrManager?.isPresenting && game.xrManager.rig
+      ? game.xrManager.rig.position
+      : game.camera.position;
+  game._soloPlayerHomingTarget.mesh.position.copy(pos);
+  return game._soloPlayerHomingTarget;
+}
 
 function buildMissileTargets(game) {
   let mt = game._missileTargetsScratch;
@@ -157,11 +180,17 @@ export function tick(game, delta, timestamp, frame) {
       game.handleGamepadFire();
 
       if (game.player) {
+        applyCharonEscapeShakeStartFrame(game);
         game.player.update(delta, game.clock.elapsedTime);
         game.dialogManager?.update(delta);
+        updateCharonReactorExplosionFlash(game, delta);
+        updateCoreSplatFx(game, delta);
+        updateCharonReactorCoreHealthBar(game);
         if (!game.isMultiplayer) {
           game.levelTriggerManager?.update();
         }
+        updateCharonReactorEscapeSequence(game, delta);
+        applyCharonEscapeShakeEndFrame(game, delta);
         if (game.isMultiplayer) {
           const localPlayer = NetworkManager.getLocalPlayer();
           if (localPlayer) {
@@ -272,6 +301,7 @@ export function tick(game, delta, timestamp, frame) {
           game.boundFireEnemy,
           game._frameCount,
           cullDist,
+          game,
         );
       }
     }
@@ -279,7 +309,10 @@ export function tick(game, delta, timestamp, frame) {
     game.projectiles.forEach((proj) => proj.update(delta));
 
     const missileTargets = buildMissileTargets(game);
-    game.missiles.forEach((m) => m.update(delta, missileTargets));
+    const soloPlayerTarget = buildSoloPlayerHomingTarget(game);
+    game.missiles.forEach((m) =>
+      m.update(delta, m.enemyOwned ? [soloPlayerTarget] : missileTargets),
+    );
 
     if (game.isMultiplayer) {
       game.localMissileIds.forEach((missile, serverId) => {
@@ -380,6 +413,8 @@ export function tick(game, delta, timestamp, frame) {
   game.particles?.update(delta);
   game.dynamicLights?.update(delta);
   game.musicManager?.update(delta);
+  proceduralAudio.update(delta);
+  engineAudio.updateDialogDuck(delta);
   game.gizmoManager?.update(delta);
 
   if (game.camera && proceduralAudio) {

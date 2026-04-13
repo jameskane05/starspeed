@@ -66,9 +66,9 @@ export const SHIP_CLASSES = {
   fighter: {
     name: "Fighter",
     description: "Balanced combat vessel",
-    speed: 1.2,
-    acceleration: 0.5,
-    maxSpeed: 1.2,
+    speed: 1.56,
+    acceleration: 0.575,
+    maxSpeed: 1.56,
     health: 100,
     missiles: 6,
     maxMissiles: 6,
@@ -81,9 +81,9 @@ export const SHIP_CLASSES = {
   tank: {
     name: "Tank",
     description: "Heavy armor, devastating missiles",
-    speed: 0.84,
-    acceleration: 0.35,
-    maxSpeed: 0.84,
+    speed: 1.092,
+    acceleration: 0.4025,
+    maxSpeed: 1.092,
     health: 150,
     missiles: 8,
     maxMissiles: 8,
@@ -96,9 +96,9 @@ export const SHIP_CLASSES = {
   rogue: {
     name: "Rogue",
     description: "Fast and agile interceptor",
-    speed: 1.68,
-    acceleration: 0.7,
-    maxSpeed: 1.68,
+    speed: 2.184,
+    acceleration: 0.805,
+    maxSpeed: 2.184,
     health: 70,
     missiles: 4,
     maxMissiles: 4,
@@ -146,6 +146,22 @@ export const initialState = {
 
   /** True while in a Colyseus lobby (MENU) before match start — keeps preloaded level from being unloaded. */
   multiplayerLobbyWarmup: false,
+
+  /** Charon: first heavy-bot missile sets this; DialogManager autoplays charonAlcairMissilesIncoming. */
+  charonHeavyMissileIntroPending: false,
+  charonHeavyMissileIntroDone: false,
+
+  /** Charon: end boss — reactor core has been destroyed (environment / mission phase). */
+  charonReactorCoreDestroyed: false,
+  /** Charon: set true with reactor destroy to autoplay charonMobiusPointlessReactorTaunt; cleared when dialog starts. */
+  charonMobiusReactorTauntPending: false,
+  charonMobiusReactorTauntDone: false,
+  /** Charon: reactor destroyed — 60s escape run active (HUD + VFX). */
+  charonEscapeActive: false,
+  /** Charon: player reached first-room volume before timer expired. */
+  charonEscapeSucceeded: false,
+
+  debugSpawnActive: false,
 
   // Performance
   performanceProfile: null, // Set on init from saved settings or auto-detected

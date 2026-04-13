@@ -176,7 +176,8 @@ export class MobileControls {
     const rollLeft = container.querySelector('[data-action="roll-left"]');
     const rollRight = container.querySelector('[data-action="roll-right"]');
     const boost = container.querySelector('[data-action="boost"]');
-    const menuBtn = container.querySelector('[data-action="menu"]');
+    const menuBtn        = container.querySelector('[data-action="menu"]');
+    const mapBtn         = container.querySelector('[data-action="map"]');
     const leaderboardBtn = container.querySelector('[data-action="leaderboard"]');
 
     const haptic = () => {
@@ -272,6 +273,7 @@ export class MobileControls {
     handle(fireWeapon, () => this.game.firePlayerWeapon());
 
     handle(menuBtn, () => this.game.showEscMenu());
+    handle(mapBtn,  () => this.game.player?.automap?.toggle());
 
     handle(leaderboardBtn, () => {
       if (!this.game.gameManager?.isPlaying()) return;

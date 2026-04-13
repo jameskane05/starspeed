@@ -25,6 +25,7 @@ import { getCachedExteriorShip } from "../cache/exteriorShipCache.js";
 import { dialogSpeakers } from "../data/dialogData.js";
 import { LipSyncManager } from "../ui/LipSyncManager.js";
 import { VRMAvatarRenderer } from "../ui/VRMAvatarRenderer.js";
+import { AutomapController } from "../ui/AutomapController.js";
 import {
   hologramVertexShader,
   hologramFragmentShader,
@@ -230,8 +231,8 @@ export class Player {
     this.boostMultiplier = 2.5;
     this.isBoosting = false;
 
-    this.acceleration = options.acceleration || 0.75;
-    this.maxSpeed = options.maxSpeed || 2.7;
+    this.acceleration = options.acceleration || 0.8625;
+    this.maxSpeed = options.maxSpeed || 3.51;
 
     this.velocity = new THREE.Vector3();
     this.drag = 0.97;
@@ -286,6 +287,8 @@ export class Player {
 
     this.camera.position.set(0, 0, 0);
     this.camera.quaternion.identity();
+
+    this.automap = new AutomapController(camera);
 
     this.headlight = new THREE.SpotLight(
       0xffffff,
@@ -431,6 +434,23 @@ export class Player {
     this._holoSpeakerTransition = null;
   }
 
+  _beginHoloDialogEndOutro() {
+    if (this._holoSpeakerTransition?.phase === "dialogEndOut") return;
+    if (this._holoSpeakerTransition) {
+      this._finishHoloSpeakerSwitchImmediate();
+    }
+    const outDur = 0.14 + Math.random() * 0.12;
+    this._holoSpeakerTransition = {
+      phase: "dialogEndOut",
+      t: 0,
+      outDur,
+    };
+    if (this.visemeHoloUniforms?.uNoiseStatic) {
+      this.visemeHoloUniforms.uNoiseStatic.value = 1;
+    }
+    proceduralAudio.holoDisplayStaticBurble(outDur);
+  }
+
   _beginHoloSpeakerSwitch(toSpeakerId, toRenderer) {
     if (this._holoSpeakerTransition) {
       this._finishHoloSpeakerSwitchImmediate();
@@ -457,6 +477,18 @@ export class Player {
     tr.t += delta;
     const smootherstep = (x) =>
       x * x * x * (x * (x * 6 - 15) + 10);
+
+    if (tr.phase === "dialogEndOut") {
+      const p = Math.min(1, tr.t / tr.outDur);
+      u.uNoiseStatic.value = smootherstep(1 - p);
+      if (p >= 1) {
+        u.uNoiseStatic.value = 0;
+        this._holoSpeakerTransition = null;
+        this.activeDialogSpeakerId = null;
+        if (u.uAlpha) u.uAlpha.value = 0;
+      }
+      return;
+    }
 
     if (tr.phase === "in") {
       const p = Math.min(1, tr.t / tr.inDur);
@@ -493,7 +525,38 @@ export class Player {
     this._updateHoloSpeakerTransition(delta);
   }
 
-  _setActiveDialogSpeaker(speakerId = "alcair", opts = {}) {
+  _setActiveDialogSpeaker(speakerId = null, opts = {}) {
+    if (speakerId == null) {
+      if (
+        opts.dialogEndOutro &&
+        this.visemeHoloUniforms?.uAlpha &&
+        this.visemeHoloUniforms.uAlpha.value > 0.001
+      ) {
+        this._beginHoloDialogEndOutro();
+        return null;
+      }
+      if (this._holoSpeakerTransition && this.visemeHoloUniforms?.uNoiseStatic) {
+        this.visemeHoloUniforms.uNoiseStatic.value = 0;
+      }
+      this._holoSpeakerTransition = null;
+      this.activeDialogSpeakerId = null;
+      if (this.visemeHoloUniforms?.uAlpha) {
+        this.visemeHoloUniforms.uAlpha.value = 0;
+      }
+      return null;
+    }
+
+    if (this._holoSpeakerTransition?.phase === "dialogEndOut") {
+      if (this.visemeHoloUniforms?.uNoiseStatic) {
+        this.visemeHoloUniforms.uNoiseStatic.value = 0;
+      }
+      this._holoSpeakerTransition = null;
+    }
+
+    if (this.visemeHoloUniforms?.uAlpha) {
+      this.visemeHoloUniforms.uAlpha.value = 1.0;
+    }
+
     const next = this._getActiveDialogAvatarRenderer(speakerId);
     if (opts.forceNotify) {
       if (this._holoSpeakerTransition && this.visemeHoloUniforms?.uNoiseStatic) {
@@ -606,7 +669,7 @@ export class Player {
             uTime: { value: 0 },
             uHoloColor: { value: new THREE.Vector3(0.0, 0.85, 0.95) },
             uScanLineIntensity: { value: 0.4 },
-            uAlpha: { value: 1.0 },
+            uAlpha: { value: 0 },
             uUvOffset: { value: new THREE.Vector2(0, 0) },
             uUvRepeat: { value: new THREE.Vector2(1, 1) },
             uNoiseStatic: { value: 0 },
@@ -668,7 +731,7 @@ export class Player {
                 .filter(Boolean);
 
               if (loadedRenderers.length > 0) {
-                this._setActiveDialogSpeaker("alcair");
+                this._setActiveDialogSpeaker(null);
                 await initializeDialogManager();
                 return;
               }
@@ -723,6 +786,7 @@ export class Player {
                     });
                     await dm.initialize();
                     this.game.dialogManager = dm;
+                    this._setActiveDialogSpeaker(null);
                   });
                 },
                 undefined,
@@ -1334,6 +1398,8 @@ export class Player {
       this.cockpitStatusTime += delta;
       this.cockpitStatusUniforms.uTime.value = this.cockpitStatusTime;
     }
+
+    this.automap.update(delta, this.camera.position, this.game?.enemies);
 
     const keys = this.input.keys;
     const gp = this.input.gamepad;
