@@ -15,6 +15,7 @@
     "build:client": "vite build",
     "preview": "vite preview",
     "deploy:gh": "node scripts/deploy-gh.mjs",
+    "deploy:gh:fresh": "node scripts/deploy-gh.mjs --no-history",
     "deploy:server": "cd server && npx @colyseus/cloud deploy --env production"
   },
   "devDependencies": {
