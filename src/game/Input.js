@@ -155,6 +155,16 @@ export class Input {
       this.game.showControlsHelp?.(true);
       return;
     }
+    if (
+      e.code === 'KeyH' &&
+      e.altKey &&
+      !e.repeat &&
+      this.game.gameManager?.isPlaying()
+    ) {
+      e.preventDefault();
+      this.game.toggleHidePilotChrome?.();
+      return;
+    }
     this.setKey(e.code, true);
     if (!e.repeat && this.game.gameManager?.isPlaying()) {
       if (KeyBindings.isKeyBound('switchMissileMode', e.code)) {

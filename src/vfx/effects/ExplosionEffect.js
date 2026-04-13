@@ -63,24 +63,60 @@ export class ExplosionEffect {
     this.particles = particleSystem;
   }
 
+  _pickColor(range) {
+    if (!range) return { r: 1, g: 1, b: 1 };
+    const rMin = range.rMin ?? 1;
+    const rMax = range.rMax ?? rMin;
+    const gMin = range.gMin ?? 1;
+    const gMax = range.gMax ?? gMin;
+    const bMin = range.bMin ?? 1;
+    const bMax = range.bMax ?? bMin;
+    return {
+      r: rMin + Math.random() * (rMax - rMin),
+      g: gMin + Math.random() * (gMax - gMin),
+      b: bMin + Math.random() * (bMax - bMin),
+    };
+  }
+
   /**
    * Big explosion – matched to Unity BigExplosionEffect prefab.
    * Billboard quads for fire & smoke (no size cap).
    * Proper emission shapes from Unity metadata.
    */
-  emitBigExplosion(position, scale = 1) {
+  emitBigExplosion(position, scale = 1, options = {}) {
     const s = scale;
+    const fireColorRange = options.fireColorRange ?? {
+      rMin: 1.0, rMax: 1.0,
+      gMin: 0.8, gMax: 1.0,
+      bMin: 0.3, bMax: 0.7,
+    };
+    const sparksColorRange = options.sparksColorRange ?? {
+      rMin: 1.0, rMax: 1.0,
+      gMin: 0.5, gMax: 0.9,
+      bMin: 0.05, bMax: 0.15,
+    };
+    const debrisFireColorRange = options.debrisFireColorRange ?? {
+      rMin: 1.0, rMax: 1.0,
+      gMin: 0.6, gMax: 0.9,
+      bMin: 0.15, bMax: 0.35,
+    };
+    const lineSparksColorRange = options.lineSparksColorRange ?? {
+      rMin: 1.0, rMax: 1.0,
+      gMin: 0.9, gMax: 0.9,
+      bMin: 0.7, bMax: 0.7,
+    };
     for (let i = 0; i < 25; i++) {
       const e = emitSphere(position, 1.52 * s);
       const drift = 0.3 * s;
       const vx = e.dx * 0.5 * s + (Math.random() - 0.5) * drift;
       const vy = e.dy * 0.5 * s + (Math.random() - 0.5) * drift;
       const vz = e.dz * 0.5 * s + (Math.random() - 0.5) * drift;
+      const color = this._pickColor(fireColorRange);
 
       this.particles.fire.emit({
         x: e.x, y: e.y, z: e.z,
         vx, vy, vz,
-        r: 1.0, g: 0.8 + Math.random() * 0.2, b: 0.3 + Math.random() * 0.4,
+        r: color.r, g: color.g, b: color.b,
         alpha: 1.0,
         size: (0.75 + Math.random() * 1.25) * s,
         sizeGrow: 3.0 * s,
@@ -101,11 +137,12 @@ export class ExplosionEffect {
       const vx = e.dx * baseSpeed + (Math.random() - 0.5) * drift;
       const vy = e.dy * baseSpeed + (Math.random() - 0.5) * drift;
       const vz = e.dz * baseSpeed + (Math.random() - 0.5) * drift;
+      const color = this._pickColor(sparksColorRange);
 
       this.particles.sparks.emit({
         x: e.x, y: e.y, z: e.z,
         vx, vy, vz,
-        r: 1.0, g: 0.5 + Math.random() * 0.4, b: 0.05 + Math.random() * 0.1,
+        r: color.r, g: color.g, b: color.b,
         alpha: 1.0, size: (2 + Math.random() * 4) * s,
         life: (0.1 + Math.random() * 1.4) * Math.max(1, s * 0.5), drag: 0.995, rise: 0,
       });
@@ -118,11 +155,12 @@ export class ExplosionEffect {
       const dvx = e.dx * speed;
       const dvy = e.dy * speed;
       const dvz = e.dz * speed;
+      const lineColor = this._pickColor(lineSparksColorRange);
 
       this.particles.lineSparks.emit({
         x: position.x, y: position.y, z: position.z,
         vx: dvx, vy: dvy, vz: dvz,
-        r: 1.0, g: 0.9, b: 0.7,
+        r: lineColor.r, g: lineColor.g, b: lineColor.b,
         alpha: 1.0,
         life: (0.8 + Math.random() * 1.2) * Math.max(1, s * 0.5),
         drag: 0.97,
@@ -139,6 +177,7 @@ export class ExplosionEffect {
         const ty = position.y + dvy * delay * dragFactor;
         const tz = position.z + dvz * delay * dragFactor;
         const spread = 0.8 * s;
+        const debrisColor = this._pickColor(debrisFireColorRange);
 
         this.particles.debrisFire.emit({
           x: tx + (Math.random() - 0.5) * spread,
@@ -147,7 +186,7 @@ export class ExplosionEffect {
           vx: dvx * 0.15 + (Math.random() - 0.5) * 2 * s,
           vy: dvy * 0.15 + (Math.random() - 0.5) * 2 * s,
           vz: dvz * 0.15 + (Math.random() - 0.5) * 2 * s,
-          r: 1.0, g: 0.6 + Math.random() * 0.3, b: 0.15 + Math.random() * 0.2,
+          r: debrisColor.r, g: debrisColor.g, b: debrisColor.b,
           alpha: 0.9,
           size: (0.4 + Math.random() * 0.6) * s,
           sizeGrow: 2.5 * s,
@@ -230,6 +269,10 @@ export class ExplosionEffect {
    */
   emitExplosionParticles(position, color = { r: 1, g: 0.5, b: 0.1 }, count = 60, scale = 1) {
     const s = scale;
+    const colorJitter = 0.12;
+    const clamp = (v) => Math.max(0, Math.min(1, v));
+    const withJitter = (base) =>
+      clamp(base + (Math.random() - 0.5) * 2 * colorJitter);
     for (let i = 0; i < count; i++) {
       const speed = (2 + Math.random() * 5) * s;
       const vx = (Math.random() - 0.5) * 2;
@@ -242,7 +285,9 @@ export class ExplosionEffect {
         y: position.y + (Math.random() - 0.5) * 0.5 * s,
         z: position.z + (Math.random() - 0.5) * 0.5 * s,
         vx: (vx / len) * speed, vy: (vy / len) * speed, vz: (vz / len) * speed,
-        r: 1.0, g: 0.8 + Math.random() * 0.2, b: 0.3 + Math.random() * 0.3,
+        r: withJitter(color.r ?? 1),
+        g: withJitter(color.g ?? 0.5),
+        b: withJitter(color.b ?? 0.1),
         alpha: 1.0, size: (0.8 + Math.random() * 1.2) * s,
         sizeGrow: 2.5 * s,
         life: (0.3 + Math.random() * 0.4) * Math.max(1, s * 0.5), drag: 0.92, rise: 0,
@@ -314,7 +359,7 @@ export class ExplosionEffect {
     }
   }
 
-  emitFlameGusher(position, direction, scale = 1) {
+  emitFlameGusher(position, direction, scale = 1, options = {}) {
     _dir.set(direction.x, direction.y, direction.z).normalize();
     if (Math.abs(_dir.y) < 0.99) _tmp.set(0, 1, 0);
     else _tmp.set(1, 0, 0);
@@ -326,6 +371,11 @@ export class ExplosionEffect {
     const fireCount = Math.ceil(18 * scale);
     const smokeCount = Math.ceil(6 * scale);
     const s = scale;
+    const fireColorRange = options.fireColorRange ?? {
+      rMin: 1.0, rMax: 1.0,
+      gMin: 0.55, gMax: 0.9,
+      bMin: 0.05, bMax: 0.2,
+    };
 
     for (let i = 0; i < fireCount; i++) {
       const z = cosAngle + Math.random() * (1 - cosAngle);
@@ -335,13 +385,14 @@ export class ExplosionEffect {
       const vy = _dir.y * z + _tan.y * ringR * Math.cos(theta) + _bitan.y * ringR * Math.sin(theta);
       const vz = _dir.z * z + _tan.z * ringR * Math.cos(theta) + _bitan.z * ringR * Math.sin(theta);
       const speed = (4 + Math.random() * 8) * s;
+      const color = this._pickColor(fireColorRange);
 
       this.particles.fire.emit({
         x: position.x + (Math.random() - 0.5) * 0.3 * s,
         y: position.y + (Math.random() - 0.5) * 0.3 * s,
         z: position.z + (Math.random() - 0.5) * 0.3 * s,
         vx: vx * speed, vy: vy * speed, vz: vz * speed,
-        r: 1.0, g: 0.55 + Math.random() * 0.35, b: 0.05 + Math.random() * 0.15,
+        r: color.r, g: color.g, b: color.b,
         alpha: 1.0,
         size: (0.4 + Math.random() * 0.8) * s,
         sizeGrow: 2.5 * s,

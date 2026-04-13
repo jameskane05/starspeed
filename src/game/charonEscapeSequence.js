@@ -29,6 +29,31 @@ const MAX_GUSHERS = 6;
 const ESCAPE_PULSE_INTERVAL = 5;
 const ESCAPE_PULSE_DURATION = 0.8;
 const ESCAPE_PULSE_MAX_INTENSITY = 0.08;
+const ESCAPE_BLUE_FLASH = 0x4aa8ff;
+const ESCAPE_BLUE_FIRE_A = { r: 0.35, g: 0.75, b: 1.0 };
+const ESCAPE_BLUE_FIRE_B = { r: 0.55, g: 0.92, b: 1.0 };
+const ESCAPE_BLUE_BIG_EXPLOSION_COLORS = {
+  fireColorRange: {
+    rMin: 0.25, rMax: 0.55,
+    gMin: 0.7, gMax: 0.95,
+    bMin: 0.95, bMax: 1.0,
+  },
+  sparksColorRange: {
+    rMin: 0.35, rMax: 0.7,
+    gMin: 0.75, gMax: 1.0,
+    bMin: 0.95, bMax: 1.0,
+  },
+  debrisFireColorRange: {
+    rMin: 0.2, rMax: 0.5,
+    gMin: 0.65, gMax: 0.95,
+    bMin: 0.9, bMax: 1.0,
+  },
+  lineSparksColorRange: {
+    rMin: 0.45, rMax: 0.75,
+    gMin: 0.85, gMax: 1.0,
+    bMin: 1.0, bMax: 1.0,
+  },
+};
 
 function initEscapeSplatPulse(game) {
   const sw = applySplatShockwave(game);
@@ -98,7 +123,9 @@ function updateEscapeFlameGushers(game, delta) {
     g.emitTimer -= delta;
     if (g.emitTimer <= 0) {
       const fade = 1 - g.elapsed / g.lifetime;
-      fx.emitFlameGusher(g.pos, g.dir, g.scale * fade);
+      fx.emitFlameGusher(g.pos, g.dir, g.scale * fade, {
+        fireColorRange: ESCAPE_BLUE_BIG_EXPLOSION_COLORS.fireColorRange,
+      });
       g.emitTimer = 0.06;
     }
   }
@@ -215,7 +242,7 @@ function spawnMegaForwardExplosion(game) {
   const shockScale = 1 + Math.sqrt(progress) * 1;
 
   game.explosions.push(
-    new Explosion(game.scene, pos, 0xff4400, game.dynamicLights, {
+    new Explosion(game.scene, pos, ESCAPE_BLUE_FLASH, game.dynamicLights, {
       big: true,
       scaleMult: shockScale,
     }),
@@ -225,10 +252,20 @@ function spawnMegaForwardExplosion(game) {
   if (fx) {
     const bigCount = Math.min(3, Math.ceil(1 + particleScale * 0.3));
     for (let k = 0; k < bigCount; k++) {
-      fx.emitBigExplosion(pos, particleScale);
+      fx.emitBigExplosion(pos, particleScale, ESCAPE_BLUE_BIG_EXPLOSION_COLORS);
     }
-    fx.emitExplosionParticles(pos, { r: 1, g: 0.42, b: 0.08 }, Math.ceil(60 + particleScale * 15), particleScale);
-    fx.emitExplosionParticles(pos, { r: 1, g: 0.75, b: 0.25 }, Math.ceil(40 + particleScale * 10), particleScale);
+    fx.emitExplosionParticles(
+      pos,
+      ESCAPE_BLUE_FIRE_A,
+      Math.ceil(60 + particleScale * 15),
+      particleScale,
+    );
+    fx.emitExplosionParticles(
+      pos,
+      ESCAPE_BLUE_FIRE_B,
+      Math.ceil(40 + particleScale * 10),
+      particleScale,
+    );
     fx.emitImpactSparks(pos, particleScale);
 
     const gusherDir = new THREE.Vector3(
@@ -238,7 +275,7 @@ function spawnMegaForwardExplosion(game) {
     ).normalize();
     addEscapeFlameGusher(game, pos.clone(), gusherDir, particleScale);
   }
-  game.dynamicLights?.flash(pos, 0xff6622, {
+  game.dynamicLights?.flash(pos, ESCAPE_BLUE_FLASH, {
     intensity: 120 * shockScale,
     distance: 90 * shockScale,
     ttl: 0.2 * Math.max(1, shockScale * 0.4),

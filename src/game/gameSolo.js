@@ -43,7 +43,10 @@ import MissionManager, {
   warmGpuProgramsForPlay,
   prewarmCheckpointPoolDuringFirstView,
 } from "../missions/MissionManager.js";
-import { updateLeaderboardButtonVisibility } from "./gameInGameUI.js";
+import {
+  setHidePilotChrome,
+  updateLeaderboardButtonVisibility,
+} from "./gameInGameUI.js";
 import {
   showFirstViewLoading,
   hideFirstViewLoading,
@@ -196,6 +199,7 @@ export async function startSoloDebug(game) {
   if (!xrActive && !game.input.mobile.shouldSkipPointerLock()) {
     document.body.requestPointerLock?.()?.catch?.(() => {});
   }
+  setHidePilotChrome(game, false);
   document.getElementById("hud").classList.add("active");
 
   warmGpuProgramsForPlay(game);

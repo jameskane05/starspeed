@@ -94,6 +94,10 @@
     <link rel="stylesheet" href="/src/ui/hud.css" />
     <script>
       document.addEventListener("contextmenu", function (e) {
+        if (document.body.classList.contains("video-main-menu")) {
+          e.preventDefault();
+          return;
+        }
         var onLocalhost =
           location.hostname === "localhost" ||
           location.hostname === "127.0.0.1";
@@ -103,6 +107,13 @@
     </script>
   </head>
   <body>
+    <script>
+      try {
+        if (new URLSearchParams(window.location.search).has("videoMainMenu")) {
+          document.body.classList.add("video-main-menu");
+        }
+      } catch (_) {}
+    </script>
     <style>
       #app-loading-bootstrap {
         position: fixed;

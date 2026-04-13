@@ -173,6 +173,10 @@ class MenuManager {
   onMenuContainerMouseDown(e) {
     if (e.button !== 2) return;
     if (this.currentScreen !== SCREENS.MAIN_MENU) return;
+    if (document.body.classList.contains("video-main-menu")) {
+      e.preventDefault();
+      return;
+    }
     if (
       e.target.closest(
         "a, button, input, select, textarea, [data-action], [role='button']",

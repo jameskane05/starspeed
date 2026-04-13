@@ -59,7 +59,7 @@ export const charonDialogTracks = {
     speakerId: "starspeed",
     audio: dialogPublicUrl("audio/dialog/charon-01-copy-that.audio.mp3"),
     faceDataUrl: dialogPublicUrl("audio/dialog/charon-01-copy-that.json"),
-    captions: [say("Copy that.", 0.42, 0.32), say("Hi, sir.", 0.36, 1.3)],
+    captions: [say("Copy that.", 0.42, 0.32), say("Aye, sir.", 0.36, 1.3)],
     criteria: {
       currentState: GAME_STATES.PLAYING,
       currentMissionId: "charon",
@@ -463,7 +463,7 @@ export const charonDialogTracks = {
     ),
     captions: [
       say("Submit, Starspeed.", 2.32, 0.9),
-      say("You cannot overcome the swarm", 3.24, 3.96),
+      say("You cannot overcome the swarm.", 3.24, 3.96),
     ],
     criteria: {
       currentState: GAME_STATES.PLAYING,
@@ -546,9 +546,8 @@ export const charonDialogTracks = {
       "audio/dialog/charon-16-that-energy-field.json",
     ),
     captions: [
-      say("Damn!", 0.42, 0.33),
       say("That energy field!", 1.44, 1.45),
-      say("Destroy it", 0.66, 2.93),
+      say("Destroy it!", 0.66, 2.93),
     ],
     criteria: {
       currentState: GAME_STATES.PLAYING,
@@ -567,7 +566,7 @@ export const charonDialogTracks = {
     speakerId: "mobius",
     audio: dialogPublicUrl("audio/dialog/charon-17-mobius-laugh.audio.mp3"),
     faceDataUrl: dialogPublicUrl("audio/dialog/charon-17-mobius-laugh.json"),
-    captions: [say("[ Laughing ]", 3)],
+    captions: [say("[laughing]", 3)],
     criteria: {
       currentState: GAME_STATES.PLAYING,
       currentMissionId: "charon",
@@ -636,7 +635,7 @@ export const charonDialogTracks = {
     speakerId: "leader",
     audio: dialogPublicUrl("audio/dialog/charon-20-starspeed-out.audio.mp3"),
     faceDataUrl: dialogPublicUrl("audio/dialog/charon-20-starspeed-out.json"),
-    captions: [say("Starspeed, out.", 1.5, 0.2)],
+    captions: [say("Starspeed - out!", 1.5, 0.2)],
     criteria: {
       currentState: GAME_STATES.PLAYING,
       currentMissionId: "charon",

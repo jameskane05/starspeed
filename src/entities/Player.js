@@ -31,6 +31,7 @@ import {
   hologramFragmentShader,
 } from "../vfx/shaders/hologramShader.glsl.js";
 import proceduralAudio from "../audio/ProceduralAudio.js";
+import { refreshCockpitVisibility } from "../game/gameInGameUI.js";
 
 const _right = new THREE.Vector3();
 const _up = new THREE.Vector3();
@@ -812,6 +813,7 @@ export class Player {
         if (this.xrManager) {
           this._reparentToRig();
         }
+        if (this.game) refreshCockpitVisibility(this.game);
       },
       undefined,
       (err) => {

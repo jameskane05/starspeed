@@ -110,6 +110,7 @@ function restoreBaseCameraLayers(game) {
 }
 
 function renderCaptionOverlay(game) {
+  if (game.hidePilotChrome) return;
   const captionMesh = game.dialogManager?.captionMesh;
   const captionLayer = game.dialogManager?.captionRenderLayer;
   if (!captionMesh?.visible || captionLayer == null) return;

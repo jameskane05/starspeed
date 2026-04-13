@@ -152,6 +152,24 @@ function createDirectionalHelper3D() {
   return root;
 }
 
+export function refreshCockpitVisibility(game) {
+  const ck = game.player?.cockpit;
+  if (!ck) return;
+  const respawnEl = document.getElementById("respawn-overlay");
+  const respawnActive = respawnEl?.classList.contains("active");
+  ck.visible = !game.hidePilotChrome && !respawnActive;
+}
+
+export function setHidePilotChrome(game, hidden) {
+  game.hidePilotChrome = !!hidden;
+  document.body.classList.toggle("pilot-chrome-hidden", game.hidePilotChrome);
+  refreshCockpitVisibility(game);
+}
+
+export function toggleHidePilotChrome(game) {
+  setHidePilotChrome(game, !game.hidePilotChrome);
+}
+
 export function setup(game) {
   game.hud = {
     health: document.getElementById("health"),
@@ -437,11 +455,16 @@ export function showControlsHelp(game, visible) {
       ["Homing missile", "missile"],
       ["Kinetic missile", "kineticMissile"],
       ["Headlight", "toggleHeadlight"],
+      ["Hide HUD / cockpit", null],
       ["Map", "toggleAutomap"],
       ["Leaderboard", "leaderboard"],
       ["Pause", "pause"],
     ];
-    const rowLabels = { Fire: "Left Click", "Missile fire": "Right Click" };
+    const rowLabels = {
+      Fire: "Left Click",
+      "Missile fire": "Right Click",
+      "Hide HUD / cockpit": "Alt+H (toggle)",
+    };
     const html = rows
       .map(([label, ...actions]) => {
         const keys = actions
@@ -606,6 +629,7 @@ export function leaveMatch(game) {
 
   game.renderer.domElement.style.display = "none";
 
+  setHidePilotChrome(game, false);
   document.getElementById("crosshair").classList.remove("active");
   document.getElementById("hud").classList.remove("active");
   if (game.missionPanel) {
@@ -692,6 +716,7 @@ export function updateDirectionalHelper(game, delta) {
   const canShow =
     game.gameManager?.isPlaying() &&
     !game.isEscMenuOpen &&
+    !game.hidePilotChrome &&
     worldPos &&
     !game.xrManager?.isPresenting;
 

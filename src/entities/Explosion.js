@@ -40,6 +40,7 @@ export class Explosion {
     }
 
     this.shockwave = null;
+    this.color = new THREE.Color(color);
 
     if (this.isBig) {
       this.group = new THREE.Group();
@@ -48,7 +49,7 @@ export class Explosion {
 
       // Single subtle shockwave sphere (Unity: BackSide mesh, very fast)
       const mat = new THREE.MeshBasicMaterial({
-        color: 0xffddaa,
+        color: this.color,
         transparent: true,
         opacity: 0.15,
         side: THREE.BackSide,

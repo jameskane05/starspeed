@@ -995,3 +995,20 @@ canvas {
     font-size: 1.15rem;
   }
 }
+
+/* Alt+H “clean view”: hide HUD, crosshair, mobile chrome, mission UI (esc / mission-complete stay usable). */
+body.pilot-chrome-hidden #hud,
+body.pilot-chrome-hidden #crosshair,
+body.pilot-chrome-hidden #mobile-controls,
+body.pilot-chrome-hidden #damage-vignette,
+body.pilot-chrome-hidden #game-top-buttons,
+body.pilot-chrome-hidden #kill-feed,
+body.pilot-chrome-hidden #controls-help,
+body.pilot-chrome-hidden #mission-panel,
+body.pilot-chrome-hidden #tab-leaderboard,
+body.pilot-chrome-hidden #charon-escape-countdown,
+body.pilot-chrome-hidden .pickup-message,
+body.pilot-chrome-hidden #boost-hud {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}

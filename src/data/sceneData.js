@@ -139,8 +139,14 @@ export const sceneObjects = {
         geometryName: "LevelGeometry",
         dynamicSceneElements: {
           meshNamePrefix: "Pillar",
+          animate: false,
           ambientTint: 0xff4444,
-          ambientTintStrength: 0.1,
+          ambientTintStrength: 0.06,
+          material: {
+            color: 0x040203,
+            metalness: 0.05,
+            roughness: 0.95,
+          },
         },
       },
     },
@@ -186,8 +192,14 @@ export const sceneObjects = {
         geometryName: "LevelGeometry",
         dynamicSceneElements: {
           meshNamePrefix: "Pillar",
+          animate: false,
           ambientTint: 0xd0c0a8,
-          ambientTintStrength: 0.05,
+          ambientTintStrength: 0.02,
+          material: {
+            color: 0x020203,
+            metalness: 0.04,
+            roughness: 0.96,
+          },
         },
       },
     },

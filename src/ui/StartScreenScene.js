@@ -65,6 +65,19 @@ const START_SCREEN_LASER_BOLT_COLOR = (() => {
  */
 const START_SCREEN_LASER_HDR_ENERGY = 7.0;
 
+/** Matches `?videoMainMenu` / `body.video-main-menu` (see index.html, menu.css). */
+function isVideoMainMenu() {
+  return (
+    typeof document !== "undefined" &&
+    document.body?.classList.contains("video-main-menu")
+  );
+}
+
+/** Parallel X shift on camera + look target; recenters framing (ship stays at shipBaseX). */
+const VIDEO_MAIN_MENU_CAMERA_X_OFFSET = -5;
+/** Parallel +Y on camera + look target: rig moves up in world, ship reads slightly lower in frame. */
+const VIDEO_MAIN_MENU_CAMERA_Y_OFFSET = 0.38;
+
 function createGlowTexture(size = 64) {
   const canvas = document.createElement("canvas");
   canvas.width = size;
@@ -273,6 +286,12 @@ export class StartScreenScene {
           ? this._landscapeLookTarget
           : this._portraitLookTarget,
     );
+    if (isVideoMainMenu()) {
+      this.cameraBasePos.x += VIDEO_MAIN_MENU_CAMERA_X_OFFSET;
+      this.cameraLookTarget.x += VIDEO_MAIN_MENU_CAMERA_X_OFFSET;
+      this.cameraBasePos.y += VIDEO_MAIN_MENU_CAMERA_Y_OFFSET;
+      this.cameraLookTarget.y += VIDEO_MAIN_MENU_CAMERA_Y_OFFSET;
+    }
     this.camera.position.copy(this.cameraBasePos);
     this.camera.lookAt(
       this.cameraLookTarget.x,
@@ -345,6 +364,16 @@ export class StartScreenScene {
     window.visualViewport?.addEventListener("resize", this._onResize);
     window.addEventListener("mousemove", this._onMouseMove);
     window.addEventListener("wheel", this._onWheel, { passive: false });
+
+    if (isVideoMainMenu()) {
+      const canvas = this.renderer.domElement;
+      this._videoMainMenuLockOnClick = () => {
+        if (this.disposed) return;
+        if (document.pointerLockElement === canvas) return;
+        canvas.requestPointerLock?.()?.catch?.(() => {});
+      };
+      canvas.addEventListener("click", this._videoMainMenuLockOnClick);
+    }
 
     this.animate();
   }
@@ -891,6 +920,12 @@ export class StartScreenScene {
           : this._portraitLookTarget,
     );
     this.cameraLookTarget.z += this.cameraDriftZ;
+    if (isVideoMainMenu()) {
+      this.cameraBasePos.x += VIDEO_MAIN_MENU_CAMERA_X_OFFSET;
+      this.cameraLookTarget.x += VIDEO_MAIN_MENU_CAMERA_X_OFFSET;
+      this.cameraBasePos.y += VIDEO_MAIN_MENU_CAMERA_Y_OFFSET;
+      this.cameraLookTarget.y += VIDEO_MAIN_MENU_CAMERA_Y_OFFSET;
+    }
 
     const targetX = -this.mouseX * this.orbitRange;
     const targetY = -this.mouseY * this.orbitRange;
@@ -932,6 +967,21 @@ export class StartScreenScene {
   }
 
   onMouseMove(e) {
+    const canvas = this.renderer?.domElement;
+    if (canvas && document.pointerLockElement === canvas) {
+      const scale = 0.0015;
+      this.mouseX = THREE.MathUtils.clamp(
+        this.mouseX + e.movementX * scale,
+        -1,
+        1,
+      );
+      this.mouseY = THREE.MathUtils.clamp(
+        this.mouseY + e.movementY * scale,
+        -1,
+        1,
+      );
+      return;
+    }
     this.mouseX = (e.clientX / window.innerWidth) * 2 - 1;
     this.mouseY = (e.clientY / window.innerHeight) * 2 - 1;
   }
@@ -992,6 +1042,17 @@ export class StartScreenScene {
     window.visualViewport?.removeEventListener("resize", this._onResize);
     window.removeEventListener("mousemove", this._onMouseMove);
     window.removeEventListener("wheel", this._onWheel);
+
+    if (this._videoMainMenuLockOnClick && this.renderer?.domElement) {
+      this.renderer.domElement.removeEventListener(
+        "click",
+        this._videoMainMenuLockOnClick,
+      );
+      this._videoMainMenuLockOnClick = null;
+    }
+    if (document.pointerLockElement === this.renderer?.domElement) {
+      document.exitPointerLock?.();
+    }
 
     this.projectiles.forEach((p) => {
       if (!p.disposed) p.dispose(this.scene);

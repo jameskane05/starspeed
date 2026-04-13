@@ -14,6 +14,13 @@
 import { GamepadInput } from "../../game/Gamepad.js";
 import { SCREENS } from "../MenuManager.js";
 
+function isVideoMainMenu() {
+  return (
+    typeof document !== "undefined" &&
+    document.body.classList.contains("video-main-menu")
+  );
+}
+
 function updateGamepadIndicator() {
   const indicator = document.getElementById("gamepad-indicator");
   if (indicator) {
@@ -30,9 +37,26 @@ function updateGamepadIndicator() {
 
 export function renderMainMenu(manager) {
   const matchmakingActive = Boolean(manager.matchmakingMessage);
+  const videoCapture = isVideoMainMenu();
 
   if (manager.startScene && manager.startScene.renderer) {
     manager.startScene.renderer.domElement.style.display = "block";
+  }
+
+  if (videoCapture) {
+    manager.menuContent.innerHTML = `
+    <div class="menu-screen main-menu main-menu-video">
+      <div class="main-menu-video-title">
+        <div class="menu-title">
+          <p class="subtitle"><a href="https://jamesckane.com" target="_blank" rel="noopener noreferrer" class="subtitle-link">JAMES C KANE</a>'S</p>
+          <img class="menu-title-logo" src="/images/ui/Starspeed_WordMark.png" alt="Starspeed game title: metallic silver wordmark with stylized wing on the S and a glowing orange line through the text ending in a starburst." />
+          <p class="subtitle">ZERO-G AERIAL COMBAT</p>
+        </div>
+      </div>
+    </div>
+  `;
+    updateGamepadIndicator();
+    return;
   }
 
   manager.menuContent.innerHTML = `

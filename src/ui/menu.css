@@ -1,10 +1,11 @@
 @import url("https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;500;700;900&display=swap");
 
 @font-face {
-  font-family: "Science";
-  src: url("/fonts/SciencePersonalUseOnly-JpG37.otf") format("opentype");
+  font-family: "Supercharge Halftone";
+  src: url("/fonts/SuperchargeHalftone-6Y0Vq.otf") format("opentype");
   font-weight: normal;
   font-style: normal;
+  font-display: swap;
 }
 
 :root {
@@ -145,6 +146,67 @@
   max-width: 100%;
 }
 
+/* ?videoMainMenu — logo + subtitles only, top-centered at large-desktop scale; clicks pass through */
+body.video-main-menu #menu-content {
+  pointer-events: none;
+}
+body.video-main-menu .menu-screen.main-menu.main-menu-video {
+  align-items: center !important;
+  justify-content: flex-start !important;
+  padding: 2rem;
+  padding-top: 10vh;
+  padding-bottom: 2rem;
+  box-sizing: border-box;
+}
+@media (max-width: 1050px) {
+  body.video-main-menu .menu-screen.main-menu.main-menu-video {
+    padding-top: 1.5rem;
+    padding-bottom: env(safe-area-inset-bottom, 16px);
+  }
+  body.video-main-menu .main-menu-video-title {
+    max-width: min(520px, 90vw);
+  }
+}
+@media (min-width: 1051px) {
+  body.video-main-menu .main-menu-video-title {
+    max-width: min(820px, 58vw);
+  }
+  body.video-main-menu .main-menu-video-title .menu-title {
+    margin-bottom: 2.75rem;
+  }
+}
+body.video-main-menu .main-menu-video-title {
+  width: 100%;
+}
+body.video-main-menu .main-menu-video-title .menu-title {
+  text-align: unset;
+  margin-bottom: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+body.video-main-menu .main-menu-video-title .menu-title-logo {
+  width: 100%;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+body.video-main-menu .main-menu-video-title .subtitle:first-of-type {
+  width: 100%;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  text-align: left;
+}
+body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
+  width: 100%;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  text-align: right;
+}
+
 .main-menu-right {
   display: flex;
   flex-direction: column;
@@ -190,6 +252,14 @@
   text-align: left;
 }
 
+.main-menu .menu-title .subtitle:last-of-type {
+  width: 75%;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: 0;
+  text-align: right;
+}
+
 .main-menu .menu-title h1 {
   font-family: "Orbitron", sans-serif;
   font-size: 5.75rem;
@@ -221,10 +291,11 @@
 }
 
 .main-menu .subtitle {
-  font-family: "Science", "Orbitron", sans-serif;
+  font-family: "Supercharge Halftone", "Orbitron", sans-serif;
   font-style: normal;
   font-weight: bolder;
-  font-size: 0.95rem;
+  text-transform: lowercase;
+  font-size: 1.08rem;
   color: var(--text-secondary);
   letter-spacing: 0.5em;
   margin-top: 0.5rem;
@@ -3280,7 +3351,7 @@
     max-height: 18vh;
   }
   .main-menu .subtitle {
-    font-size: 0.85rem;
+    font-size: 0.98rem;
     margin-top: 0.25rem;
   }
   .main-menu .menu-panel {
@@ -3321,7 +3392,7 @@
     font-size: 2.8rem;
   }
   .main-menu .subtitle {
-    font-size: 0.65rem;
+    font-size: 0.75rem;
     letter-spacing: 0.25em;
     margin-top: 0.2rem;
   }
@@ -3367,7 +3438,7 @@
     font-size: 2.2rem;
   }
   .main-menu .subtitle {
-    font-size: 0.6rem;
+    font-size: 0.7rem;
     margin-top: 0.15rem;
   }
   .main-menu .menu-panel {
@@ -3414,17 +3485,27 @@
     margin-right: auto;
   }
   .main-menu .menu-title .subtitle {
-    font-size: clamp(0.72rem, 3.4vmin, 0.9rem);
+    font-size: clamp(0.82rem, 3.7vmin, 1.02rem);
     letter-spacing: 0.14em;
     margin-right: -0.14em;
   }
   .main-menu .menu-title .subtitle:first-of-type {
     margin-top: 0;
     margin-bottom: 0.1rem;
+    max-width: min(280px, 52vw);
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: left;
   }
   .main-menu .menu-title .subtitle:last-of-type {
     margin-top: 0.1rem;
     margin-bottom: 0;
+    max-width: min(280px, 52vw);
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: right;
   }
   .main-menu .menu-panel {
     padding: 0.28rem 0.4rem;
@@ -3470,14 +3551,15 @@
 /* Tablet / small desktop – single-column layout under 1050px */
 @media (max-width: 1050px) {
   .main-menu .menu-title .menu-title-logo,
-  .main-menu .menu-title .subtitle:first-of-type {
+  .main-menu .menu-title .subtitle:first-of-type,
+  .main-menu .menu-title .subtitle:last-of-type {
     width: 85%;
   }
   .main-menu .menu-title h1 {
     font-size: 3.5rem;
   }
   .main-menu .subtitle {
-    font-size: 0.8rem;
+    font-size: 0.92rem;
     letter-spacing: 0.3em;
   }
   .options-layout {
@@ -3511,19 +3593,20 @@
     font-size: 2.75rem;
   }
   .main-menu .menu-title .menu-title-logo,
-  .main-menu .menu-title .subtitle:first-of-type {
-    width: 95%;
-    margin-left: auto;
-    margin-right: auto;
-  }
+  .main-menu .menu-title .subtitle:first-of-type,
   .main-menu .menu-title .subtitle:last-of-type {
     width: 95%;
     margin-left: auto;
     margin-right: auto;
+  }
+  .main-menu .menu-title .subtitle:first-of-type {
+    text-align: left;
+  }
+  .main-menu .menu-title .subtitle:last-of-type {
     text-align: right;
   }
   .main-menu .subtitle {
-    font-size: 0.9rem;
+    font-size: 1.03rem;
     letter-spacing: 0.25em;
   }
   .main-menu .menu-panel {

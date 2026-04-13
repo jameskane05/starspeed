@@ -32,7 +32,10 @@ import proceduralAudio from "../audio/ProceduralAudio.js";
 import sfxManager from "../audio/sfxManager.js";
 import engineAudio from "../audio/EngineAudio.js";
 import { GAME_STATES, SHIP_CLASSES } from "../data/gameData.js";
-import { updateLeaderboardButtonVisibility } from "./gameInGameUI.js";
+import {
+  setHidePilotChrome,
+  updateLeaderboardButtonVisibility,
+} from "./gameInGameUI.js";
 import {
   getSceneObjectsForState,
   getSceneObject,
@@ -686,6 +689,7 @@ export async function startMultiplayerGame(game) {
       console.warn("[Game] Pointer lock failed - click to capture");
     });
   }
+  setHidePilotChrome(game, false);
   document.getElementById("crosshair").classList.add("active");
   document.getElementById("hud").classList.add("active");
 

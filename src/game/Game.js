@@ -86,6 +86,8 @@ export class Game {
     this._directionalHelperOpacity = 0;
     this._enemyReticleEnemy = null;
     this._spawnWarpPrewarmed = false;
+    /** Alt+H: hide cockpit + HUD for unobstructed view; flight and weapons unchanged. */
+    this.hidePilotChrome = false;
     /** @type {THREE.Vector3 | null} World position (trigger AABB center) for solo respawn after last level-trigger enter. */
     this._lastTriggerRespawnWorldPos = null;
 
@@ -356,6 +358,10 @@ export class Game {
     gameInGameUI.showControlsHelp(this, visible);
   }
 
+  toggleHidePilotChrome() {
+    gameInGameUI.toggleHidePilotChrome(this);
+  }
+
   resumeGame() {
     gameInGameUI.resumeGame(this);
   }
@@ -371,6 +377,7 @@ export class Game {
       document.exitPointerLock();
       document.getElementById("crosshair").classList.remove("active");
       document.getElementById("hud").classList.remove("active");
+      gameInGameUI.setHidePilotChrome(this, false);
       this.gameManager.setState({
         currentState: GAME_STATES.PAUSED,
         isRunning: false,

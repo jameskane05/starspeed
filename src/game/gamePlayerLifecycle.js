@@ -18,6 +18,7 @@
 import * as THREE from "three";
 import NetworkManager from "../network/NetworkManager.js";
 import { applyAuthoredPlayerSpawn } from "../utils/playerSpawnOrientation.js";
+import { refreshCockpitVisibility } from "./gameInGameUI.js";
 
 export function showDamageIndicator(game, hitWorldPos) {
   const camPos = game.camera.position.clone();
@@ -73,10 +74,9 @@ export function showDamageIndicator(game, hitWorldPos) {
 }
 
 export function handleLocalPlayerDeath(game) {
-  if (game.player?.cockpit) game.player.cockpit.visible = false;
-
   const overlay = document.getElementById("respawn-overlay");
   overlay.classList.add("active");
+  refreshCockpitVisibility(game);
 
   let timeLeft = 5;
   const timerEl = document.getElementById("respawn-time");
@@ -93,10 +93,10 @@ export function handleLocalPlayerDeath(game) {
 
 export function startSoloRespawn(game) {
   game._soloRespawning = true;
-  if (game.player?.cockpit) game.player.cockpit.visible = false;
 
   const overlay = document.getElementById("respawn-overlay");
   overlay.classList.add("active");
+  refreshCockpitVisibility(game);
 
   let timeLeft = 3;
   const timerEl = document.getElementById("respawn-time");
@@ -154,13 +154,13 @@ export function finishSoloRespawn(game) {
   game._hudLast.missiles = null;
   game._hudLast.boost = null;
   game._soloRespawning = false;
-  if (game.player?.cockpit) game.player.cockpit.visible = true;
+  refreshCockpitVisibility(game);
 }
 
 export function handleLocalPlayerRespawn(game, data = null) {
   const overlay = document.getElementById("respawn-overlay");
   overlay.classList.remove("active");
-  if (game.player?.cockpit) game.player.cockpit.visible = true;
+  refreshCockpitVisibility(game);
 
   const localPlayer = NetworkManager.getLocalPlayer();
   if (localPlayer && game.player) {

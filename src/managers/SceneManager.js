@@ -269,10 +269,13 @@ class SceneManager {
 
             let dynamicElements = [];
             const dynConfig = combined.dynamicSceneElements;
-            if (dynConfig?.meshNamePrefix) {
+            const pillarPrefix = dynConfig?.meshNamePrefix;
+            const animateDynamicMeshes =
+              pillarPrefix && dynConfig.animate !== false;
+            if (pillarPrefix && animateDynamicMeshes) {
               dynamicElements = this._extractDynamicSceneElementsFromModel(
                 model,
-                dynConfig.meshNamePrefix,
+                pillarPrefix,
               );
             }
 
@@ -357,26 +360,35 @@ class SceneManager {
             );
             if (dynamicElements.length > 0) {
               await this._applyDynamicElementMaterial(dynamicElements, dynConfig);
+            } else if (pillarPrefix && !animateDynamicMeshes) {
+              await this._applyDynamicElementMaterialByPrefix(
+                container,
+                pillarPrefix,
+                dynConfig,
+              );
             }
             if (options.physicsCollider) {
-              const skipPrefixes = [
-                "Cube",
-                "Trigger",
-                ...(dynConfig?.meshNamePrefix ? [dynConfig.meshNamePrefix] : []),
-              ];
+              const skipPrefixes = ["Cube", "Trigger"];
+              if (pillarPrefix && animateDynamicMeshes) {
+                skipPrefixes.push(pillarPrefix);
+              }
+              const colliderRoot =
+                pillarPrefix && !animateDynamicMeshes ? container : geometryRoot;
               const pos = { x: container.position.x, y: container.position.y, z: container.position.z };
               requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
                   container.updateMatrixWorld(true);
                   let bodies = [];
-                  for (const el of dynamicElements) {
-                    el.container = container;
-                    el.mesh.getWorldPosition(el.basePos);
-                    el.mesh.getWorldQuaternion(el.baseQuat);
-                    el.body = this._createDynamicElementKinematicCollider(el, container);
-                    if (el.body) bodies.push(el.body);
+                  if (animateDynamicMeshes) {
+                    for (const el of dynamicElements) {
+                      el.container = container;
+                      el.mesh.getWorldPosition(el.basePos);
+                      el.mesh.getWorldQuaternion(el.baseQuat);
+                      el.body = this._createDynamicElementKinematicCollider(el, container);
+                      if (el.body) bodies.push(el.body);
+                    }
                   }
-                  this._createPhysicsCollider(id, geometryRoot, pos, skipPrefixes, bodies);
+                  this._createPhysicsCollider(id, colliderRoot, pos, skipPrefixes, bodies);
                 });
               });
             }
@@ -633,10 +645,22 @@ class SceneManager {
     geometry.attributes.uv.needsUpdate = true;
   }
 
+  async _applyDynamicElementMaterialByPrefix(root, meshNamePrefix, dynConfig = {}) {
+    if (!root || !meshNamePrefix) return;
+    const elements = [];
+    root.traverse((child) => {
+      if (!child.isMesh || !child.name?.startsWith(meshNamePrefix)) return;
+      elements.push({ mesh: child });
+    });
+    if (elements.length === 0) return;
+    await this._applyDynamicElementMaterial(elements, dynConfig);
+  }
+
   async _applyDynamicElementMaterial(elements, dynConfig = {}) {
     const sharedTex = await loadSharedShipMaterials();
     const matOpts = dynConfig.material || {};
-    let baseColor = matOpts.color ?? 0x1a2028;
+    const { color: colorBeforeTint, ...matRest } = matOpts;
+    let baseColor = colorBeforeTint ?? 0x050507;
     if (dynConfig.ambientTint != null && dynConfig.ambientTintStrength > 0) {
       const base = new THREE.Color(baseColor);
       const tint = new THREE.Color(dynConfig.ambientTint);
@@ -649,12 +673,12 @@ class SceneManager {
       emissive: new THREE.Color(0xffffff),
       emissiveMap: sharedTex.hullLightsEmit ?? null,
       emissiveIntensity: matOpts.emissiveIntensity ?? 2.5,
-      metalness: matOpts.metalness ?? 0.25,
-      roughness: matOpts.roughness ?? 0.6,
+      metalness: matOpts.metalness ?? 0.06,
+      roughness: matOpts.roughness ?? 0.94,
       normalMap: sharedTex.normalMap ?? null,
       normalScale: new THREE.Vector2(1, 1),
       side: THREE.DoubleSide,
-      ...matOpts,
+      ...matRest,
     });
     for (const el of elements) {
       el.mesh.traverse((child) => {
