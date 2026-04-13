@@ -520,9 +520,7 @@ export const charonDialogTracks = {
   charonStarspeedNoArgumentHere: {
     id: "charonStarspeedNoArgumentHere",
     speakerId: "starspeed",
-    audio: dialogPublicUrl(
-      "audio/dialog/charon-15-no-argument-here.audio.mp3",
-    ),
+    audio: dialogPublicUrl("audio/dialog/charon-15-no-argument-here.audio.mp3"),
     faceDataUrl: dialogPublicUrl(
       "audio/dialog/charon-15-no-argument-here.json",
     ),
@@ -619,8 +617,8 @@ export const charonDialogTracks = {
         5.92,
         2.94,
       ),
-      say("You matter not, Star Speed.", 2.46, 9.98),
-      say("You are immaterial", 1.54, 13.7),
+      say("You matter not, Starspeed.", 2.46, 9.98),
+      say("You are immaterial.", 1.54, 13.7),
     ],
     criteria: {
       currentState: GAME_STATES.PLAYING,
@@ -636,12 +634,8 @@ export const charonDialogTracks = {
   charonLeaderStarspeedOut: {
     id: "charonLeaderStarspeedOut",
     speakerId: "leader",
-    audio: dialogPublicUrl(
-      "audio/dialog/charon-20-starspeed-out.audio.mp3",
-    ),
-    faceDataUrl: dialogPublicUrl(
-      "audio/dialog/charon-20-starspeed-out.json",
-    ),
+    audio: dialogPublicUrl("audio/dialog/charon-20-starspeed-out.audio.mp3"),
+    faceDataUrl: dialogPublicUrl("audio/dialog/charon-20-starspeed-out.json"),
     captions: [say("Starspeed, out.", 1.5, 0.2)],
     criteria: {
       currentState: GAME_STATES.PLAYING,
