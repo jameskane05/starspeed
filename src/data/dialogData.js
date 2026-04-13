@@ -24,16 +24,19 @@ export const dialogSpeakers = {
     id: "leader",
     label: "LEADER",
     vrmUrl: "./leader-opt.vrm",
+    cameraOffset: { z: 0.12 },
   },
   starspeed: {
     id: "starspeed",
     label: "STARSPEED",
     vrmUrl: "./starspeed-opt.vrm",
+    cameraOffset: { z: 0.12 },
   },
   mobius: {
     id: "mobius",
     label: "MOBIUS",
     vrmUrl: "./mobius-opt.vrm",
+    cameraOffset: { z: 0.22 },
   },
 };
 

@@ -10,6 +10,7 @@ import { Explosion } from "../entities/Explosion.js";
 import sfxManager from "../audio/sfxManager.js";
 import proceduralAudio from "../audio/ProceduralAudio.js";
 import { notifyCharonReactorCoreDestroyed } from "../missions/charonMission.js";
+import { startCharonReactorEscapeSequence } from "./charonEscapeSequence.js";
 
 const CORE_MESH_NAME = "Core";
 const CHARON_LEVEL_DATA_ID = "charonLevelData";
@@ -475,9 +476,7 @@ function destroyCharonReactorCore(game) {
       game._charonCoreDeathFxHold = null;
     }
     startCharonReactorExplosionFlash(game);
-    import("./charonEscapeSequence.js").then((m) =>
-      m.startCharonReactorEscapeSequence(game),
-    );
+    startCharonReactorEscapeSequence(game);
   };
 }
 

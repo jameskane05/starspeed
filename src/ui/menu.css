@@ -1,62 +1,6 @@
 @import url("https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;500;700;900&display=swap");
 
 @font-face {
-  font-family: "Supercharge Halftone";
-  src: url("/fonts/SuperchargeHalftone-6Y0Vq.otf") format("opentype");
-  font-weight: normal;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: "Sterion";
-  src: url("/fonts/Sterion-BLLld.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: "Supercharge 3D";
-  src: url("/fonts/Supercharge3D-GO79P.otf") format("opentype");
-  font-weight: normal;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: "Supercharge";
-  src: url("/fonts/Supercharge-JRgPo.otf") format("opentype");
-  font-weight: normal;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: "Edge of the Galaxy";
-  src: url("/fonts/EdgeOfTheGalaxyItalic-ZVJB3.otf") format("opentype");
-  font-weight: normal;
-  font-style: italic;
-}
-
-@font-face {
-  font-family: "Ion Cannon Expanded";
-  src: url("/fonts/IonCannonExpandedItalic-E45x8.otf") format("opentype");
-  font-weight: normal;
-  font-style: italic;
-}
-
-@font-face {
-  font-family: "Hacked";
-  src: url("/fonts/Hacked-KerX.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: "Space Crusaders";
-  src: url("/fonts/SpaceCrusadersItalic-ZV1Zx.ttf") format("truetype");
-  font-weight: normal;
-  font-style: italic;
-}
-
-@font-face {
   font-family: "Science";
   src: url("/fonts/SciencePersonalUseOnly-JpG37.otf") format("opentype");
   font-weight: normal;

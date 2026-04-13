@@ -9,7 +9,12 @@ import { Explosion } from "../entities/Explosion.js";
 import sfxManager from "../audio/sfxManager.js";
 import proceduralAudio from "../audio/ProceduralAudio.js";
 import { respawnCharonEscapeEnemies } from "./gameEnemies.js";
-import { applySplatShockwave, clearSplatShockwave } from "./charonReactorCore.js";
+import {
+  applySplatShockwave,
+  bindCharonReactorCoreFromLevelData,
+  CHARON_CORE_MAX_HP,
+  clearSplatShockwave,
+} from "./charonReactorCore.js";
 
 const ESCAPE_DURATION_SEC = 60;
 const EXPLOSION_INTERVAL_MIN = 0.28;
@@ -359,12 +364,10 @@ function failCharonReactorEscape(game) {
     charonReactorCoreDestroyed: false,
   });
 
-  import("./charonReactorCore.js").then((mod) => {
-    mod.bindCharonReactorCoreFromLevelData(game);
-    if (game._charonReactorCore) {
-      game._charonReactorCore.hp = mod.CHARON_CORE_MAX_HP;
-    }
-  });
+  bindCharonReactorCoreFromLevelData(game);
+  if (game._charonReactorCore) {
+    game._charonReactorCore.hp = CHARON_CORE_MAX_HP;
+  }
 }
 
 export function applyCharonEscapeShakeStartFrame(game) {

@@ -694,6 +694,7 @@ export class Player {
             if (!speaker?.vrmUrl) return null;
             const renderer = new VRMAvatarRenderer({
               vrmUrl: speaker.vrmUrl,
+              cameraOffset: speaker.cameraOffset,
             });
             await renderer.loadVRM();
             this.dialogSpeakerRenderers[speakerId] = renderer;

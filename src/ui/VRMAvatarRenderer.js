@@ -10,6 +10,7 @@ import proceduralAudio from "../audio/ProceduralAudio.js";
 const RT_SIZE = 512;
 const FACE_MATRIX_EPS = 1e-8;
 const DIALOG_VOICE_WEBAUDIO_FADE_IN_SEC = 1;
+const DEFAULT_CAMERA_POSITION = new THREE.Vector3(0, 0, 1.2);
 
 let _dialogVoiceFallbackCtx = null;
 /** Prefer SFX context (unlocked with gameplay) — a separate context often stays suspended on iOS Safari. */
@@ -453,8 +454,10 @@ export class VRMAvatarRenderer {
     this.idleUrl = options.idleUrl ?? "./ani_Idle_Action_01.vrma";
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(28, 1, 0.1, 10);
-    this.camera.position.set(0, 0, 1.2);
+    this._cameraOffset = new THREE.Vector3(0, 0, 0);
+    this.camera.position.copy(DEFAULT_CAMERA_POSITION);
     this.camera.lookAt(0, 0, 0);
+    this.setCameraOffset(options.cameraOffset);
     this.renderTarget = new THREE.WebGLRenderTarget(RT_SIZE, RT_SIZE, {
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
@@ -525,6 +528,18 @@ export class VRMAvatarRenderer {
       1,
     );
     this._placeholderTexture.needsUpdate = true;
+  }
+
+  setCameraOffset(cameraOffset) {
+    const x = Number(cameraOffset?.x ?? 0);
+    const y = Number(cameraOffset?.y ?? 0);
+    const z = Number(cameraOffset?.z ?? 0);
+    this._cameraOffset.set(
+      Number.isFinite(x) ? x : 0,
+      Number.isFinite(y) ? y : 0,
+      Number.isFinite(z) ? z : 0,
+    );
+    this.camera.position.copy(DEFAULT_CAMERA_POSITION).add(this._cameraOffset);
   }
 
   getTexture() {

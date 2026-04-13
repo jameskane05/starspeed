@@ -14,7 +14,7 @@
     "build": "cd server && npm install && npm run build",
     "build:client": "vite build",
     "preview": "vite preview",
-    "deploy:gh": "npm run build:client && gh-pages -d dist",
+    "deploy:gh": "node scripts/deploy-gh.mjs",
     "deploy:server": "cd server && npx @colyseus/cloud deploy --env production"
   },
   "devDependencies": {
