@@ -4,12 +4,13 @@ const OVERLAY_ID = "charon-outro-overlay";
 
 const LINE1 =
   "Escaping with seconds remaining, you observe the swarm headed toward Saturn, and pursue.";
-const LINE2 = "Watch out for the next episode of... STARSPEED.";
+const LINE2 = "On the next episode of... STARSPEED.";
 
 const MS_PER_CHAR = 30;
 const PAUSE_BEFORE_LINE2_MS = 500;
 const PAUSE_AFTER_TYPE_MS = 2000;
 const FADE_DURATION_MS = 2000;
+const PANEL_FADE_IN_MS = 1500;
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -37,6 +38,11 @@ export function mountCharonOutroOverlayBlack() {
   el.classList.remove("charon-opening-overlay--fade-out");
   el.style.removeProperty("opacity");
   el.style.pointerEvents = "auto";
+  const panel = el.querySelector(".charon-opening-panel");
+  if (panel) {
+    panel.style.transition = "none";
+    panel.style.opacity = "0";
+  }
   const a = el.querySelector('[data-line="1"]');
   const b = el.querySelector('[data-line="2"]');
   if (a) a.textContent = "";
@@ -69,10 +75,22 @@ export async function runCharonOutroTypewriterAndFade() {
     proceduralAudio.uiTypewriterBeep?.();
   };
 
+  const panel = overlay.querySelector(".charon-opening-panel");
+  if (panel) {
+    void panel.offsetWidth;
+    panel.style.transition = `opacity ${PANEL_FADE_IN_MS}ms ease-out`;
+    panel.style.opacity = "1";
+  }
+
   await typeLine(line1, LINE1, beep);
   await sleep(PAUSE_BEFORE_LINE2_MS);
   await typeLine(line2, LINE2, beep);
   await sleep(PAUSE_AFTER_TYPE_MS);
+
+  if (panel) {
+    panel.style.transition = "";
+    panel.style.opacity = "";
+  }
 
   overlay.style.removeProperty("opacity");
   overlay.classList.remove("charon-opening-overlay--fade-out");

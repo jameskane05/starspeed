@@ -1038,7 +1038,7 @@ body.pilot-chrome-hidden #boost-hud {
 #charon-opening-overlay .charon-opening-panel,
 #charon-outro-overlay .charon-opening-panel {
   /* Fixed width so flex centering does not shift as typewriter grows text */
-  width: min(52rem, 92vw);
+  width: min(44rem, 90vw);
   max-width: 100%;
   flex: 0 0 auto;
   box-sizing: border-box;

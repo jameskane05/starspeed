@@ -19,7 +19,7 @@ export const CHARON_CORE_MAX_HP = 600;
 
 const HEALTH_BAR_WIDTH = 12;
 const HEALTH_BAR_HEIGHT = 0.45;
-const HEALTH_BAR_Y_OFFSET = 8;
+const HEALTH_BAR_Y_OFFSET = 11;
 
 const _hitPos = new THREE.Vector3();
 const _hitNormal = new THREE.Vector3();
@@ -166,7 +166,10 @@ export function bindCharonReactorCoreFromLevelData(game) {
     healthBar: null,
   };
   updateCharonReactorCoreBounds(game);
-  game._charonReactorCore.healthBar = createCoreHealthBar(game.scene, sphere.center);
+  game._charonReactorCore.healthBar = createCoreHealthBar(
+    game.scene,
+    sphere.center,
+  );
 }
 
 export function updateCharonReactorCoreBounds(game) {
@@ -197,7 +200,8 @@ export function initCharonReactorCoreForCharonMission(game) {
     }
   } else {
     bindCharonReactorCoreFromLevelData(game);
-    if (game._charonReactorCore) game._charonReactorCore.hp = CHARON_CORE_MAX_HP;
+    if (game._charonReactorCore)
+      game._charonReactorCore.hp = CHARON_CORE_MAX_HP;
   }
 }
 
@@ -205,7 +209,12 @@ export function initCharonReactorCoreForCharonMission(game) {
  * Distance from p0 toward p1 where the segment enters the (expanded) core sphere, or null.
  * @param {number} inflate - extra radius (e.g. missile collision radius)
  */
-export function getCharonCoreHitDistanceAlongSegment(game, p0, p1, inflate = 0) {
+export function getCharonCoreHitDistanceAlongSegment(
+  game,
+  p0,
+  p1,
+  inflate = 0,
+) {
   if (!charonCoreActive(game)) return null;
   updateCharonReactorCoreBounds(game);
   const { sphere } = game._charonReactorCore;
@@ -296,7 +305,7 @@ const CORE_SHOCKWAVE_DURATION = 1.0;
 const HIT_FLASH_THRESHOLD = 0.75;
 const HIT_FLASH_DURATION = 0.12;
 const HIT_FLASH_INTENSITY = 0.09;
-const CRITICAL_THRESHOLD = 0.30;
+const CRITICAL_THRESHOLD = 0.3;
 const CRITICAL_SUSTAINED_MAX = 0.28;
 const CRITICAL_HIT_FLASH_INTENSITY = 0.15;
 
@@ -342,10 +351,13 @@ export function updateCoreSplatFx(game, delta) {
   }
 
   const isCritical = ratio < CRITICAL_THRESHOLD && ratio > 0;
-  const flashMax = isCritical ? CRITICAL_HIT_FLASH_INTENSITY : HIT_FLASH_INTENSITY;
-  const hitFlash = fx.hitFlashTimer > 0
-    ? flashMax * (fx.hitFlashTimer / HIT_FLASH_DURATION)
-    : 0;
+  const flashMax = isCritical
+    ? CRITICAL_HIT_FLASH_INTENSITY
+    : HIT_FLASH_INTENSITY;
+  const hitFlash =
+    fx.hitFlashTimer > 0
+      ? flashMax * (fx.hitFlashTimer / HIT_FLASH_DURATION)
+      : 0;
 
   let sustained = 0;
   if (isCritical) {
@@ -383,7 +395,8 @@ export function applySplatShockwave(game) {
             }
           `),
         ],
-        statements: ({ inputs, outputs }) => dyno.unindentLines(`
+        statements: ({ inputs, outputs }) =>
+          dyno.unindentLines(`
           ${outputs.gsplat} = ${inputs.gsplat};
           vec3 pos = ${inputs.gsplat}.center;
           vec4 col = ${inputs.gsplat}.rgba;
@@ -422,7 +435,11 @@ export function applySplatShockwave(game) {
           ${outputs.gsplat}.rgba.rgb = mix(${outputs.gsplat}.rgba.rgb, white, whiteBlend);
         `),
       });
-      gsplat = d.apply({ gsplat, t: timeDyno, intensity: intensityDyno }).gsplat;
+      gsplat = d.apply({
+        gsplat,
+        t: timeDyno,
+        intensity: intensityDyno,
+      }).gsplat;
       return { gsplat };
     },
   );
