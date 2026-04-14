@@ -158,7 +158,7 @@ body.video-main-menu .menu-screen.main-menu.main-menu-video {
   padding-bottom: 2rem;
   box-sizing: border-box;
 }
-@media (max-width: 1050px) {
+@media (max-width: 940px) {
   body.video-main-menu .menu-screen.main-menu.main-menu-video {
     padding-top: 1.5rem;
     padding-bottom: env(safe-area-inset-bottom, 16px);
@@ -166,8 +166,21 @@ body.video-main-menu .menu-screen.main-menu.main-menu-video {
   body.video-main-menu .main-menu-video-title {
     max-width: min(520px, 90vw);
   }
+  @media (orientation: portrait) {
+    body.video-main-menu .main-menu-video-title .subtitle {
+      font-size: 0.82rem;
+      letter-spacing: 0.2em;
+      margin-right: -0.2em;
+    }
+    .main-menu .menu-title .subtitle:last-of-type {
+      margin-top: 0.5rem;
+    }
+    body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
+      white-space: nowrap;
+    }
+  }
 }
-@media (min-width: 1051px) {
+@media (min-width: 941px) {
   body.video-main-menu .main-menu-video-title {
     max-width: min(820px, 58vw);
   }
@@ -191,6 +204,7 @@ body.video-main-menu .main-menu-video-title .menu-title-logo {
   max-width: 100%;
   margin-left: auto;
   margin-right: auto;
+  margin-bottom: var(--title-stack-gap);
 }
 body.video-main-menu .main-menu-video-title .subtitle:first-of-type {
   width: 100%;
@@ -229,6 +243,7 @@ body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
 }
 
 .main-menu .menu-title {
+  --title-stack-gap: 4px;
   text-align: right;
   margin-bottom: 2.75rem;
   width: 100%;
@@ -239,7 +254,7 @@ body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
   width: 75%;
   max-width: 100%;
   height: auto;
-  margin: 0 0 0 auto;
+  margin: 0 0 var(--title-stack-gap) auto;
   object-fit: contain;
 }
 
@@ -248,7 +263,7 @@ body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
   max-width: 100%;
   margin-left: auto;
   margin-right: 0;
-  margin-bottom: 4px;
+  margin-bottom: var(--title-stack-gap);
   text-align: left;
 }
 
@@ -296,13 +311,13 @@ body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
   font-weight: bolder;
   text-transform: lowercase;
   font-size: 1.08rem;
-  color: var(--text-secondary);
+  color: #c6cad8;
   letter-spacing: 0.5em;
   margin-top: 0.5rem;
   margin-right: -0.5em; /* Compensate for letter-spacing on last char */
   text-shadow:
-    0 0 10px rgba(0, 240, 255, 0.4),
-    0 0 20px rgba(0, 240, 255, 0.25);
+    0 0 10px rgba(255, 255, 255, 0.45),
+    0 0 22px rgba(255, 255, 255, 0.3);
 }
 
 .main-menu .subtitle .subtitle-link {
@@ -2726,129 +2741,6 @@ body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
   letter-spacing: 0.05em;
 }
 
-.feedback-dashboard-screen {
-  padding: 1.5rem 2rem;
-  max-width: 1200px;
-  width: 100%;
-  margin: 0 auto;
-  overflow-y: auto;
-}
-
-.feedback-dashboard-header {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
-}
-
-.feedback-dashboard-header h2 {
-  margin: 0;
-  font-family: "Orbitron", sans-serif;
-  font-size: 1.25rem;
-  color: var(--accent-cyan);
-  letter-spacing: 0.1em;
-}
-
-.feedback-dashboard-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.feedback-dashboard-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-family: "Rajdhani", sans-serif;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-
-.feedback-dashboard-input {
-  padding: 0.4rem 0.6rem;
-  width: 180px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-  font-family: "Rajdhani", sans-serif;
-  font-size: 0.9rem;
-  box-sizing: border-box;
-}
-
-.feedback-dashboard-select {
-  min-width: 120px;
-  padding: 0.4rem 0.6rem;
-}
-
-.feedback-dashboard-error {
-  font-family: "Rajdhani", sans-serif;
-  color: var(--accent-pink);
-  font-size: 0.9rem;
-  margin-bottom: 1rem;
-}
-
-.feedback-dashboard-table-wrap {
-  overflow-x: auto;
-}
-
-.feedback-dashboard-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-family: "Rajdhani", sans-serif;
-  font-size: 0.85rem;
-}
-
-.feedback-dashboard-table th,
-.feedback-dashboard-table td {
-  text-align: left;
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.feedback-dashboard-table th {
-  color: var(--text-secondary);
-  font-weight: 600;
-}
-
-.feedback-dashboard-table tr:hover {
-  background: var(--bg-hover);
-}
-
-.feedback-dashboard-msg {
-  max-width: 280px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.feedback-dashboard-expand {
-  cursor: pointer;
-  color: var(--accent-cyan);
-}
-
-.feedback-dashboard-expand:hover {
-  text-decoration: underline;
-}
-
-.feedback-dashboard-system-info {
-  font-size: 0.8rem;
-  color: var(--text-dim);
-  padding: 0.5rem;
-  background: var(--bg-dark);
-  border-radius: 4px;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
-.feedback-dashboard-empty {
-  color: var(--text-dim);
-  padding: 2rem;
-  margin: 0;
-  font-family: "Rajdhani", sans-serif;
-}
-
 @media (max-width: 1050px), (max-height: 1050px) {
   .level-select-content {
     padding: 1.5rem 1.5rem;
@@ -3453,12 +3345,12 @@ body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
   }
 }
 
-@media (orientation: landscape) and (max-height: 560px) and (max-width: 1050px) {
+@media (orientation: landscape) and (max-height: 560px) and (max-width: 940px) {
   .main-menu {
     overflow: hidden !important;
   }
   .main-menu.menu-screen {
-    padding: calc(2px + env(safe-area-inset-top, 0px)) 0.6rem
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 0.6rem
       calc(2px + env(safe-area-inset-bottom, 0px)) 0.6rem;
     justify-content: center !important;
     max-height: 100dvh;
@@ -3469,13 +3361,16 @@ body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
       100dvh - env(safe-area-inset-top, 0px) -
         env(safe-area-inset-bottom, 0px) - 8px
     );
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
     justify-content: center;
-    padding: 0 0.35rem;
+    padding: 8px 0.35rem 0;
     box-sizing: border-box;
   }
   .main-menu .menu-title {
-    margin-bottom: 0.25rem;
+    --title-stack-gap: 0.1rem;
+    margin-bottom: 0rem;
+    padding-top: 4px;
   }
   .main-menu .menu-title .menu-title-logo {
     max-height: min(14dvh, 64px);
@@ -3491,7 +3386,9 @@ body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
   }
   .main-menu .menu-title .subtitle:first-of-type {
     margin-top: 0;
-    margin-bottom: 0.1rem;
+    margin-bottom: var(--title-stack-gap);
+    padding-top: 10px;
+    box-sizing: border-box;
     max-width: min(280px, 52vw);
     width: 100%;
     margin-left: auto;
@@ -3499,7 +3396,7 @@ body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
     text-align: left;
   }
   .main-menu .menu-title .subtitle:last-of-type {
-    margin-top: 0.1rem;
+    margin-top: 0.35rem;
     margin-bottom: 0;
     max-width: min(280px, 52vw);
     width: 100%;
@@ -3548,8 +3445,8 @@ body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
   }
 }
 
-/* Tablet / small desktop – single-column layout under 1050px */
-@media (max-width: 1050px) {
+/* Tablet / small desktop – single-column layout under 940px */
+@media (max-width: 940px) {
   .main-menu .menu-title .menu-title-logo,
   .main-menu .menu-title .subtitle:first-of-type,
   .main-menu .menu-title .subtitle:last-of-type {
@@ -3570,7 +3467,7 @@ body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
 }
 
 /* Mobile – single column, full-width buttons, compact panels */
-@media (max-width: 1050px) {
+@media (max-width: 940px) {
   /* Main menu - top-aligned so ship can be framed below */
   .main-menu {
     align-items: center !important;
@@ -3609,6 +3506,16 @@ body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
     font-size: 1.03rem;
     letter-spacing: 0.25em;
   }
+  @media (orientation: portrait) {
+    .main-menu .menu-title .subtitle {
+      font-size: 0.82rem;
+      letter-spacing: 0.2em;
+      margin-right: -0.2em;
+    }
+    .main-menu .menu-title .subtitle:last-of-type {
+      white-space: nowrap;
+    }
+  }
   .main-menu .menu-panel {
     padding: 1.25rem 1rem;
     border-left: none;
@@ -3623,6 +3530,10 @@ body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
   }
   .main-menu .menu-content {
     align-items: center;
+  }
+  .main-menu .menu-buttons > label:first-child,
+  .main-menu .menu-buttons > .name-input-group {
+    display: none;
   }
   .name-input-group {
     width: 100%;
@@ -3839,7 +3750,7 @@ body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
 }
 
 /* Mobile portrait – same compact button sizing as landscape so more room frames the ship */
-@media (max-width: 1050px) and (orientation: portrait) {
+@media (max-width: 940px) and (orientation: portrait) {
   .main-menu .menu-title {
     margin-top: 1rem;
   }
@@ -3951,7 +3862,7 @@ body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
   .main-menu .menu-title {
     text-align: left;
     max-width: 55%;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0rem;
     min-width: 0;
   }
   .main-menu .menu-title .menu-title-logo,
@@ -3964,6 +3875,8 @@ body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
   }
   .main-menu .menu-title .subtitle:first-of-type {
     text-align: left;
+    padding-top: 10px;
+    box-sizing: border-box;
   }
   .main-menu .menu-title .subtitle:last-of-type {
     text-align: right;
@@ -4173,6 +4086,8 @@ body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
   }
   .main-menu .menu-title .subtitle:first-of-type {
     text-align: left;
+    padding-top: 10px;
+    box-sizing: border-box;
   }
   .main-menu .menu-title .subtitle:last-of-type {
     text-align: right;
@@ -4188,9 +4103,6 @@ body.video-main-menu .main-menu-video-title .subtitle:last-of-type {
     flex: 1;
     max-width: none;
     min-width: 0;
-  }
-  .main-menu #btn-campaign {
-    display: none;
   }
   .main-menu .menu-panel {
     padding: 0.75rem 1rem;

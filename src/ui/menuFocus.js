@@ -22,7 +22,7 @@ import proceduralAudio from "../audio/ProceduralAudio.js";
 import NetworkManager from "../network/NetworkManager.js";
 
 const FOCUS_SELECTOR =
-  ".menu-btn, .back-btn, .mode-btn:not(.disabled), .vis-btn, .limit-btn, .players-btn, .join-btn, .refresh-btn, .rebind-btn, .options-btn:not(:disabled), .options-tab, .sidebar-btn, .volume-slider, .ready-checkbox input, #chk-ready, #lobby-level-select, .kick-btn, .mute-btn, .feedback-dashboard-input, .feedback-dashboard-select, .feedback-dashboard-expand";
+  ".menu-btn, .back-btn, .mode-btn:not(.disabled), .vis-btn, .limit-btn, .players-btn, .join-btn, .refresh-btn, .rebind-btn, .options-btn:not(:disabled), .options-tab, .sidebar-btn, .volume-slider, .ready-checkbox input, #chk-ready, #lobby-level-select, .kick-btn, .mute-btn";
 
 export function init(manager) {
   document.addEventListener("keydown", (e) => handleMenuKeydown(manager, e));
@@ -160,7 +160,6 @@ export function handleMenuBack(manager) {
     case SCREENS.CREATE_GAME:
     case SCREENS.JOIN_GAME:
     case SCREENS.OPTIONS:
-    case SCREENS.FEEDBACK_DASHBOARD:
       manager.showScreen(SCREENS.MAIN_MENU);
       break;
     case SCREENS.LOBBY:

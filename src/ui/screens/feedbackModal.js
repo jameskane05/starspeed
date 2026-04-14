@@ -4,16 +4,16 @@
  *
  * ROLE: Modal form for submitting feedback: name, email, ratings (gameplay,
  * performance, graphics, overall), comment. Submits to feedback API; getSystemInfo
- * and getFeedbackApiBase from feedbackDashboard. Used from menu or results.
+ * and getFeedbackApiBase from feedbackApiBase. Used from menu or results.
  *
- * RELATED: feedbackDashboard.js, NetworkManager.js, systemInfo.js.
+ * RELATED: feedbackApiBase.js, NetworkManager.js, systemInfo.js.
  *
  * =============================================================================
  */
 
 import NetworkManager from "../../network/NetworkManager.js";
 import { getSystemInfo } from "../../utils/systemInfo.js";
-import { getFeedbackApiBase } from "./feedbackDashboard.js";
+import { getFeedbackApiBase } from "../feedbackApiBase.js";
 
 const ratingLabels = [
   { id: "gameplay", label: "Gameplay" },

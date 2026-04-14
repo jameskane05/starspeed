@@ -728,7 +728,7 @@ export function removeRemotePlayer(game, sessionId) {
 }
 
 export function onMatchEnd(game) {
-  document.exitPointerLock();
+  document.exitPointerLock?.();
   document.getElementById("crosshair").classList.remove("active");
   document.getElementById("hud").classList.remove("active");
   MenuManager.show();

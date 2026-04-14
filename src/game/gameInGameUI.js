@@ -252,7 +252,7 @@ export function toggleEscMenu(game) {
   } else if (document.getElementById("mission-complete-overlay")) {
     return;
   } else if (document.pointerLockElement) {
-    document.exitPointerLock();
+    document.exitPointerLock?.();
   } else {
     showEscMenu(game);
   }
@@ -262,8 +262,8 @@ export function showEscMenu(game) {
   if (game.isEscMenuOpen) return;
   if (document.getElementById("mission-complete-overlay")) return;
   game.isEscMenuOpen = true;
-  document.exitPointerLock();
-  document.getElementById("crosshair").classList.remove("active");
+  document.exitPointerLock?.();
+  document.getElementById("crosshair")?.classList.remove("active");
 
   if (!game.escMenu) {
     game.escMenu = document.createElement("div");

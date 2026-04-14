@@ -451,7 +451,8 @@ function applyFaceToExpressionManager(vrm, names, values) {
 export class VRMAvatarRenderer {
   constructor(options = {}) {
     this.vrmUrl = options.vrmUrl ?? "./alcair-opt.vrm";
-    this.idleUrl = options.idleUrl ?? "./ani_Idle_Action_01.vrma";
+    /** Optional VRMA idle clip URL; omit or pass null to skip (no network fetch). */
+    this.idleUrl = options.idleUrl ?? null;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(28, 1, 0.1, 10);
     this._cameraOffset = new THREE.Vector3(0, 0, 0);
@@ -600,7 +601,9 @@ export class VRMAvatarRenderer {
           try {
             await this.loadIdleAnimation();
           } catch (e) {
-            console.warn("[VRMAvatarRenderer] Idle animation load failed:", e);
+            if (this.idleUrl) {
+              console.warn("[VRMAvatarRenderer] Idle animation load failed:", e);
+            }
           }
           resolve(this.vrm);
         },
@@ -612,6 +615,10 @@ export class VRMAvatarRenderer {
 
   async loadIdleAnimation() {
     if (!this.vrm) return null;
+    if (!this.idleUrl) {
+      this._idleBodyRestTargets = null;
+      return null;
+    }
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMAnimationLoaderPlugin(parser));
     return new Promise((resolve, reject) => {

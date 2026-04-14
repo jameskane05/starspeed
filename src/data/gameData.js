@@ -58,7 +58,12 @@ export const LEVELS = {
 };
 
 export function multiplayerMapLevels() {
-  return Object.values(LEVELS).filter((l) => l.multiplayerSelectable !== false);
+  const list = Object.values(LEVELS).filter(
+    (l) => l.multiplayerSelectable !== false,
+  );
+  const techArena = list.filter((l) => l.id === "arenatech");
+  const rest = list.filter((l) => l.id !== "arenatech");
+  return [...rest, ...techArena];
 }
 
 export const SHIP_CLASSES = {

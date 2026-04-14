@@ -129,7 +129,7 @@ canvas {
   }
 }
 
-@media (max-width: 1050px), (max-height: 1050px) {
+@media (max-width: 940px), (max-height: 1050px) {
   #hud.active ~ #game-top-buttons {
     display: none;
   }
@@ -152,7 +152,7 @@ canvas {
   display: block;
 }
 
-@media (max-width: 1050px), (max-height: 1050px) {
+@media (max-width: 940px), (max-height: 1050px) {
   #mobile-controls.active ~ #hud {
     flex-direction: column;
     align-items: flex-end;
@@ -160,13 +160,13 @@ canvas {
   }
 }
 
-@media (orientation: portrait) and (max-width: 1050px) {
+@media (orientation: portrait) and (max-width: 940px) {
   #mission-panel {
     top: calc(8px + env(safe-area-inset-top, 0px));
   }
 }
 
-@media (orientation: landscape) and (max-width: 1050px),
+@media (orientation: landscape) and (max-width: 940px),
   (orientation: landscape) and (max-height: 1050px) {
   #mission-panel {
     top: calc(12px + env(safe-area-inset-top, 0px));
@@ -1013,7 +1013,8 @@ body.pilot-chrome-hidden #boost-hud {
   pointer-events: none !important;
 }
 
-#charon-opening-overlay {
+#charon-opening-overlay,
+#charon-outro-overlay {
   position: fixed;
   inset: 0;
   z-index: 3100;
@@ -1028,12 +1029,14 @@ body.pilot-chrome-hidden #boost-hud {
   pointer-events: auto;
 }
 
-#charon-opening-overlay.charon-opening-overlay--fade-out {
+#charon-opening-overlay.charon-opening-overlay--fade-out,
+#charon-outro-overlay.charon-opening-overlay--fade-out {
   opacity: 0;
   pointer-events: none;
 }
 
-#charon-opening-overlay .charon-opening-panel {
+#charon-opening-overlay .charon-opening-panel,
+#charon-outro-overlay .charon-opening-panel {
   /* Fixed width so flex centering does not shift as typewriter grows text */
   width: min(52rem, 92vw);
   max-width: 100%;
@@ -1041,7 +1044,8 @@ body.pilot-chrome-hidden #boost-hud {
   box-sizing: border-box;
 }
 
-#charon-opening-overlay .charon-opening-line {
+#charon-opening-overlay .charon-opening-line,
+#charon-outro-overlay .charon-opening-line {
   width: 100%;
   text-align: left;
   font-family: "Orbitron", sans-serif;
@@ -1057,6 +1061,7 @@ body.pilot-chrome-hidden #boost-hud {
   min-height: 2.35em;
 }
 
-#charon-opening-overlay .charon-opening-line[data-line="2"] {
+#charon-opening-overlay .charon-opening-line[data-line="2"],
+#charon-outro-overlay .charon-opening-line[data-line="2"] {
   margin-bottom: 0;
 }

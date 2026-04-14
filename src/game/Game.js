@@ -297,14 +297,14 @@ export class Game {
   }
 
   onGameOver() {
-    document.exitPointerLock();
+    document.exitPointerLock?.();
     document.getElementById("crosshair").classList.remove("active");
     document.getElementById("hud").classList.remove("active");
     MenuManager.show();
   }
 
   onVictory() {
-    document.exitPointerLock();
+    document.exitPointerLock?.();
     document.getElementById("crosshair").classList.remove("active");
     document.getElementById("hud").classList.remove("active");
   }
@@ -374,7 +374,7 @@ export class Game {
     if (this.player && this.player.health <= 0) {
       this.gameManager.gameOver();
     } else {
-      document.exitPointerLock();
+      document.exitPointerLock?.();
       document.getElementById("crosshair").classList.remove("active");
       document.getElementById("hud").classList.remove("active");
       gameInGameUI.setHidePilotChrome(this, false);

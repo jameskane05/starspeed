@@ -90,20 +90,20 @@ export class DialogManager {
     if (typeof window === "undefined") return false;
     const width = window.visualViewport?.width ?? window.innerWidth;
     const height = window.visualViewport?.height ?? window.innerHeight;
-    return width <= 1050 && height > width;
+    return width <= 940 && height > width;
   }
 
   _isMobileLandscape() {
     if (typeof window === "undefined") return false;
     const width = window.visualViewport?.width ?? window.innerWidth;
     const height = window.visualViewport?.height ?? window.innerHeight;
-    return width <= 1050 && width > height;
+    return width <= 940 && width > height;
   }
 
   _isDesktopViewport() {
     if (typeof window === "undefined") return false;
     const width = window.visualViewport?.width ?? window.innerWidth;
-    return width > 1050;
+    return width > 940;
   }
 
   _getCaptionScaleMultiplier() {
@@ -127,7 +127,12 @@ export class DialogManager {
   _applyCaptionScale() {
     if (!this.captionMesh) return;
     const m = this._getCaptionScaleMultiplier();
-    this.captionMesh.scale.set(this.captionScale * m, this.captionScale * m, 1);
+    const narrowX = this._isMobilePortrait() ? 0.88 : 1;
+    this.captionMesh.scale.set(
+      this.captionScale * m * narrowX,
+      this.captionScale * m,
+      1,
+    );
   }
 
   _bindViewportResize() {

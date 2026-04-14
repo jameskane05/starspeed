@@ -15,6 +15,10 @@ import {
   CHARON_CORE_MAX_HP,
   clearSplatShockwave,
 } from "./charonReactorCore.js";
+import {
+  mountCharonOutroOverlayBlack,
+  runCharonOutroTypewriterAndFade,
+} from "./charonOutroSequence.js";
 
 const ESCAPE_DURATION_SEC = 60;
 const EXPLOSION_INTERVAL_MIN = 0.28;
@@ -355,7 +359,15 @@ function completeCharonReactorEscape(game) {
     charonEscapeActive: false,
     charonEscapeSucceeded: true,
   });
-  game.missionManager?.reportEvent?.("charonEscapeComplete", {});
+  mountCharonOutroOverlayBlack();
+  void (async () => {
+    try {
+      await runCharonOutroTypewriterAndFade();
+    } catch (e) {
+      console.warn("[Charon] Outro sequence failed:", e);
+    }
+    game.missionManager?.reportEvent?.("charonEscapeComplete", {});
+  })();
 }
 
 function failCharonReactorEscape(game) {

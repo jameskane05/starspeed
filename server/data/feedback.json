@@ -123,5 +123,30 @@
       "gpuVendor": "Google Inc. (NVIDIA)",
       "vram": "unknown"
     }
+  },
+  {
+    "id": "8ce22866-ef6f-4add-b538-bb6ee282486d",
+    "createdAt": "2026-04-14T14:22:12.840Z",
+    "type": "feedback",
+    "name": "James Kane",
+    "email": "jameskane05@gmail.com",
+    "message": "test",
+    "ratings": {
+      "gameplay": 4,
+      "performance": 3,
+      "graphics": 4,
+      "overall": 4
+    },
+    "systemInfo": {
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+      "platform": "Windows",
+      "language": "en-US",
+      "screenWidth": 1920,
+      "screenHeight": 1080,
+      "deviceMemory": 8,
+      "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4090 (0x00002684) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "gpuVendor": "Google Inc. (NVIDIA)",
+      "vram": "unknown"
+    }
   }
 ]

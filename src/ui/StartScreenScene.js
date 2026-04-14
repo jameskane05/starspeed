@@ -73,6 +73,14 @@ function isVideoMainMenu() {
   );
 }
 
+/** Touch-first devices: ignore absolute pointer position for menu orbit (taps emit mousemove at tap coords). */
+function isTouchPrimaryPointer() {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(pointer: coarse)").matches
+  );
+}
+
 /** Parallel X shift on camera + look target; recenters framing (ship stays at shipBaseX). */
 const VIDEO_MAIN_MENU_CAMERA_X_OFFSET = -5;
 /** Parallel +Y on camera + look target: rig moves up in world, ship reads slightly lower in frame. */
@@ -137,7 +145,7 @@ export class StartScreenScene {
     this.cameraBasePos = new THREE.Vector3(-12, 2.5, 6);
     this.cameraLookTarget = new THREE.Vector3(-6, -0.3, 0);
     this.cameraDriftZ = 0;
-    this._portraitBasePos = new THREE.Vector3(-18, 1.5, 14);
+    this._portraitBasePos = new THREE.Vector3(-18, -5, 14);
     this._portraitLookTarget = new THREE.Vector3(-8, 4, 0);
     this._desktopBasePos = new THREE.Vector3(-12, 3, 6);
     this._desktopLookTarget = new THREE.Vector3(-6, 0.6, 0);
@@ -271,7 +279,7 @@ export class StartScreenScene {
     const initW = vp ? Math.round(vp.width) : window.innerWidth;
     const initH = vp ? Math.round(vp.height) : window.innerHeight;
     const initLandscape = initW > initH;
-    const initDesktop = initW > 1050 && initH > 1050;
+    const initDesktop = initW > 940 && initH > 940;
     this.cameraBasePos.copy(
       initLandscape && initDesktop
         ? this._desktopBasePos
@@ -899,7 +907,7 @@ export class StartScreenScene {
     const w = window.visualViewport?.width ?? window.innerWidth;
     const h = window.visualViewport?.height ?? window.innerHeight;
     const isLandscape = w > h;
-    const isDesktop = w > 1050 && h > 1050;
+    const isDesktop = w > 940 && h > 940;
 
     const useDesktop = isLandscape && isDesktop;
     const useLandscapeMobile = isLandscape && !isDesktop;
@@ -980,6 +988,11 @@ export class StartScreenScene {
         -1,
         1,
       );
+      return;
+    }
+    if (isTouchPrimaryPointer()) {
+      this.mouseX = 0;
+      this.mouseY = 0;
       return;
     }
     this.mouseX = (e.clientX / window.innerWidth) * 2 - 1;

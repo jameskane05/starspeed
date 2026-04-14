@@ -38,12 +38,11 @@ function createCoreHealthBar(scene, center) {
     color: 0x111111,
     transparent: true,
     opacity: 0.6,
-    depthTest: false,
+    depthTest: true,
     depthWrite: false,
     side: THREE.DoubleSide,
   });
   const bg = new THREE.Mesh(bgGeo, bgMat);
-  bg.renderOrder = 9998;
   group.add(bg);
 
   const fillGeo = new THREE.PlaneGeometry(HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT);
@@ -51,12 +50,11 @@ function createCoreHealthBar(scene, center) {
     color: 0xff3300,
     transparent: true,
     opacity: 0.9,
-    depthTest: false,
+    depthTest: true,
     depthWrite: false,
     side: THREE.DoubleSide,
   });
   const fill = new THREE.Mesh(fillGeo, fillMat);
-  fill.renderOrder = 9999;
   fill.position.z = 0.01;
   group.add(fill);
 
@@ -65,11 +63,10 @@ function createCoreHealthBar(scene, center) {
     color: 0xff5500,
     transparent: true,
     opacity: 0.8,
-    depthTest: false,
+    depthTest: true,
     depthWrite: false,
   });
   const border = new THREE.LineSegments(borderGeo, borderMat);
-  border.renderOrder = 10000;
   group.add(border);
 
   scene.add(group);

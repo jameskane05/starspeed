@@ -30,6 +30,8 @@ import path from "path";
 
 import { MyRoom } from "./rooms/MyRoom.js";
 import { GameRoom } from "./rooms/GameRoom.js";
+import { feedbackDashboardKeyAllowsRead } from "./feedbackDashboardAuth.js";
+import { registerFeedbackReviewRoutes } from "./feedbackReviewRoutes.js";
 
 const FEEDBACK_FILE = path.join(process.cwd(), "data", "feedback.json");
 
@@ -104,6 +106,7 @@ const server = defineServer({
      */
     express: (app) => {
         app.use(express.json());
+        app.use(express.urlencoded({ extended: false }));
         app.use((req, res, next) => {
             const origin = req.headers.origin;
             if (origin && ALLOWED_ORIGINS.has(origin)) {
@@ -144,14 +147,22 @@ const server = defineServer({
         });
 
         app.get("/api/feedback", (req, res) => {
-            const key = process.env.FEEDBACK_DASHBOARD_KEY;
-            if (key && req.query.key !== key) {
+            const rawKey = req.query.key;
+            const key =
+                typeof rawKey === "string"
+                    ? rawKey
+                    : Array.isArray(rawKey) && typeof rawKey[0] === "string"
+                      ? rawKey[0]
+                      : undefined;
+            if (!feedbackDashboardKeyAllowsRead(key)) {
                 res.status(401).json({ error: "Unauthorized" });
                 return;
             }
             const list = readFeedback();
             res.json(list);
         });
+
+        registerFeedbackReviewRoutes(app, readFeedback);
 
         /**
          * Use @colyseus/monitor

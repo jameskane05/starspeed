@@ -48,7 +48,7 @@ export function renderMainMenu(manager) {
     <div class="menu-screen main-menu main-menu-video">
       <div class="main-menu-video-title">
         <div class="menu-title">
-          <p class="subtitle"><a href="https://jamesckane.com" target="_blank" rel="noopener noreferrer" class="subtitle-link">JAMES C KANE</a>'S</p>
+          <p class="subtitle"><a href="https://jamesckane.com" target="_blank" rel="noopener noreferrer" class="subtitle-link">JAMES C. KANE</a>'S</p>
           <img class="menu-title-logo" src="/images/ui/Starspeed_WordMark.png" alt="Starspeed game title: metallic silver wordmark with stylized wing on the S and a glowing orange line through the text ending in a starburst." />
           <p class="subtitle">ZERO-G AERIAL COMBAT</p>
         </div>
@@ -63,7 +63,7 @@ export function renderMainMenu(manager) {
     <div class="menu-screen main-menu">
       <div class="main-menu-right">
         <div class="menu-title">
-          <p class="subtitle"><a href="https://jamesckane.com" target="_blank" rel="noopener noreferrer" class="subtitle-link">JAMES C KANE</a>'S</p>
+          <p class="subtitle"><a href="https://jamesckane.com" target="_blank" rel="noopener noreferrer" class="subtitle-link">JAMES C. KANE</a>'S</p>
           <img class="menu-title-logo" src="/images/ui/Starspeed_WordMark.png" alt="Starspeed game title: metallic silver wordmark with stylized wing on the S and a glowing orange line through the text ending in a starburst." />
           <p class="subtitle">ZERO-G AERIAL COMBAT</p>
         </div>

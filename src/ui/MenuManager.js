@@ -3,7 +3,7 @@
  * =============================================================================
  *
  * ROLE: Owns menu DOM container and screen flow. Renders screens (main menu,
- * create/join game, lobby, loading, playing, results, options, feedback).
+ * create/join game, lobby, loading, playing, results, options).
  * Handles showScreen(), gamepad/keyboard focus, keybind/volume UI, network events.
  *
  * KEY RESPONSIBILITIES:
@@ -28,7 +28,6 @@ export const SCREENS = {
   PLAYING: "playing",
   RESULTS: "results",
   OPTIONS: "options",
-  FEEDBACK_DASHBOARD: "feedbackDashboard",
 };
 
 import NetworkManager from "../network/NetworkManager.js";
@@ -61,8 +60,8 @@ import * as lobbyScreen from "./screens/lobby.js";
 import * as loadingScreen from "./screens/loading.js";
 import * as playingScreen from "./screens/playing.js";
 import * as resultsScreen from "./screens/results.js";
-import * as feedbackDashboardScreen from "./screens/feedbackDashboard.js";
 import * as feedbackModalScreen from "./screens/feedbackModal.js";
+import { getFeedbackApiBase as resolveFeedbackApiBase } from "./feedbackApiBase.js";
 
 function preloadImage(src) {
   return new Promise((resolve, reject) => {
@@ -282,8 +281,7 @@ class MenuManager {
       this.currentScreen === SCREENS.CREATE_GAME ||
       this.currentScreen === SCREENS.JOIN_GAME ||
       this.currentScreen === SCREENS.LOADING ||
-      this.currentScreen === SCREENS.OPTIONS ||
-      this.currentScreen === SCREENS.FEEDBACK_DASHBOARD;
+      this.currentScreen === SCREENS.OPTIONS;
 
     this.startScene.setLoadingBackgroundOnly(
       this.backgroundOnlyLoading ||
@@ -451,9 +449,6 @@ class MenuManager {
       case SCREENS.OPTIONS:
         this.renderOptions();
         break;
-      case SCREENS.FEEDBACK_DASHBOARD:
-        this.renderFeedbackDashboard();
-        break;
     }
   }
 
@@ -510,11 +505,7 @@ class MenuManager {
   }
 
   getFeedbackApiBase() {
-    return feedbackDashboardScreen.getFeedbackApiBase();
-  }
-
-  renderFeedbackDashboard() {
-    feedbackDashboardScreen.renderFeedbackDashboard(this);
+    return resolveFeedbackApiBase();
   }
 
   renderOptions(returnScreen = null) {
