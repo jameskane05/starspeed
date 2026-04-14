@@ -20,6 +20,7 @@ export const charonMission = {
     const game = manager.game;
     game.enemyRespawnQueue.length = 0;
     game.gameManager.setState({
+      charonIntroTextDone: false,
       selectedMissileMode: "homing",
       playerLaserEnabled: true,
       playerMissilesEnabled: true,

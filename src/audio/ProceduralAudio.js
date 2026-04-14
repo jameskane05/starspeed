@@ -245,6 +245,28 @@ class ProceduralAudio {
     osc.stop(now + 0.05);
   }
 
+  /** Short soft tick for typewriter / terminal text. */
+  uiTypewriterBeep() {
+    if (!this.ctx) return;
+    this.resume();
+
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(1010, now);
+
+    gain.gain.setValueAtTime(0.038, now);
+    gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.028);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+
+    osc.start(now);
+    osc.stop(now + 0.035);
+  }
+
   /**
    * Navigation beep (moving through menu)
    */

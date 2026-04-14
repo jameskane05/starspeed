@@ -232,7 +232,22 @@ export async function startSoloDebug(game) {
         : Promise.resolve();
     await Promise.all([waitForFirstViewReady(game), checkpointPoolPrewarm]);
     MenuManager.enterPlayingMode();
+    const debugSpawn = Boolean(
+      game.gameManager?.getState?.()?.debugSpawnActive,
+    );
+    let charonIntroMod = null;
+    if (missionId === "charon" && !debugSpawn) {
+      charonIntroMod = await import("./charonIntroSequence.js");
+      charonIntroMod.mountCharonOpeningOverlayBlack();
+    }
     hideFirstViewLoading();
+    if (missionId === "charon") {
+      if (debugSpawn) {
+        game.gameManager.setState({ charonIntroTextDone: true });
+      } else {
+        await charonIntroMod.runCharonIntroTypewriterAndFade(game);
+      }
+    }
   })();
 }
 

@@ -160,6 +160,9 @@ export const initialState = {
   /** Charon: player reached first-room volume before timer expired. */
   charonEscapeSucceeded: false,
 
+  /** Charon: opening typewriter on black finished — unlocks `charonIntroEntering` autoplay. */
+  charonIntroTextDone: false,
+
   debugSpawnActive: false,
 
   // Performance
