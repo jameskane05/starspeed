@@ -40,6 +40,9 @@ function rejectMissingStaticPlugin() {
 
 export default defineConfig({
   base: '/',
+  build: {
+    target: 'esnext',
+  },
   plugins: [
     rejectMissingStaticPlugin(),
     wasm(),
