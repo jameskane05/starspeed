@@ -1,14 +1,17 @@
 {
   "folders": [
-	{
-		"path": "."
-	},
-	{
-		"path": "../shadow"
-	},
-	{
-		"path": "../Descent"
-	}
-],
-  "settings": {}
+    {
+      "path": ".",
+    },
+    {
+      "path": "../shadow",
+    },
+    {
+      "path": "../Descent",
+    },
+    {
+      "path": "../../Desktop/star",
+    },
+  ],
+  "settings": {},
 }
